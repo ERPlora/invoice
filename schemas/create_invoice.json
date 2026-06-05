@@ -1,0 +1,12 @@
+{ "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "invoice.create_invoice payload", "type": "object", "additionalProperties": true,
+  "required": ["items"],
+  "properties": {
+    "items": { "type": "array", "items": { "type": "object", "required": ["description","quantity","unit_price"],
+      "properties": { "description":{"type":"string"}, "quantity":{"type":"number"},
+        "unit_price":{"type":"number"}, "tax_rate":{"type":"number"}, "product_id":{"type":["string","null"]} } } },
+    "series_code": {"type":"string"}, "invoice_type": {"type":"string"},
+    "issuer_nif": {"type":"string"}, "issuer_name": {"type":"string"},
+    "customer_tax_id": {"type":"string"}, "customer_name": {"type":"string"},
+    "customer_address": {"type":"string"}, "description": {"type":"string"},
+    "source_type": {"type":"string"}, "source_id": {"type":["string","null"]}, "notes": {"type":"string"} } }
