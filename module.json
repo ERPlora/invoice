@@ -4,78 +4,271 @@
   "version": "1.0.6",
   "agent": {
     "description": "Manages invoicing: create invoices from sales, issue rectifying invoices, mark invoices as paid, and manage invoice series.",
-    "keywords": ["invoice", "billing", "receipt", "payment", "rectify", "series", "tax"]
+    "keywords": [
+      "invoice",
+      "billing",
+      "receipt",
+      "payment",
+      "rectify",
+      "series",
+      "tax"
+    ]
   },
   "depends_on": [],
   "permissions": [
-    "invoice.view_invoice", "invoice.add_invoice", "invoice.rectify_invoice",
-    "invoice.manage_series", "invoice.manage_settings"
+    "invoice.view_invoice",
+    "invoice.add_invoice",
+    "invoice.rectify_invoice",
+    "invoice.manage_series",
+    "invoice.manage_settings"
   ],
   "role_permissions": {
-    "admin": ["*"],
-    "manager": ["invoice.view_invoice","invoice.add_invoice","invoice.rectify_invoice","invoice.manage_series"],
-    "employee": ["invoice.view_invoice","invoice.add_invoice"]
+    "admin": [
+      "*"
+    ],
+    "manager": [
+      "invoice.view_invoice",
+      "invoice.add_invoice",
+      "invoice.rectify_invoice",
+      "invoice.manage_series"
+    ],
+    "employee": [
+      "invoice.view_invoice",
+      "invoice.add_invoice"
+    ]
   },
   "navigation": [
-    { "id": "invoice", "label": "Invoices", "icon": "file-text", "component": "erp-invoice-list" }
+    {
+      "id": "invoice",
+      "label": "Invoices",
+      "icon": "file-text",
+      "component": "erp-invoice-list"
+    }
   ],
-  "migrations": { "sqlite": ["migrations/sqlite/001_init.sql"] },
+  "migrations": {
+    "sqlite": [
+      "migrations/sqlite/001_init.sql"
+    ]
+  },
   "queries": {
     "invoice.list": {
       "permission": "invoice.view_invoice",
       "sql": "queries/list.sql",
-      "ai": { "description": "Lists issued invoices with their main details." }
+      "list": {
+        "search": [
+          "number",
+          "customer_name",
+          "customer_tax_id"
+        ],
+        "sort": [
+          "id",
+          "invoice_type",
+          "series",
+          "number",
+          "issue_date",
+          "customer_name",
+          "customer_tax_id",
+          "base_amount",
+          "tax_amount",
+          "total_amount",
+          "status",
+          "source_type"
+        ],
+        "default_sort": "id",
+        "default_dir": "asc",
+        "filters": {
+          "invoice_type": {
+            "op": "eq"
+          },
+          "series": {
+            "op": "eq"
+          },
+          "number": {
+            "op": "eq"
+          },
+          "issue_date": {
+            "op": "range"
+          },
+          "customer_name": {
+            "op": "eq"
+          },
+          "customer_tax_id": {
+            "op": "range"
+          },
+          "base_amount": {
+            "op": "range"
+          },
+          "tax_amount": {
+            "op": "range"
+          },
+          "total_amount": {
+            "op": "range"
+          },
+          "status": {
+            "op": "eq"
+          },
+          "source_type": {
+            "op": "eq"
+          }
+        },
+        "page_size": 50
+      },
+      "ai": {
+        "description": "Lists issued invoices with their main details."
+      }
     },
     "invoice.get": {
       "permission": "invoice.view_invoice",
       "sql": "queries/get.sql",
-      "ai": { "description": "Retrieves the full detail of an invoice by its identifier." }
+      "ai": {
+        "description": "Retrieves the full detail of an invoice by its identifier."
+      }
     },
     "invoice.lines": {
       "permission": "invoice.view_invoice",
       "sql": "queries/lines.sql",
-      "ai": { "description": "Lists the line items (products/services) of an invoice." }
+      "ai": {
+        "description": "Lists the line items (products/services) of an invoice."
+      }
     },
     "invoice.series.list": {
       "permission": "invoice.view_invoice",
       "sql": "queries/series_list.sql",
-      "ai": { "description": "Lists the available invoice series." }
+      "list": {
+        "search": [
+          "code",
+          "name",
+          "current_number"
+        ],
+        "sort": [
+          "id",
+          "code",
+          "name",
+          "invoice_type",
+          "year",
+          "current_number",
+          "prefix",
+          "is_active",
+          "is_default"
+        ],
+        "default_sort": "name",
+        "default_dir": "asc",
+        "filters": {
+          "code": {
+            "op": "eq"
+          },
+          "name": {
+            "op": "eq"
+          },
+          "invoice_type": {
+            "op": "eq"
+          },
+          "year": {
+            "op": "eq"
+          },
+          "current_number": {
+            "op": "eq"
+          },
+          "prefix": {
+            "op": "eq"
+          },
+          "is_active": {
+            "op": "eq"
+          },
+          "is_default": {
+            "op": "eq"
+          }
+        },
+        "page_size": 50
+      },
+      "ai": {
+        "description": "Lists the available invoice series."
+      }
     }
   },
   "commands": {
     "invoice.create": {
       "permission": "invoice.add_invoice",
-      "handler": { "type": "wasm", "file": "dist/handler.wasm", "function": "create_invoice" },
+      "handler": {
+        "type": "wasm",
+        "file": "dist/handler.wasm",
+        "function": "create_invoice"
+      },
       "schema": "schemas/create_invoice.json",
-      "ai": { "description": "Creates a new invoice with its detail lines." }
+      "ai": {
+        "description": "Creates a new invoice with its detail lines."
+      }
     },
     "invoice.create_from_sale": {
       "permission": "invoice.add_invoice",
-      "handler": { "type": "wasm", "file": "dist/handler.wasm", "function": "create_from_sale" },
-      "ai": { "description": "Automatically generates an invoice from a completed sale." }
+      "handler": {
+        "type": "wasm",
+        "file": "dist/handler.wasm",
+        "function": "create_from_sale"
+      },
+      "ai": {
+        "description": "Automatically generates an invoice from a completed sale."
+      }
     },
     "invoice.rectify": {
       "permission": "invoice.rectify_invoice",
       "transaction": true,
-      "sql": ["commands/rectify_ensure.sql","commands/rectify_bump.sql","commands/rectify_insert.sql","commands/rectify_cancel.sql"],
-      "emit": ["invoice.rectified"],
-      "ai": { "description": "Issues a rectifying invoice that cancels or corrects an existing invoice." }
+      "sql": [
+        "commands/rectify_ensure.sql",
+        "commands/rectify_bump.sql",
+        "commands/rectify_insert.sql",
+        "commands/rectify_cancel.sql"
+      ],
+      "emit": [
+        "invoice.rectified"
+      ],
+      "ai": {
+        "description": "Issues a rectifying invoice that cancels or corrects an existing invoice."
+      }
     },
     "invoice.mark_paid": {
       "permission": "invoice.add_invoice",
       "transaction": true,
-      "sql": ["commands/mark_paid.sql"],
-      "ai": { "description": "Marks an invoice as paid, recording the date and payment method." }
+      "sql": [
+        "commands/mark_paid.sql"
+      ],
+      "ai": {
+        "description": "Marks an invoice as paid, recording the date and payment method."
+      }
     },
-    "invoice._ensure_series":  { "permission": "invoice.add_invoice", "sql": ["commands/_ensure_series.sql"] },
-    "invoice._bump_series":    { "permission": "invoice.add_invoice", "sql": ["commands/_bump_series.sql"] },
-    "invoice._insert_invoice": { "permission": "invoice.add_invoice", "sql": ["commands/_insert_invoice.sql"] },
-    "invoice._insert_line":    { "permission": "invoice.add_invoice", "sql": ["commands/_insert_line.sql"] }
+    "invoice._ensure_series": {
+      "permission": "invoice.add_invoice",
+      "sql": [
+        "commands/_ensure_series.sql"
+      ]
+    },
+    "invoice._bump_series": {
+      "permission": "invoice.add_invoice",
+      "sql": [
+        "commands/_bump_series.sql"
+      ]
+    },
+    "invoice._insert_invoice": {
+      "permission": "invoice.add_invoice",
+      "sql": [
+        "commands/_insert_invoice.sql"
+      ]
+    },
+    "invoice._insert_line": {
+      "permission": "invoice.add_invoice",
+      "sql": [
+        "commands/_insert_line.sql"
+      ]
+    }
   },
   "events": {
     "listen": {
-      "sale.completed": { "command": "invoice.create_from_sale" }
+      "sale.completed": {
+        "command": "invoice.create_from_sale"
+      }
     }
   },
-  "ui": { "entry": "dist/invoice.esm.js" }
+  "ui": {
+    "entry": "dist/invoice.esm.js"
+  }
 }
