@@ -1,0 +1,11 @@
+{ "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "invoice.series.create payload", "type": "object", "additionalProperties": false,
+  "required": ["code", "invoice_type", "year"],
+  "properties": {
+    "code": {"type": "string", "minLength": 1},
+    "name": {"type": "string"},
+    "invoice_type": {"type": "string", "enum": ["F1", "F2", "F3", "R1", "R2", "R3", "R4", "R5"]},
+    "year": {"type": "integer", "minimum": 2000, "maximum": 2999},
+    "prefix": {"type": "string"},
+    "is_active": {"type": ["boolean", "integer"]},
+    "is_default": {"type": ["boolean", "integer"]} } }

@@ -236,6 +236,30 @@
         "description": "Marks an invoice as paid, recording the date and payment method."
       }
     },
+    "invoice.series.create": {
+      "permission": "invoice.manage_series",
+      "transaction": true,
+      "sql": [
+        "commands/series_create_clear_default.sql",
+        "commands/series_create.sql"
+      ],
+      "schema": "schemas/series_create.json",
+      "ai": {
+        "description": "Creates a new invoice numbering series (code, name, invoice type, year, prefix). Marking it as default demotes the previous default series of the same year."
+      }
+    },
+    "invoice.series.update": {
+      "permission": "invoice.manage_series",
+      "transaction": true,
+      "sql": [
+        "commands/series_update_clear_default.sql",
+        "commands/series_update.sql"
+      ],
+      "schema": "schemas/series_update.json",
+      "ai": {
+        "description": "Updates the mutable fields of an invoice series (name, prefix, is_active, is_default). Code, year and the counter are immutable for fiscal integrity."
+      }
+    },
     "invoice._ensure_series": {
       "permission": "invoice.add_invoice",
       "sql": [
