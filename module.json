@@ -233,7 +233,7 @@
         "commands/mark_paid.sql"
       ],
       "ai": {
-        "description": "Marks an invoice as paid, recording the date and payment method."
+        "description": "Marks an issued invoice as paid, recording the payment date. Amounts are immutable and no payment method is stored."
       }
     },
     "invoice.series.create": {
