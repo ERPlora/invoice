@@ -38,9 +38,9 @@ CREATE TABLE IF NOT EXISTS invoice_invoice (
     customer_name        TEXT NOT NULL DEFAULT '',
     customer_address     TEXT NOT NULL DEFAULT '',
     description          TEXT NOT NULL DEFAULT '',
-    base_amount          NUMERIC NOT NULL DEFAULT 0,
-    tax_amount           NUMERIC NOT NULL DEFAULT 0,
-    total_amount         NUMERIC NOT NULL DEFAULT 0,
+    base_amount          INTEGER NOT NULL DEFAULT 0,  -- céntimos (ADR-0007)
+    tax_amount           INTEGER NOT NULL DEFAULT 0,  -- céntimos
+    total_amount         INTEGER NOT NULL DEFAULT 0,  -- céntimos
     tax_breakdown        TEXT NOT NULL DEFAULT '{}',
     currency             TEXT NOT NULL DEFAULT 'EUR',
     source_type          TEXT NOT NULL DEFAULT 'manual',  -- sale|pos|order|manual
@@ -63,12 +63,12 @@ CREATE TABLE IF NOT EXISTS invoice_invoiceitem (
     invoice_id   TEXT NOT NULL,
     line_number  INTEGER NOT NULL DEFAULT 1,
     description  TEXT NOT NULL DEFAULT '',
-    quantity     NUMERIC NOT NULL DEFAULT 1,
-    unit_price   NUMERIC NOT NULL DEFAULT 0,
-    tax_rate     NUMERIC NOT NULL DEFAULT 21,
-    base_amount  NUMERIC NOT NULL DEFAULT 0,
-    tax_amount   NUMERIC NOT NULL DEFAULT 0,
-    total_amount NUMERIC NOT NULL DEFAULT 0,
+    quantity     REAL NOT NULL DEFAULT 1,        -- cantidad fraccionable
+    unit_price   INTEGER NOT NULL DEFAULT 0,     -- céntimos
+    tax_rate     REAL NOT NULL DEFAULT 21,        -- tasa % (no es dinero)
+    base_amount  INTEGER NOT NULL DEFAULT 0,     -- céntimos
+    tax_amount   INTEGER NOT NULL DEFAULT 0,     -- céntimos
+    total_amount INTEGER NOT NULL DEFAULT 0,     -- céntimos
     product_id   TEXT,
     created_at   TEXT,
     FOREIGN KEY (invoice_id) REFERENCES invoice_invoice (id) ON DELETE CASCADE

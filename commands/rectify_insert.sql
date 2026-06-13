@@ -12,10 +12,10 @@ INSERT INTO invoice_invoice (
 )
 SELECT
     :new_id, hub_id, 'R1', 'RECT',
-    'RECT-' || :year || '-' || printf('%06d', (
+    'RECT-' || :year || '-' || erp_pad((
         SELECT current_number FROM invoice_invoiceseries
         WHERE hub_id = :hub_id AND code = 'RECT' AND year = :year
-    )),
+    ), 6),
     :issue_date,
     issuer_nif, issuer_name, customer_tax_id, customer_name, customer_address, :reason,
     -base_amount, -tax_amount, -total_amount, '{}', currency,

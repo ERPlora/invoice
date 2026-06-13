@@ -33,16 +33,29 @@ pub fn create_from_sale(input: Json<erplora_guest_sdk::Input>) -> FnResult<Json<
     Ok(Json(create_from_sale_pure(input.into_inner().into_value())))
 }
 
-fn round2(x: f64) -> f64 {
-    let scaled = x * 100.0;
-    let floor = scaled.floor();
-    let diff = scaled - floor;
+/// Redondea céntimos fraccionarios a céntimos enteros half-even (ADR-0007). `x` está
+/// ya en el espacio de céntimos.
+fn round_cents(x: f64) -> i64 {
+    let floor = x.floor();
+    let diff = x - floor;
     let r = if (diff - 0.5).abs() < 1e-9 {
         if (floor as i64) % 2 == 0 { floor } else { floor + 1.0 }
     } else {
-        scaled.round()
+        x.round()
     };
-    r / 100.0
+    r as i64
+}
+/// Lee un importe de dinero **en céntimos** (`i64`): entero JSON, string de entero, o
+/// (robustez) decimal interpretado como céntimos ya escalados. El contrato es céntimos.
+fn cents(v: &Value, d: i64) -> i64 {
+    match v {
+        Value::Number(num) => num.as_i64().or_else(|| num.as_f64().map(round_cents)).unwrap_or(d),
+        Value::String(st) => {
+            let st = st.trim();
+            st.parse::<i64>().ok().or_else(|| st.parse::<f64>().ok().map(round_cents)).unwrap_or(d)
+        }
+        _ => d,
+    }
 }
 fn f(v: &Value, d: f64) -> f64 {
     match v {
@@ -62,7 +75,6 @@ fn sor(p: &Value, k: &str, d: &str) -> String {
     let x = s(p.get(k).unwrap_or(&Value::Null));
     if x.is_empty() { d.to_string() } else { x }
 }
-fn n(x: f64) -> Value { json!(round2(x)) }
 
 /// Defaults de serie por code (fiel a on_install: TICKET=F2, FACT=F1, RECT=R1).
 fn series_defaults(code: &str) -> (&'static str, &'static str) {
@@ -93,9 +105,9 @@ fn build_invoice(
     let (def_type, def_name) = series_defaults(series_code);
     let inv_type = invoice_type_override.unwrap_or(def_type).to_string();
 
-    let mut base_total = 0.0;
-    let mut tax_total = 0.0;
-    let mut breakdown: Vec<(String, f64, f64)> = Vec::new();
+    let mut base_total: i64 = 0; // céntimos
+    let mut tax_total: i64 = 0;  // céntimos
+    let mut breakdown: Vec<(String, i64, i64)> = Vec::new(); // (rate, base_cents, tax_cents)
     let mut ops: Vec<Operation> = Vec::new();
 
     // 1) asegurar la serie (idempotente) y 2) incrementar su contador.
@@ -118,12 +130,12 @@ fn build_invoice(
 
     // 3) líneas (ids new_ids[2..]).
     for (i, item) in items.iter().enumerate() {
-        let qty = item.get("quantity").map(|v| f(v, 1.0)).unwrap_or(1.0);
-        let unit_price = f(item.get("unit_price").unwrap_or(&Value::Null), 0.0);
-        let rate = item.get("tax_rate").map(|v| f(v, 0.0)).unwrap_or(0.0);
-        let base = round2(qty * unit_price);
-        let tax = round2(base * rate / 100.0);
-        let total = round2(base + tax);
+        let qty = item.get("quantity").map(|v| f(v, 1.0)).unwrap_or(1.0); // cantidad fraccionable
+        let unit_price = cents(item.get("unit_price").unwrap_or(&Value::Null), 0); // céntimos
+        let rate = item.get("tax_rate").map(|v| f(v, 0.0)).unwrap_or(0.0); // tasa %
+        let base = round_cents(qty * unit_price as f64);     // céntimos
+        let tax = round_cents(base as f64 * rate / 100.0);   // céntimos
+        let total = base + tax;
         base_total += base;
         tax_total += tax;
 
@@ -141,18 +153,19 @@ fn build_invoice(
         p.insert("line_number".into(), json!(i as i64 + 1));
         p.insert("description".into(), json!(s(item.get("description").unwrap_or(&Value::Null))));
         p.insert("quantity".into(), json!(qty));
-        p.insert("unit_price".into(), n(unit_price));
-        p.insert("tax_rate".into(), n(rate));
-        p.insert("base_amount".into(), n(base));
-        p.insert("tax_amount".into(), n(tax));
-        p.insert("total_amount".into(), n(total));
+        p.insert("unit_price".into(), json!(unit_price)); // céntimos
+        p.insert("tax_rate".into(), json!(rate));         // tasa % (REAL)
+        p.insert("base_amount".into(), json!(base));      // céntimos
+        p.insert("tax_amount".into(), json!(tax));        // céntimos
+        p.insert("total_amount".into(), json!(total));    // céntimos
         p.insert("product_id".into(), item.get("product_id").cloned().unwrap_or(Value::Null));
         ops.push(Operation::sql("invoice._insert_line", p));
     }
 
     let mut tb = Map::new();
     for (k, b, t) in &breakdown {
-        tb.insert(k.clone(), json!({ "base": round2(*b), "tax": round2(*t) }));
+        // base/tax del desglose en céntimos (INTEGER) — contrato inter-módulo.
+        tb.insert(k.clone(), json!({ "base": *b, "tax": *t }));
     }
 
     let mut h = Map::new();
@@ -168,9 +181,9 @@ fn build_invoice(
     h.insert("customer_name".into(), json!(sor(header, "customer_name", "")));
     h.insert("customer_address".into(), json!(sor(header, "customer_address", "")));
     h.insert("description".into(), json!(sor(header, "description", "")));
-    h.insert("base_amount".into(), n(base_total));
-    h.insert("tax_amount".into(), n(tax_total));
-    h.insert("total_amount".into(), n(base_total + tax_total));
+    h.insert("base_amount".into(), json!(base_total));            // céntimos
+    h.insert("tax_amount".into(), json!(tax_total));              // céntimos
+    h.insert("total_amount".into(), json!(base_total + tax_total)); // céntimos
     h.insert("tax_breakdown".into(), json!(Value::Object(tb).to_string()));
     h.insert("source_type".into(), json!(sor(header, "source_type", "manual")));
     h.insert("source_id".into(), header.get("source_id").cloned().unwrap_or(Value::Null));
@@ -179,7 +192,7 @@ fn build_invoice(
 
     let event = Event::new("invoice.created", json!({
         "sender": "invoice", "invoice_id": invoice_id,
-        "invoice_type": inv_type, "total": round2(base_total + tax_total),
+        "invoice_type": inv_type, "total": base_total + tax_total, // céntimos (contrato inter-módulo)
     }));
     Output { operations: ops, events: vec![event] }
 }
@@ -237,8 +250,8 @@ mod tests {
         let payload = json!({
             "series_code": "FACT", "issuer_nif": "B1", "customer_name": "ACME",
             "items": [
-                { "description": "Servicio", "quantity": 1, "unit_price": 100.0, "tax_rate": 21.0 },
-                { "description": "Otro", "quantity": 2, "unit_price": 50.0, "tax_rate": 10.0 }
+                { "description": "Servicio", "quantity": 1, "unit_price": 10000, "tax_rate": 21.0 },
+                { "description": "Otro", "quantity": 2, "unit_price": 5000, "tax_rate": 10.0 }
             ]
         });
         let out = create_invoice_pure(inp(payload, 8));
@@ -249,9 +262,10 @@ mod tests {
         assert_eq!(out.operations[2].command, "invoice._insert_invoice");
         let inv = &out.operations[2].params;
         assert_eq!(inv["invoice_type"], json!("F1"));
-        assert_eq!(inv["base_amount"], json!(200.0));     // 100 + 100
-        assert_eq!(inv["tax_amount"], json!(31.0));        // 21 + 10
-        assert_eq!(inv["total_amount"], json!(231.0));
+        // Céntimos: 100€ + 100€ base = 20000; IVA 21€ + 10€ = 3100; total 23100.
+        assert_eq!(inv["base_amount"], json!(20000));
+        assert_eq!(inv["tax_amount"], json!(3100));
+        assert_eq!(inv["total_amount"], json!(23100));
         assert_eq!(out.operations[3].params["invoice_id"], json!("id-0"));
         assert_eq!(out.events[0].name, "invoice.created");
     }
@@ -261,7 +275,7 @@ mod tests {
         let payload = json!({
             "sale_id": "sale1", "customer_name": "Bar Manolo",
             "items": [
-                { "product_name": "Café", "quantity": 2, "unit_price": 1.0, "tax_rate": 21.0, "product_id": "p1" }
+                { "product_name": "Café", "quantity": 2, "unit_price": 100, "tax_rate": 21.0, "product_id": "p1" }
             ]
         });
         let out = create_from_sale_pure(inp(payload, 6));
@@ -270,10 +284,10 @@ mod tests {
         assert_eq!(inv["series"], json!("TICKET"));
         assert_eq!(inv["source_type"], json!("sale"));
         assert_eq!(inv["source_id"], json!("sale1"));
-        // línea: base 2*1=2, tax 21% = 0.42.
+        // línea (céntimos): base 2*100=200, tax 21% = 42.
         let line = &out.operations[3].params;
         assert_eq!(line["description"], json!("Café"));
-        assert_eq!(line["base_amount"], json!(2.0));
-        assert_eq!(line["tax_amount"], json!(0.42));
+        assert_eq!(line["base_amount"], json!(200));
+        assert_eq!(line["tax_amount"], json!(42));
     }
 }
