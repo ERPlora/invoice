@@ -41,7 +41,7 @@
     {
       "id": "invoice",
       "label": "Invoices",
-      "icon": "file-text",
+      "icon": "document-text-outline",
       "component": "erp-invoice-list"
     }
   ],
