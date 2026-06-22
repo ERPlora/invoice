@@ -50,6 +50,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_invoice_series_number ON invoice_invoice (h
 CREATE INDEX IF NOT EXISTS ix_invoice_hub_issue_date ON invoice_invoice (hub_id, issue_date);
 CREATE INDEX IF NOT EXISTS ix_invoice_hub_source     ON invoice_invoice (hub_id, source_type, source_id);
 CREATE INDEX IF NOT EXISTS ix_invoice_hub_status     ON invoice_invoice (hub_id, status);
+-- D2: 1 factura por venta. UNIQUE parcial sobre (hub_id, source_type, source_id) solo
+-- cuando hay origen real (source_id NOT NULL): bloquea facturas duplicadas si el bus
+-- reentrega sale.completed. Las facturas manuales (source_id NULL) quedan exentas.
+-- Índice parcial portable SQLite+Postgres (CREATE UNIQUE INDEX ... WHERE).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_invoice_source ON invoice_invoice (hub_id, source_type, source_id) WHERE source_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS invoice_invoiceitem (
     id           TEXT PRIMARY KEY,

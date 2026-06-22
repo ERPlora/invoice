@@ -120,9 +120,16 @@ fn build_invoice(
     ens.insert("prefix".into(), json!(series_code));
     ops.push(Operation::sql("invoice._ensure_series", ens));
 
+    // source_type/source_id viajan al bump y al insert para la idempotencia D2:
+    // si ya existe una factura para este origen real, NO se consume número (bump no-op)
+    // y el insert tampoco inserta (1 factura por venta, sin huecos de numeración).
+    let src_type = sor(header, "source_type", "manual");
+    let src_id = header.get("source_id").cloned().unwrap_or(Value::Null);
     let mut bump = Map::new();
     bump.insert("code".into(), json!(series_code));
     bump.insert("year".into(), json!(year.parse::<i64>().unwrap_or(2026)));
+    bump.insert("source_type".into(), json!(src_type));
+    bump.insert("source_id".into(), src_id.clone());
     ops.push(Operation::sql("invoice._bump_series", bump));
 
     let header_idx = ops.len();
@@ -133,8 +140,19 @@ fn build_invoice(
         let qty = item.get("quantity").map(|v| f(v, 1.0)).unwrap_or(1.0); // cantidad fraccionable
         let unit_price = cents(item.get("unit_price").unwrap_or(&Value::Null), 0); // céntimos
         let rate = item.get("tax_rate").map(|v| f(v, 0.0)).unwrap_or(0.0); // tasa %
-        let base = round_cents(qty * unit_price as f64);     // céntimos
-        let tax = round_cents(base as f64 * rate / 100.0);   // céntimos
+        // Base/IVA por línea (céntimos). Si el origen ya extrajo la base y el IVA
+        // (p.ej. `sale.completed` con precios IVA-INCLUIDO: net_amount/tax_amount ya
+        // calculados por sales.calc_line), se RESPETAN — NO se vuelve a sumar IVA
+        // sobre el bruto (bug D1). Solo cuando NO vienen (factura manual,
+        // precios IVA-EXCLUIDO) se calcula base = qty*unit_price y tax = base*rate.
+        let (base, tax) = match (item.get("base_amount"), item.get("tax_amount")) {
+            (Some(b), Some(t)) => (cents(b, 0), cents(t, 0)),
+            _ => {
+                let base = round_cents(qty * unit_price as f64);   // céntimos
+                let tax = round_cents(base as f64 * rate / 100.0); // céntimos
+                (base, tax)
+            }
+        };
         let total = base + tax;
         base_total += base;
         tax_total += tax;
@@ -222,13 +240,24 @@ pub fn create_from_sale_pure(input: Value) -> Output {
     let empty: Vec<Value> = Vec::new();
     let raw = payload.get("items").and_then(|v| v.as_array()).unwrap_or(&empty);
     // map líneas de venta → líneas de factura (description ← product_name).
-    let items: Vec<Value> = raw.iter().map(|it| json!({
-        "description": s(it.get("product_name").unwrap_or(&Value::Null)),
-        "quantity": it.get("quantity").cloned().unwrap_or(json!(1)),
-        "unit_price": it.get("unit_price").cloned().unwrap_or(json!(0)),
-        "tax_rate": it.get("tax_rate").cloned().unwrap_or(json!(0)),
-        "product_id": it.get("product_id").cloned().unwrap_or(Value::Null),
-    })).collect();
+    // sale.completed con precios IVA-INCLUIDO (D1): la venta YA extrajo base imponible
+    // (net_amount) e IVA (tax_amount) por línea — se pasan a build_invoice como
+    // base_amount/tax_amount para que NO se vuelva a sumar IVA sobre el bruto. El
+    // unit_price sigue siendo el bruto/unitario (display). Compat: si un evento viejo
+    // no trae net/tax, se omiten y build_invoice cae al cálculo IVA-excluido.
+    let items: Vec<Value> = raw.iter().map(|it| {
+        let mut m = Map::new();
+        m.insert("description".into(), json!(s(it.get("product_name").unwrap_or(&Value::Null))));
+        m.insert("quantity".into(), it.get("quantity").cloned().unwrap_or(json!(1)));
+        m.insert("unit_price".into(), it.get("unit_price").cloned().unwrap_or(json!(0)));
+        m.insert("tax_rate".into(), it.get("tax_rate").cloned().unwrap_or(json!(0)));
+        m.insert("product_id".into(), it.get("product_id").cloned().unwrap_or(Value::Null));
+        if let (Some(net), Some(tax)) = (it.get("net_amount"), it.get("tax_amount")) {
+            m.insert("base_amount".into(), net.clone());
+            m.insert("tax_amount".into(), tax.clone());
+        }
+        Value::Object(m)
+    }).collect();
     let mut header = Map::new();
     header.insert("customer_name".into(), payload.get("customer_name").cloned().unwrap_or(json!("")));
     header.insert("source_type".into(), json!("sale"));
@@ -284,10 +313,33 @@ mod tests {
         assert_eq!(inv["series"], json!("TICKET"));
         assert_eq!(inv["source_type"], json!("sale"));
         assert_eq!(inv["source_id"], json!("sale1"));
+        // Sin net/tax pre-calculados (compat): cae al cálculo IVA-EXCLUIDO.
         // línea (céntimos): base 2*100=200, tax 21% = 42.
         let line = &out.operations[3].params;
         assert_eq!(line["description"], json!("Café"));
         assert_eq!(line["base_amount"], json!(200));
         assert_eq!(line["tax_amount"], json!(42));
+    }
+
+    #[test]
+    fn from_sale_respects_tax_included_net_tax() {
+        // D1: sale.completed (IVA-INCLUIDO) ya extrajo net/tax. unit_price es el BRUTO
+        // (121 céntimos = 1.21€). invoice NO debe re-sumar IVA: usa net=100, tax=21.
+        let payload = json!({
+            "sale_id": "sale2", "customer_name": "Bar Manolo",
+            "items": [
+                { "product_name": "Café", "quantity": 1, "unit_price": 121, "tax_rate": 21.0,
+                  "net_amount": 100, "tax_amount": 21, "product_id": "p1" }
+            ]
+        });
+        let out = create_from_sale_pure(inp(payload, 6));
+        let line = &out.operations[3].params;
+        assert_eq!(line["base_amount"], json!(100)); // base extraída, NO 121
+        assert_eq!(line["tax_amount"], json!(21));   // IVA NO re-sumado sobre bruto
+        assert_eq!(line["total_amount"], json!(121));
+        let inv = &out.operations[2].params;
+        assert_eq!(inv["base_amount"], json!(100));
+        assert_eq!(inv["tax_amount"], json!(21));
+        assert_eq!(inv["total_amount"], json!(121)); // = bruto cobrado, sin inflar
     }
 }
