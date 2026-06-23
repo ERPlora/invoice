@@ -1,0 +1,8 @@
+{
+  "name": "Facturación",
+  "navigation": {
+    "invoice": {
+      "label": "Facturas"
+    }
+  }
+}

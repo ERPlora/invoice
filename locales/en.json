@@ -1,0 +1,8 @@
+{
+  "name": "Invoicing",
+  "navigation": {
+    "invoice": {
+      "label": "Invoices"
+    }
+  }
+}
