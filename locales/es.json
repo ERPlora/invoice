@@ -55,6 +55,7 @@
     "totalTotal": "Total",
     "rectifyTitle": "Rectificar {number}",
     "rectifyNote": "Se emitirá una rectificativa R1 (serie RECT) con los importes negados y la factura original quedará cancelada. Esta operación no se puede deshacer.",
+    "lblReason": "Motivo",
     "rectifyReasonPlaceholder": "Motivo de la rectificación",
     "rectifying": "Rectificando…",
     "issueRectifying": "Emitir rectificativa",

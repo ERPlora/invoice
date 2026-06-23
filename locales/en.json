@@ -55,6 +55,7 @@
     "totalTotal": "Total",
     "rectifyTitle": "Rectify {number}",
     "rectifyNote": "An R1 corrective invoice (RECT series) with negated amounts will be issued and the original invoice will be cancelled. This operation cannot be undone.",
+    "lblReason": "Reason",
     "rectifyReasonPlaceholder": "Reason for the correction",
     "rectifying": "Rectifying…",
     "issueRectifying": "Issue corrective",

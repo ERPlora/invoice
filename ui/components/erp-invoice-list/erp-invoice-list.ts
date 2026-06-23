@@ -99,12 +99,12 @@ export class ErpInvoiceList extends LitElement {
     table.lines th, table.lines td { padding:.35rem .5rem; border-bottom:1px solid var(--line,#e7e2d6); text-align:left; }
     table.lines th:nth-child(n+3), table.lines td:nth-child(n+3) { text-align:right; }
     .totals { display:flex; gap:1.5rem; justify-content:flex-end; margin-top:.6rem; font-weight:600; }
-    .form { display:flex; gap:.5rem; flex-wrap:wrap; align-items:end; margin:.5rem 0; }
-    .form ion-input, .form ion-select, .form ion-textarea { --background:var(--surface-2,#f7f4ec); border:1px solid var(--line,#e7e2d6); border-radius:8px; min-width:8rem; }
-    .item-row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin:.25rem 0; }
-    .item-row ion-input { --background:var(--surface-2,#f7f4ec); border:1px solid var(--line,#e7e2d6); border-radius:8px; }
-    .item-row .desc { flex:2; min-width:10rem; }
-    .item-row .num { width:6.5rem; flex:none; }
+    .form { display:flex; gap:.75rem; flex-wrap:wrap; align-items:end; margin:.5rem 0 1.25rem; }
+    .form ion-input, .form ion-select, .form ion-textarea { flex:1 1 11rem; min-width:9rem; }
+    .form ion-textarea { flex:2 1 20rem; min-width:16rem; }
+    .item-row { display:flex; gap:.75rem; flex-wrap:wrap; align-items:end; margin:.5rem 0; }
+    .item-row .desc { flex:2 1 20rem; min-width:16rem; }
+    .item-row .num { flex:1 1 6.5rem; min-width:6.5rem; }
     .row-actions { display:flex; gap:.5rem; margin-top:.6rem; }
   `;
 
@@ -360,7 +360,7 @@ export class ErpInvoiceList extends LitElement {
       <h3>${erploraT('ui.rectifyTitle', { number: t.number })}</h3>
       <p>${erploraT('ui.rectifyNote')}</p>
       <div class="form">
-        <ion-textarea placeholder=${erploraT('ui.rectifyReasonPlaceholder')} auto-grow .value=${this.rectifyReason} @ionInput=${(e: any) => (this.rectifyReason = e.target.value)}></ion-textarea>
+        <ion-textarea fill="outline" label-placement="floating" label=${erploraT('ui.lblReason')} placeholder=${erploraT('ui.rectifyReasonPlaceholder')} auto-grow .value=${this.rectifyReason} @ionInput=${(e: any) => (this.rectifyReason = e.target.value)}></ion-textarea>
       </div>
       <div class="row-actions">
         <ion-button size="small" color="danger" ?disabled=${this.busy || !this.rectifyReason.trim()} @click=${() => this.confirmRectify()}>${this.busy ? erploraT('ui.rectifying') : erploraT('ui.issueRectifying')}</ion-button>
@@ -419,21 +419,21 @@ export class ErpInvoiceList extends LitElement {
       <h3>${erploraT('ui.createTitle')}</h3>
       <form @submit=${(e: Event) => this.create(e)}>
         <div class="form">
-          <ion-select label=${erploraT('ui.fieldSeries')} interface="popover" .value=${this.newSeriesCode} @ionChange=${(e: any) => (this.newSeriesCode = e.target.value)}>
+          <ion-select fill="outline" label-placement="floating" label=${erploraT('ui.fieldSeries')} interface="popover" .value=${this.newSeriesCode} @ionChange=${(e: any) => (this.newSeriesCode = e.target.value)}>
             ${this.seriesOptions.length
               ? this.seriesOptions.map((sr) => html`<ion-select-option .value=${sr.code}>${sr.code} — ${sr.name || typeLabel(sr.invoice_type)}</ion-select-option>`)
               : html`<ion-select-option value="FACT">FACT — ${typeLabel('F1')} (F1)</ion-select-option><ion-select-option value="TICKET">TICKET — ${typeLabel('F2')} (F2)</ion-select-option>`}
           </ion-select>
-          <ion-input placeholder=${erploraT('ui.fieldCustomer')} .value=${this.newCustomerName} @ionInput=${(e: any) => (this.newCustomerName = e.target.value)}></ion-input>
-          <ion-input placeholder=${erploraT('ui.placeholderTaxId')} .value=${this.newCustomerTaxId} @ionInput=${(e: any) => (this.newCustomerTaxId = e.target.value)}></ion-input>
-          <ion-input placeholder=${erploraT('ui.fieldAddress')} .value=${this.newCustomerAddress} @ionInput=${(e: any) => (this.newCustomerAddress = e.target.value)}></ion-input>
-          <ion-input placeholder=${erploraT('ui.fieldNotes')} .value=${this.newNotes} @ionInput=${(e: any) => (this.newNotes = e.target.value)}></ion-input>
+          <ion-input fill="outline" label-placement="floating" label=${erploraT('ui.fieldCustomer')} .value=${this.newCustomerName} @ionInput=${(e: any) => (this.newCustomerName = e.target.value)}></ion-input>
+          <ion-input fill="outline" label-placement="floating" label=${erploraT('ui.fieldCustomerTaxId')} placeholder=${erploraT('ui.placeholderTaxId')} .value=${this.newCustomerTaxId} @ionInput=${(e: any) => (this.newCustomerTaxId = e.target.value)}></ion-input>
+          <ion-input fill="outline" label-placement="floating" label=${erploraT('ui.fieldAddress')} .value=${this.newCustomerAddress} @ionInput=${(e: any) => (this.newCustomerAddress = e.target.value)}></ion-input>
+          <ion-input fill="outline" label-placement="floating" label=${erploraT('ui.fieldNotes')} .value=${this.newNotes} @ionInput=${(e: any) => (this.newNotes = e.target.value)}></ion-input>
         </div>
         ${this.newItems.map((it, i) => html`<div class="item-row">
-          <ion-input class="desc" placeholder=${erploraT('ui.lineDescription')} .value=${it.description} @ionInput=${(e: any) => this.setItem(i, 'description', e.target.value)}></ion-input>
-          <ion-input class="num" type="number" placeholder=${erploraT('ui.lineQty')} .value=${it.quantity} @ionInput=${(e: any) => this.setItem(i, 'quantity', e.target.value)}></ion-input>
-          <ion-input class="num" type="number" placeholder=${erploraT('ui.linePrice')} .value=${it.unit_price} @ionInput=${(e: any) => this.setItem(i, 'unit_price', e.target.value)}></ion-input>
-          <ion-input class="num" type="number" placeholder=${erploraT('ui.lineTaxPct')} .value=${it.tax_rate} @ionInput=${(e: any) => this.setItem(i, 'tax_rate', e.target.value)}></ion-input>
+          <ion-input class="desc" fill="outline" label-placement="floating" label=${erploraT('ui.lineDescription')} .value=${it.description} @ionInput=${(e: any) => this.setItem(i, 'description', e.target.value)}></ion-input>
+          <ion-input class="num" fill="outline" label-placement="floating" label=${erploraT('ui.lineQty')} type="number" .value=${it.quantity} @ionInput=${(e: any) => this.setItem(i, 'quantity', e.target.value)}></ion-input>
+          <ion-input class="num" fill="outline" label-placement="floating" label=${erploraT('ui.linePrice')} type="number" .value=${it.unit_price} @ionInput=${(e: any) => this.setItem(i, 'unit_price', e.target.value)}></ion-input>
+          <ion-input class="num" fill="outline" label-placement="floating" label=${erploraT('ui.lineTaxPct')} type="number" .value=${it.tax_rate} @ionInput=${(e: any) => this.setItem(i, 'tax_rate', e.target.value)}></ion-input>
           ${this.newItems.length > 1 ? html`<ion-button size="small" fill="clear" color="danger" @click=${() => (this.newItems = this.newItems.filter((_, j) => j !== i))}>✕</ion-button>` : nothing}
         </div>`)}
         <div class="row-actions">

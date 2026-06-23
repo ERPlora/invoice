@@ -9,7 +9,7 @@ var __decorateClass = (decorators, target, key, kind) => {
   return result;
 };
 
-// node_modules/@lit-labs/ssr-dom-shim/lib/element-internals.js
+// node_modules/.pnpm/@lit-labs+ssr-dom-shim@1.6.0/node_modules/@lit-labs/ssr-dom-shim/lib/element-internals.js
 var ElementInternalsShim = class ElementInternals {
   get shadowRoot() {
     return this.__host.__shadowRoot;
@@ -88,7 +88,7 @@ var ElementInternalsShim = class ElementInternals {
   }
 };
 
-// node_modules/@lit-labs/ssr-dom-shim/lib/events.js
+// node_modules/.pnpm/@lit-labs+ssr-dom-shim@1.6.0/node_modules/@lit-labs/ssr-dom-shim/lib/events.js
 var __classPrivateFieldSet = function(receiver, state, value, kind, f3) {
   if (kind === "m") throw new TypeError("Private method is not writable");
   if (kind === "a" && !f3) throw new TypeError("Private accessor was defined without a setter");
@@ -246,7 +246,7 @@ Object.defineProperties(CustomEventShim.prototype, {
 var EventShimWithRealType = EventShim;
 var CustomEventShimWithRealType = CustomEventShim;
 
-// node_modules/@lit-labs/ssr-dom-shim/lib/css.js
+// node_modules/.pnpm/@lit-labs+ssr-dom-shim@1.6.0/node_modules/@lit-labs/ssr-dom-shim/lib/css.js
 var _a2;
 var CSSRuleShim = (_a2 = class CSSRule {
   constructor() {
@@ -277,7 +277,7 @@ var CSSRuleShim = (_a2 = class CSSRule {
   }
 }, _a2.STYLE_RULE = 1, _a2.CHARSET_RULE = 2, _a2.IMPORT_RULE = 3, _a2.MEDIA_RULE = 4, _a2.FONT_FACE_RULE = 5, _a2.PAGE_RULE = 6, _a2.NAMESPACE_RULE = 10, _a2.KEYFRAMES_RULE = 7, _a2.KEYFRAME_RULE = 8, _a2.SUPPORTS_RULE = 12, _a2.COUNTER_STYLE_RULE = 11, _a2.FONT_FEATURE_VALUES_RULE = 14, _a2.MARGIN_RULE = 9, _a2);
 
-// node_modules/@lit-labs/ssr-dom-shim/index.js
+// node_modules/.pnpm/@lit-labs+ssr-dom-shim@1.6.0/node_modules/@lit-labs/ssr-dom-shim/index.js
 globalThis.Event ??= EventShimWithRealType;
 globalThis.CustomEvent ??= CustomEventShimWithRealType;
 var constructionToken = Symbol();
@@ -674,7 +674,7 @@ var CustomElementRegistryShimWithRealType = CustomElementRegistry;
 var customElements2 = new CustomElementRegistryShimWithRealType();
 var windowShim = new WindowShim(constructionToken);
 
-// node_modules/@lit/reactive-element/node/css-tag.js
+// node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/node/css-tag.js
 var t = globalThis;
 var e = t.ShadowRoot && (void 0 === t.ShadyCSS || t.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype;
 var s = Symbol();
@@ -719,7 +719,7 @@ var c = e || void 0 === t.CSSStyleSheet ? (t5) => t5 : (t5) => t5 instanceof CSS
   return r(e5);
 })(t5) : t5;
 
-// node_modules/@lit/reactive-element/node/reactive-element.js
+// node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/node/reactive-element.js
 var { is: h, defineProperty: r2, getOwnPropertyDescriptor: o2, getOwnPropertyNames: n2, getOwnPropertySymbols: a, getPrototypeOf: c2 } = Object;
 var l = globalThis;
 l.customElements ??= customElements2;
@@ -942,7 +942,7 @@ var g = class extends (globalThis.HTMLElement ?? HTMLElementShimWithRealType) {
 };
 g.elementStyles = [], g.shadowRootOptions = { mode: "open" }, g[f("elementProperties")] = /* @__PURE__ */ new Map(), g[f("finalized")] = /* @__PURE__ */ new Map(), u?.({ ReactiveElement: g }), (l.reactiveElementVersions ??= []).push("2.1.2");
 
-// node_modules/lit-html/lit-html.js
+// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/lit-html.js
 var t2 = globalThis;
 var i2 = (t5) => t5;
 var s2 = t2.trustedTypes;
@@ -1197,7 +1197,7 @@ var D = (t5, i7, s5) => {
   return h4._$AI(t5), h4;
 };
 
-// node_modules/lit-element/lit-element.js
+// node_modules/.pnpm/lit-element@4.2.2/node_modules/lit-element/lit-element.js
 var s3 = globalThis;
 var i3 = class extends g {
   constructor() {
@@ -1226,7 +1226,7 @@ var o4 = s3.litElementPolyfillSupport;
 o4?.({ LitElement: i3 });
 (s3.litElementVersions ??= []).push("4.2.2");
 
-// node_modules/@lit/reactive-element/node/decorators/property.js
+// node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/node/decorators/property.js
 var o5 = { attribute: true, type: String, converter: b, reflect: false, hasChanged: m };
 var r4 = (t5 = o5, e5, r6) => {
   const { kind: n6, metadata: i7 } = r6;
@@ -1256,19 +1256,19 @@ function n4(t5) {
   })(t5, e5, o7);
 }
 
-// node_modules/@lit/reactive-element/node/decorators/state.js
+// node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/node/decorators/state.js
 function r5(r6) {
   return n4({ ...r6, state: true, attribute: false });
 }
 
-// ../outfitkit/dist/define.js
+// node_modules/.pnpm/@outfitkit+core@file+..+outfitkit/node_modules/@outfitkit/core/dist/define.js
 function define(tag, ctor) {
   if (typeof customElements !== "undefined" && !customElements.get(tag)) {
     customElements.define(tag, ctor);
   }
 }
 
-// node_modules/lit-html/directive.js
+// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directive.js
 var t3 = { ATTRIBUTE: 1, CHILD: 2, PROPERTY: 3, BOOLEAN_ATTRIBUTE: 4, EVENT: 5, ELEMENT: 6 };
 var e4 = (t5) => (...e5) => ({ _$litDirective$: t5, values: e5 });
 var i4 = class {
@@ -1288,7 +1288,7 @@ var i4 = class {
   }
 };
 
-// node_modules/lit-html/directive-helpers.js
+// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directive-helpers.js
 var { I: t4 } = j;
 var i5 = (o7) => o7;
 var s4 = () => document.createComment("");
@@ -1321,7 +1321,7 @@ var h3 = (o7) => {
   o7._$AR(), o7._$AA.remove();
 };
 
-// node_modules/lit-html/directives/repeat.js
+// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/repeat.js
 var u4 = (e5, s5, t5) => {
   const r6 = /* @__PURE__ */ new Map();
   for (let l3 = s5; l3 <= t5; l3++) r6.set(e5[l3], l3);
@@ -1374,7 +1374,7 @@ var c4 = e4(class extends i4 {
   }
 });
 
-// node_modules/lit-html/directives/style-map.js
+// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/style-map.js
 var n5 = "important";
 var i6 = " !" + n5;
 var o6 = e4(class extends i4 {
@@ -1403,7 +1403,7 @@ var o6 = e4(class extends i4 {
   }
 });
 
-// ../outfitkit/dist/ok-data-table.js
+// node_modules/.pnpm/@outfitkit+core@file+..+outfitkit/node_modules/@outfitkit/core/dist/ok-data-table.js
 var __defProp2 = Object.defineProperty;
 var __decorateClass2 = (decorators, target, key, kind) => {
   var result = void 0;
@@ -2681,7 +2681,7 @@ __decorateClass2([
 ], OkDataTable.prototype, "menuOpen");
 define("ok-data-table", OkDataTable);
 
-// ../hub/packages/module-sdk/src/index.ts
+// node_modules/.pnpm/@erplora+module-sdk@file+..+hub+packages+module-sdk/node_modules/@erplora/module-sdk/src/index.ts
 function isEmpty(v3) {
   return v3 === null || v3 === void 0 || v3 === "";
 }
@@ -2799,7 +2799,7 @@ function createListController(client, queryName, onChange = () => {
   return new ListController(client, queryName, onChange, opts);
 }
 
-// ../modules-workspace/modules/invoice/locales/es.json
+// modules/invoice/locales/es.json
 var es_default = {
   name: "Facturaci\xF3n",
   navigation: {
@@ -2857,6 +2857,7 @@ var es_default = {
     totalTotal: "Total",
     rectifyTitle: "Rectificar {number}",
     rectifyNote: "Se emitir\xE1 una rectificativa R1 (serie RECT) con los importes negados y la factura original quedar\xE1 cancelada. Esta operaci\xF3n no se puede deshacer.",
+    lblReason: "Motivo",
     rectifyReasonPlaceholder: "Motivo de la rectificaci\xF3n",
     rectifying: "Rectificando\u2026",
     issueRectifying: "Emitir rectificativa",
@@ -2876,7 +2877,7 @@ var es_default = {
   }
 };
 
-// ../modules-workspace/modules/invoice/locales/en.json
+// modules/invoice/locales/en.json
 var en_default = {
   name: "Invoicing",
   navigation: {
@@ -2934,6 +2935,7 @@ var en_default = {
     totalTotal: "Total",
     rectifyTitle: "Rectify {number}",
     rectifyNote: "An R1 corrective invoice (RECT series) with negated amounts will be issued and the original invoice will be cancelled. This operation cannot be undone.",
+    lblReason: "Reason",
     rectifyReasonPlaceholder: "Reason for the correction",
     rectifying: "Rectifying\u2026",
     issueRectifying: "Issue corrective",
@@ -2953,7 +2955,7 @@ var en_default = {
   }
 };
 
-// ../modules-workspace/modules/invoice/ui/components/erp-invoice-list/erp-invoice-list.ts
+// modules/invoice/ui/components/erp-invoice-list/erp-invoice-list.ts
 var CATALOG = { es: es_default, en: en_default };
 function erplora() {
   const c5 = globalThis.erplora;
@@ -3037,12 +3039,12 @@ var ErpInvoiceList = class extends i3 {
     table.lines th, table.lines td { padding:.35rem .5rem; border-bottom:1px solid var(--line,#e7e2d6); text-align:left; }
     table.lines th:nth-child(n+3), table.lines td:nth-child(n+3) { text-align:right; }
     .totals { display:flex; gap:1.5rem; justify-content:flex-end; margin-top:.6rem; font-weight:600; }
-    .form { display:flex; gap:.5rem; flex-wrap:wrap; align-items:end; margin:.5rem 0; }
-    .form ion-input, .form ion-select, .form ion-textarea { --background:var(--surface-2,#f7f4ec); border:1px solid var(--line,#e7e2d6); border-radius:8px; min-width:8rem; }
-    .item-row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin:.25rem 0; }
-    .item-row ion-input { --background:var(--surface-2,#f7f4ec); border:1px solid var(--line,#e7e2d6); border-radius:8px; }
-    .item-row .desc { flex:2; min-width:10rem; }
-    .item-row .num { width:6.5rem; flex:none; }
+    .form { display:flex; gap:.75rem; flex-wrap:wrap; align-items:end; margin:.5rem 0 1.25rem; }
+    .form ion-input, .form ion-select, .form ion-textarea { flex:1 1 11rem; min-width:9rem; }
+    .form ion-textarea { flex:2 1 20rem; min-width:16rem; }
+    .item-row { display:flex; gap:.75rem; flex-wrap:wrap; align-items:end; margin:.5rem 0; }
+    .item-row .desc { flex:2 1 20rem; min-width:16rem; }
+    .item-row .num { flex:1 1 6.5rem; min-width:6.5rem; }
     .row-actions { display:flex; gap:.5rem; margin-top:.6rem; }
   `;
   }
@@ -3257,7 +3259,7 @@ var ErpInvoiceList = class extends i3 {
       <h3>${erploraT("ui.rectifyTitle", { number: t5.number })}</h3>
       <p>${erploraT("ui.rectifyNote")}</p>
       <div class="form">
-        <ion-textarea placeholder=${erploraT("ui.rectifyReasonPlaceholder")} auto-grow .value=${this.rectifyReason} @ionInput=${(e5) => this.rectifyReason = e5.target.value}></ion-textarea>
+        <ion-textarea fill="outline" label-placement="floating" label=${erploraT("ui.lblReason")} placeholder=${erploraT("ui.rectifyReasonPlaceholder")} auto-grow .value=${this.rectifyReason} @ionInput=${(e5) => this.rectifyReason = e5.target.value}></ion-textarea>
       </div>
       <div class="row-actions">
         <ion-button size="small" color="danger" ?disabled=${this.busy || !this.rectifyReason.trim()} @click=${() => this.confirmRectify()}>${this.busy ? erploraT("ui.rectifying") : erploraT("ui.issueRectifying")}</ion-button>
@@ -3314,19 +3316,19 @@ var ErpInvoiceList = class extends i3 {
       <h3>${erploraT("ui.createTitle")}</h3>
       <form @submit=${(e5) => this.create(e5)}>
         <div class="form">
-          <ion-select label=${erploraT("ui.fieldSeries")} interface="popover" .value=${this.newSeriesCode} @ionChange=${(e5) => this.newSeriesCode = e5.target.value}>
+          <ion-select fill="outline" label-placement="floating" label=${erploraT("ui.fieldSeries")} interface="popover" .value=${this.newSeriesCode} @ionChange=${(e5) => this.newSeriesCode = e5.target.value}>
             ${this.seriesOptions.length ? this.seriesOptions.map((sr) => b2`<ion-select-option .value=${sr.code}>${sr.code} — ${sr.name || typeLabel(sr.invoice_type)}</ion-select-option>`) : b2`<ion-select-option value="FACT">FACT — ${typeLabel("F1")} (F1)</ion-select-option><ion-select-option value="TICKET">TICKET — ${typeLabel("F2")} (F2)</ion-select-option>`}
           </ion-select>
-          <ion-input placeholder=${erploraT("ui.fieldCustomer")} .value=${this.newCustomerName} @ionInput=${(e5) => this.newCustomerName = e5.target.value}></ion-input>
-          <ion-input placeholder=${erploraT("ui.placeholderTaxId")} .value=${this.newCustomerTaxId} @ionInput=${(e5) => this.newCustomerTaxId = e5.target.value}></ion-input>
-          <ion-input placeholder=${erploraT("ui.fieldAddress")} .value=${this.newCustomerAddress} @ionInput=${(e5) => this.newCustomerAddress = e5.target.value}></ion-input>
-          <ion-input placeholder=${erploraT("ui.fieldNotes")} .value=${this.newNotes} @ionInput=${(e5) => this.newNotes = e5.target.value}></ion-input>
+          <ion-input fill="outline" label-placement="floating" label=${erploraT("ui.fieldCustomer")} .value=${this.newCustomerName} @ionInput=${(e5) => this.newCustomerName = e5.target.value}></ion-input>
+          <ion-input fill="outline" label-placement="floating" label=${erploraT("ui.fieldCustomerTaxId")} placeholder=${erploraT("ui.placeholderTaxId")} .value=${this.newCustomerTaxId} @ionInput=${(e5) => this.newCustomerTaxId = e5.target.value}></ion-input>
+          <ion-input fill="outline" label-placement="floating" label=${erploraT("ui.fieldAddress")} .value=${this.newCustomerAddress} @ionInput=${(e5) => this.newCustomerAddress = e5.target.value}></ion-input>
+          <ion-input fill="outline" label-placement="floating" label=${erploraT("ui.fieldNotes")} .value=${this.newNotes} @ionInput=${(e5) => this.newNotes = e5.target.value}></ion-input>
         </div>
         ${this.newItems.map((it, i7) => b2`<div class="item-row">
-          <ion-input class="desc" placeholder=${erploraT("ui.lineDescription")} .value=${it.description} @ionInput=${(e5) => this.setItem(i7, "description", e5.target.value)}></ion-input>
-          <ion-input class="num" type="number" placeholder=${erploraT("ui.lineQty")} .value=${it.quantity} @ionInput=${(e5) => this.setItem(i7, "quantity", e5.target.value)}></ion-input>
-          <ion-input class="num" type="number" placeholder=${erploraT("ui.linePrice")} .value=${it.unit_price} @ionInput=${(e5) => this.setItem(i7, "unit_price", e5.target.value)}></ion-input>
-          <ion-input class="num" type="number" placeholder=${erploraT("ui.lineTaxPct")} .value=${it.tax_rate} @ionInput=${(e5) => this.setItem(i7, "tax_rate", e5.target.value)}></ion-input>
+          <ion-input class="desc" fill="outline" label-placement="floating" label=${erploraT("ui.lineDescription")} .value=${it.description} @ionInput=${(e5) => this.setItem(i7, "description", e5.target.value)}></ion-input>
+          <ion-input class="num" fill="outline" label-placement="floating" label=${erploraT("ui.lineQty")} type="number" .value=${it.quantity} @ionInput=${(e5) => this.setItem(i7, "quantity", e5.target.value)}></ion-input>
+          <ion-input class="num" fill="outline" label-placement="floating" label=${erploraT("ui.linePrice")} type="number" .value=${it.unit_price} @ionInput=${(e5) => this.setItem(i7, "unit_price", e5.target.value)}></ion-input>
+          <ion-input class="num" fill="outline" label-placement="floating" label=${erploraT("ui.lineTaxPct")} type="number" .value=${it.tax_rate} @ionInput=${(e5) => this.setItem(i7, "tax_rate", e5.target.value)}></ion-input>
           ${this.newItems.length > 1 ? b2`<ion-button size="small" fill="clear" color="danger" @click=${() => this.newItems = this.newItems.filter((_2, j2) => j2 !== i7)}>✕</ion-button>` : A}
         </div>`)}
         <div class="row-actions">
