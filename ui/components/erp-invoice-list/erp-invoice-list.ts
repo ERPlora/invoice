@@ -5,6 +5,11 @@ import '@erplora/outfitkit/ok-data-table';
 import type { DataTableColumn, DataTableAction } from '@erplora/outfitkit';
 import { createListController } from '@erplora/module-sdk';
 import type { ListController, ListClient, ListParams, ListPage } from '@erplora/module-sdk';
+// Catálogo i18n del módulo (ADR-0055): esbuild inlinea estos JSON en el `dist` del WC. Los textos
+// internos se resuelven con `erplora.t(CATALOG, 'ui.clave')` (idioma activo, fallback locale→en→clave).
+import esLocale from '../../../locales/es.json';
+import enLocale from '../../../locales/en.json';
+const CATALOG: Record<string, unknown> = { es: esLocale, en: enLocale };
 
 interface ErploraClientLike extends ListClient {
   query<T = unknown>(name: string, params?: Record<string, unknown>): Promise<T>;
@@ -12,6 +17,9 @@ interface ErploraClientLike extends ListClient {
   command<T = unknown>(name: string, payload?: Record<string, unknown>): Promise<T>;
   on(event: string, cb: (payload: unknown) => void): () => void;
   hasPermission?(perm: string): boolean;
+  /** i18n del módulo (ADR-0055): idioma activo + traducción del catálogo `ui`. */
+  locale: string;
+  t(catalog: Record<string, unknown>, key: string, params?: Record<string, unknown>): string;
 }
 
 interface Invoice {
@@ -43,14 +51,31 @@ function erplora(): ErploraClientLike {
   return c;
 }
 
-const TYPE_LABEL: Record<string, string> = {
-  F1: 'Factura', F2: 'Ticket', F3: 'Factura', R1: 'Rectificativa', R2: 'Rectificativa',
-  R3: 'Rectificativa', R4: 'Rectificativa', R5: 'Rectificativa',
-};
+function erploraT(key: string, params?: Record<string, unknown>): string {
+  return erplora().t(CATALOG, key, params);
+}
 
-const STATUS_LABEL: Record<string, string> = {
-  draft: 'Borrador', issued: 'Emitida', paid: 'Pagada', cancelled: 'Cancelada',
-};
+// Etiquetas de tipo/estado i18n: las CLAVES (F1, draft…) son enums del backend (no se traducen);
+// solo el texto visible se resuelve por el catálogo activo (ADR-0055).
+function typeLabel(code: string): string {
+  const map: Record<string, string> = {
+    F1: erploraT('ui.typeInvoice'), F2: erploraT('ui.typeTicket'), F3: erploraT('ui.typeInvoice'),
+    R1: erploraT('ui.typeRectifying'), R2: erploraT('ui.typeRectifying'), R3: erploraT('ui.typeRectifying'),
+    R4: erploraT('ui.typeRectifying'), R5: erploraT('ui.typeRectifying'),
+  };
+  return map[code] ?? code;
+}
+
+function statusLabel(code: string): string {
+  const map: Record<string, string> = {
+    draft: erploraT('ui.statusDraft'), issued: erploraT('ui.statusIssued'),
+    paid: erploraT('ui.statusPaid'), cancelled: erploraT('ui.statusCancelled'),
+  };
+  return map[code] ?? code;
+}
+
+const TYPE_CODES = ['F1', 'F2', 'F3', 'R1', 'R2', 'R3', 'R4', 'R5'];
+const STATUS_CODES = ['draft', 'issued', 'paid', 'cancelled'];
 
 const STATUS_COLOR: Record<string, string> = {
   draft: 'medium', issued: 'primary', paid: 'success', cancelled: 'danger',
@@ -130,40 +155,50 @@ export class ErpInvoiceList extends LitElement {
 
   private unsub?: () => void;
 
-  private columns: DataTableColumn[] = [
-    { key: 'number', header: 'Número', sortable: true, filterable: true, filterType: 'text' },
+  // Getter (no campo): se re-evalúa en cada render, así los textos cambian con el idioma activo
+  // (ADR-0055). `connectedCallback` re-renderiza al recibir `erplora:locale-changed`.
+  private get columns(): DataTableColumn[] {
+    const t = (k: string): string => erploraT(k);
+    return [
+    { key: 'number', header: t('ui.colNumber'), sortable: true, filterable: true, filterType: 'text' },
     {
       key: 'invoice_type',
-      header: 'Tipo',
+      header: t('ui.colType'),
       sortable: true,
       filterable: true,
       filterType: 'select',
-      options: Object.entries(TYPE_LABEL).map(([value, label]) => ({ value, label })),
-      format: (r) => TYPE_LABEL[r.invoice_type as string] ?? (r.invoice_type as string),
+      options: TYPE_CODES.map((value) => ({ value, label: typeLabel(value) })),
+      format: (r) => typeLabel(r.invoice_type as string),
     },
-    { key: 'issue_date', header: 'Fecha', sortable: true, filterable: true, filterType: 'daterange' },
-    { key: 'customer_name', header: 'Cliente', sortable: true, filterable: true, filterType: 'text', format: (r) => (r.customer_name as string) || '—' },
+    { key: 'issue_date', header: t('ui.colDate'), sortable: true, filterable: true, filterType: 'daterange' },
+    { key: 'customer_name', header: t('ui.colCustomer'), sortable: true, filterable: true, filterType: 'text', format: (r) => (r.customer_name as string) || '—' },
     {
       key: 'status',
-      header: 'Estado',
+      header: t('ui.colStatus'),
       sortable: true,
       filterable: true,
       filterType: 'select',
-      options: Object.entries(STATUS_LABEL).map(([value, label]) => ({ value, label })),
-      render: (r) => html`<ion-badge color=${STATUS_COLOR[r.status as string] ?? 'medium'}>${STATUS_LABEL[r.status as string] ?? (r.status as string)}</ion-badge>`,
+      options: STATUS_CODES.map((value) => ({ value, label: statusLabel(value) })),
+      render: (r) => html`<ion-badge color=${STATUS_COLOR[r.status as string] ?? 'medium'}>${statusLabel(r.status as string)}</ion-badge>`,
     },
-    { key: 'total_amount', header: 'Total', align: 'right', sortable: true, filterable: true, filterType: 'range', format: (r) => money(r.total_amount) },
-  ];
+    { key: 'total_amount', header: t('ui.colTotal'), align: 'right', sortable: true, filterable: true, filterType: 'range', format: (r) => money(r.total_amount) },
+    ];
+  }
 
   private get rowActions(): DataTableAction[] {
-    const acts: DataTableAction[] = [{ id: 'view', label: 'Ver', icon: 'eye-outline' }];
-    if (this.canAdd) acts.push({ id: 'paid', label: 'Marcar pagada', icon: 'checkmark-circle-outline', color: 'success' });
-    if (this.canRectify) acts.push({ id: 'rectify', label: 'Rectificar', icon: 'arrow-undo-outline', color: 'danger' });
+    const acts: DataTableAction[] = [{ id: 'view', label: erploraT('ui.actionView'), icon: 'eye-outline' }];
+    if (this.canAdd) acts.push({ id: 'paid', label: erploraT('ui.actionMarkPaid'), icon: 'checkmark-circle-outline', color: 'success' });
+    if (this.canRectify) acts.push({ id: 'rectify', label: erploraT('ui.actionRectify'), icon: 'arrow-undo-outline', color: 'danger' });
     return acts;
   }
 
+  // Re-render al cambiar el idioma del shell (ADR-0055): los getters `columns`/`rowActions` y el
+  // texto del template se re-evalúan con el nuevo `erplora.locale`.
+  private readonly onLocaleChange = (): void => this.requestUpdate();
+
   async connectedCallback() {
     super.connectedCallback();
+    window.addEventListener('erplora:locale-changed', this.onLocaleChange);
     // hasPermission es SOLO para mostrar/ocultar: la seguridad real la revalida el runtime.
     try {
       const c = erplora();
@@ -184,6 +219,7 @@ export class ErpInvoiceList extends LitElement {
   }
 
   disconnectedCallback() {
+    window.removeEventListener('erplora:locale-changed', this.onLocaleChange);
     super.disconnectedCallback(); this.unsub?.(); }
 
   // ── detalle (invoice.get + invoice.lines) ─────────────────────────────────
@@ -196,11 +232,11 @@ export class ErpInvoiceList extends LitElement {
         erplora().query<InvoiceLine[]>('invoice.lines', { invoice_id: id }),
       ]);
       const row = Array.isArray(inv) ? inv[0] : inv;
-      if (!row) { this.detailError = 'Factura no encontrada'; return; }
+      if (!row) { this.detailError = erploraT('ui.errNotFound'); return; }
       this.detail = row;
       this.detailLines = Array.isArray(lines) ? lines : [];
     } catch (e) {
-      this.detailError = e instanceof Error ? e.message : 'No se pudo cargar el detalle';
+      this.detailError = e instanceof Error ? e.message : erploraT('ui.errLoadDetail');
     }
   }
 
@@ -209,7 +245,7 @@ export class ErpInvoiceList extends LitElement {
   // ── acciones (mark_paid / rectify) ────────────────────────────────────────
 
   private async markPaid(inv: { id: string; status: string }) {
-    if (inv.status !== 'issued') { this.actionError = 'Solo se puede marcar como pagada una factura emitida.'; return; }
+    if (inv.status !== 'issued') { this.actionError = erploraT('ui.errMarkPaidStatus'); return; }
     this.actionError = '';
     this.busy = true;
     try {
@@ -217,15 +253,15 @@ export class ErpInvoiceList extends LitElement {
       await this.ctrl.load();
       if (this.detail?.id === inv.id) await this.openDetail(inv.id);
     } catch (e) {
-      this.actionError = e instanceof Error ? e.message : 'No se pudo marcar como pagada';
+      this.actionError = e instanceof Error ? e.message : erploraT('ui.errMarkPaid');
     } finally {
       this.busy = false;
     }
   }
 
   private startRectify(inv: Invoice) {
-    if (inv.invoice_type?.startsWith('R')) { this.actionError = 'Una rectificativa no se puede rectificar.'; return; }
-    if (inv.status === 'cancelled') { this.actionError = 'La factura ya está cancelada.'; return; }
+    if (inv.invoice_type?.startsWith('R')) { this.actionError = erploraT('ui.errRectifyRectifying'); return; }
+    if (inv.status === 'cancelled') { this.actionError = erploraT('ui.errAlreadyCancelled'); return; }
     this.actionError = '';
     this.rectifyReason = '';
     this.rectifyTarget = inv;
@@ -248,7 +284,7 @@ export class ErpInvoiceList extends LitElement {
       await this.ctrl.load();
       if (this.detail?.id === target.id) await this.openDetail(target.id);
     } catch (e) {
-      this.actionError = e instanceof Error ? e.message : 'No se pudo rectificar';
+      this.actionError = e instanceof Error ? e.message : erploraT('ui.errRectify');
     } finally {
       this.busy = false;
     }
@@ -309,7 +345,7 @@ export class ErpInvoiceList extends LitElement {
       this.newNotes = ''; this.newItems = [emptyItem()]; this.showCreate = false;
       await this.ctrl.load();
     } catch (e) {
-      this.formError = e instanceof Error ? e.message : 'No se pudo crear la factura';
+      this.formError = e instanceof Error ? e.message : erploraT('ui.errCreate');
     } finally {
       this.saving = false;
     }
@@ -321,14 +357,14 @@ export class ErpInvoiceList extends LitElement {
     const t = this.rectifyTarget;
     if (!t) return nothing;
     return html`<div class="card">
-      <h3>Rectificar ${t.number}</h3>
-      <p>Se emitirá una rectificativa R1 (serie RECT) con los importes negados y la factura original quedará cancelada. Esta operación no se puede deshacer.</p>
+      <h3>${erploraT('ui.rectifyTitle', { number: t.number })}</h3>
+      <p>${erploraT('ui.rectifyNote')}</p>
       <div class="form">
-        <ion-textarea placeholder="Motivo de la rectificación" auto-grow .value=${this.rectifyReason} @ionInput=${(e: any) => (this.rectifyReason = e.target.value)}></ion-textarea>
+        <ion-textarea placeholder=${erploraT('ui.rectifyReasonPlaceholder')} auto-grow .value=${this.rectifyReason} @ionInput=${(e: any) => (this.rectifyReason = e.target.value)}></ion-textarea>
       </div>
       <div class="row-actions">
-        <ion-button size="small" color="danger" ?disabled=${this.busy || !this.rectifyReason.trim()} @click=${() => this.confirmRectify()}>${this.busy ? 'Rectificando…' : 'Emitir rectificativa'}</ion-button>
-        <ion-button size="small" fill="outline" color="medium" @click=${() => (this.rectifyTarget = null)}>Cancelar</ion-button>
+        <ion-button size="small" color="danger" ?disabled=${this.busy || !this.rectifyReason.trim()} @click=${() => this.confirmRectify()}>${this.busy ? erploraT('ui.rectifying') : erploraT('ui.issueRectifying')}</ion-button>
+        <ion-button size="small" fill="outline" color="medium" @click=${() => (this.rectifyTarget = null)}>${erploraT('ui.cancel')}</ion-button>
       </div>
     </div>`;
   }
@@ -337,42 +373,42 @@ export class ErpInvoiceList extends LitElement {
     const d = this.detail!;
     return html`<div>
       <header>
-        <h2>Factura ${d.number}</h2>
-        <ion-badge color=${STATUS_COLOR[d.status] ?? 'medium'}>${STATUS_LABEL[d.status] ?? d.status}</ion-badge>
-        <ion-button size="small" fill="outline" color="medium" @click=${() => this.closeDetail()}>← Volver</ion-button>
+        <h2>${erploraT('ui.detailTitle', { number: d.number })}</h2>
+        <ion-badge color=${STATUS_COLOR[d.status] ?? 'medium'}>${statusLabel(d.status)}</ion-badge>
+        <ion-button size="small" fill="outline" color="medium" @click=${() => this.closeDetail()}>← ${erploraT('ui.back')}</ion-button>
       </header>
       ${this.actionError ? html`<p class="err">${this.actionError}</p>` : nothing}
       ${this.renderRectifyCard()}
       <div class="card">
         <dl class="grid">
-          <div><dt>Tipo</dt><dd>${TYPE_LABEL[d.invoice_type] ?? d.invoice_type} (${d.invoice_type})</dd></div>
-          <div><dt>Serie</dt><dd>${d.series}</dd></div>
-          <div><dt>Fecha de emisión</dt><dd>${d.issue_date}</dd></div>
-          <div><dt>Cliente</dt><dd>${d.customer_name || '—'}</dd></div>
-          <div><dt>NIF cliente</dt><dd>${d.customer_tax_id || '—'}</dd></div>
-          <div><dt>Dirección</dt><dd>${d.customer_address || '—'}</dd></div>
-          <div><dt>Emisor</dt><dd>${d.issuer_name || '—'} ${d.issuer_nif ? `(${d.issuer_nif})` : ''}</dd></div>
-          <div><dt>Origen</dt><dd>${d.source_type}${d.source_id ? ` · ${d.source_id}` : ''}</dd></div>
-          ${d.rectifies_invoice_id ? html`<div><dt>Rectifica a</dt><dd>${d.rectifies_invoice_id}</dd></div>` : nothing}
-          ${d.paid_at ? html`<div><dt>Pagada el</dt><dd>${d.paid_at}</dd></div>` : nothing}
-          ${d.notes ? html`<div><dt>Notas</dt><dd>${d.notes}</dd></div>` : nothing}
+          <div><dt>${erploraT('ui.fieldType')}</dt><dd>${typeLabel(d.invoice_type)} (${d.invoice_type})</dd></div>
+          <div><dt>${erploraT('ui.fieldSeries')}</dt><dd>${d.series}</dd></div>
+          <div><dt>${erploraT('ui.fieldIssueDate')}</dt><dd>${d.issue_date}</dd></div>
+          <div><dt>${erploraT('ui.fieldCustomer')}</dt><dd>${d.customer_name || '—'}</dd></div>
+          <div><dt>${erploraT('ui.fieldCustomerTaxId')}</dt><dd>${d.customer_tax_id || '—'}</dd></div>
+          <div><dt>${erploraT('ui.fieldAddress')}</dt><dd>${d.customer_address || '—'}</dd></div>
+          <div><dt>${erploraT('ui.fieldIssuer')}</dt><dd>${d.issuer_name || '—'} ${d.issuer_nif ? `(${d.issuer_nif})` : ''}</dd></div>
+          <div><dt>${erploraT('ui.fieldSource')}</dt><dd>${d.source_type}${d.source_id ? ` · ${d.source_id}` : ''}</dd></div>
+          ${d.rectifies_invoice_id ? html`<div><dt>${erploraT('ui.fieldRectifies')}</dt><dd>${d.rectifies_invoice_id}</dd></div>` : nothing}
+          ${d.paid_at ? html`<div><dt>${erploraT('ui.fieldPaidAt')}</dt><dd>${d.paid_at}</dd></div>` : nothing}
+          ${d.notes ? html`<div><dt>${erploraT('ui.fieldNotes')}</dt><dd>${d.notes}</dd></div>` : nothing}
         </dl>
         ${this.detailLines.length ? html`<table class="lines">
-          <thead><tr><th>#</th><th>Descripción</th><th>Cant.</th><th>Precio</th><th>IVA %</th><th>Base</th><th>Impuesto</th><th>Total</th></tr></thead>
+          <thead><tr><th>#</th><th>${erploraT('ui.lineDescription')}</th><th>${erploraT('ui.lineQty')}</th><th>${erploraT('ui.linePrice')}</th><th>${erploraT('ui.lineTaxPct')}</th><th>${erploraT('ui.lineBase')}</th><th>${erploraT('ui.lineTax')}</th><th>${erploraT('ui.lineTotal')}</th></tr></thead>
           <tbody>${this.detailLines.map((l) => html`<tr>
             <td>${l.line_number}</td><td>${l.description}</td><td>${l.quantity}</td>
             <td>${money(l.unit_price)}</td><td>${money(l.tax_rate)}</td>
             <td>${money(l.base_amount)}</td><td>${money(l.tax_amount)}</td><td>${money(l.total_amount)}</td>
           </tr>`)}</tbody>
-        </table>` : html`<p>Sin líneas de detalle.</p>`}
+        </table>` : html`<p>${erploraT('ui.noLines')}</p>`}
         <div class="totals">
-          <span>Base: ${money(d.base_amount)} ${d.currency}</span>
-          <span>Impuestos: ${money(d.tax_amount)} ${d.currency}</span>
-          <span>Total: ${money(d.total_amount)} ${d.currency}</span>
+          <span>${erploraT('ui.totalBase')}: ${money(d.base_amount)} ${d.currency}</span>
+          <span>${erploraT('ui.totalTaxes')}: ${money(d.tax_amount)} ${d.currency}</span>
+          <span>${erploraT('ui.totalTotal')}: ${money(d.total_amount)} ${d.currency}</span>
         </div>
         <div class="row-actions">
-          ${this.canAdd && d.status === 'issued' ? html`<ion-button size="small" color="success" ?disabled=${this.busy} @click=${() => this.markPaid(d)}>Marcar pagada</ion-button>` : nothing}
-          ${this.canRectify && !(d.invoice_type ?? '').startsWith('R') && d.status !== 'cancelled' ? html`<ion-button size="small" fill="outline" color="danger" ?disabled=${this.busy} @click=${() => this.startRectify(d)}>Rectificar</ion-button>` : nothing}
+          ${this.canAdd && d.status === 'issued' ? html`<ion-button size="small" color="success" ?disabled=${this.busy} @click=${() => this.markPaid(d)}>${erploraT('ui.actionMarkPaid')}</ion-button>` : nothing}
+          ${this.canRectify && !(d.invoice_type ?? '').startsWith('R') && d.status !== 'cancelled' ? html`<ion-button size="small" fill="outline" color="danger" ?disabled=${this.busy} @click=${() => this.startRectify(d)}>${erploraT('ui.actionRectify')}</ion-button>` : nothing}
         </div>
       </div>
     </div>`;
@@ -380,30 +416,30 @@ export class ErpInvoiceList extends LitElement {
 
   private renderCreateForm() {
     return html`<div class="card">
-      <h3>Nueva factura manual</h3>
+      <h3>${erploraT('ui.createTitle')}</h3>
       <form @submit=${(e: Event) => this.create(e)}>
         <div class="form">
-          <ion-select label="Serie" interface="popover" .value=${this.newSeriesCode} @ionChange=${(e: any) => (this.newSeriesCode = e.target.value)}>
+          <ion-select label=${erploraT('ui.fieldSeries')} interface="popover" .value=${this.newSeriesCode} @ionChange=${(e: any) => (this.newSeriesCode = e.target.value)}>
             ${this.seriesOptions.length
-              ? this.seriesOptions.map((sr) => html`<ion-select-option .value=${sr.code}>${sr.code} — ${sr.name || sr.invoice_type}</ion-select-option>`)
-              : html`<ion-select-option value="FACT">FACT — Factura (F1)</ion-select-option><ion-select-option value="TICKET">TICKET — Ticket (F2)</ion-select-option>`}
+              ? this.seriesOptions.map((sr) => html`<ion-select-option .value=${sr.code}>${sr.code} — ${sr.name || typeLabel(sr.invoice_type)}</ion-select-option>`)
+              : html`<ion-select-option value="FACT">FACT — ${typeLabel('F1')} (F1)</ion-select-option><ion-select-option value="TICKET">TICKET — ${typeLabel('F2')} (F2)</ion-select-option>`}
           </ion-select>
-          <ion-input placeholder="Cliente" .value=${this.newCustomerName} @ionInput=${(e: any) => (this.newCustomerName = e.target.value)}></ion-input>
-          <ion-input placeholder="NIF" .value=${this.newCustomerTaxId} @ionInput=${(e: any) => (this.newCustomerTaxId = e.target.value)}></ion-input>
-          <ion-input placeholder="Dirección" .value=${this.newCustomerAddress} @ionInput=${(e: any) => (this.newCustomerAddress = e.target.value)}></ion-input>
-          <ion-input placeholder="Notas" .value=${this.newNotes} @ionInput=${(e: any) => (this.newNotes = e.target.value)}></ion-input>
+          <ion-input placeholder=${erploraT('ui.fieldCustomer')} .value=${this.newCustomerName} @ionInput=${(e: any) => (this.newCustomerName = e.target.value)}></ion-input>
+          <ion-input placeholder=${erploraT('ui.placeholderTaxId')} .value=${this.newCustomerTaxId} @ionInput=${(e: any) => (this.newCustomerTaxId = e.target.value)}></ion-input>
+          <ion-input placeholder=${erploraT('ui.fieldAddress')} .value=${this.newCustomerAddress} @ionInput=${(e: any) => (this.newCustomerAddress = e.target.value)}></ion-input>
+          <ion-input placeholder=${erploraT('ui.fieldNotes')} .value=${this.newNotes} @ionInput=${(e: any) => (this.newNotes = e.target.value)}></ion-input>
         </div>
         ${this.newItems.map((it, i) => html`<div class="item-row">
-          <ion-input class="desc" placeholder="Descripción" .value=${it.description} @ionInput=${(e: any) => this.setItem(i, 'description', e.target.value)}></ion-input>
-          <ion-input class="num" type="number" placeholder="Cant." .value=${it.quantity} @ionInput=${(e: any) => this.setItem(i, 'quantity', e.target.value)}></ion-input>
-          <ion-input class="num" type="number" placeholder="Precio" .value=${it.unit_price} @ionInput=${(e: any) => this.setItem(i, 'unit_price', e.target.value)}></ion-input>
-          <ion-input class="num" type="number" placeholder="IVA %" .value=${it.tax_rate} @ionInput=${(e: any) => this.setItem(i, 'tax_rate', e.target.value)}></ion-input>
+          <ion-input class="desc" placeholder=${erploraT('ui.lineDescription')} .value=${it.description} @ionInput=${(e: any) => this.setItem(i, 'description', e.target.value)}></ion-input>
+          <ion-input class="num" type="number" placeholder=${erploraT('ui.lineQty')} .value=${it.quantity} @ionInput=${(e: any) => this.setItem(i, 'quantity', e.target.value)}></ion-input>
+          <ion-input class="num" type="number" placeholder=${erploraT('ui.linePrice')} .value=${it.unit_price} @ionInput=${(e: any) => this.setItem(i, 'unit_price', e.target.value)}></ion-input>
+          <ion-input class="num" type="number" placeholder=${erploraT('ui.lineTaxPct')} .value=${it.tax_rate} @ionInput=${(e: any) => this.setItem(i, 'tax_rate', e.target.value)}></ion-input>
           ${this.newItems.length > 1 ? html`<ion-button size="small" fill="clear" color="danger" @click=${() => (this.newItems = this.newItems.filter((_, j) => j !== i))}>✕</ion-button>` : nothing}
         </div>`)}
         <div class="row-actions">
-          <ion-button size="small" fill="outline" @click=${() => (this.newItems = [...this.newItems, emptyItem()])}>+ Línea</ion-button>
-          <ion-button size="small" type="submit" ?disabled=${this.saving || !this.itemsValid}>${this.saving ? 'Emitiendo…' : 'Emitir factura'}</ion-button>
-          <ion-button size="small" fill="clear" color="medium" @click=${() => (this.showCreate = false)}>Cancelar</ion-button>
+          <ion-button size="small" fill="outline" @click=${() => (this.newItems = [...this.newItems, emptyItem()])}>${erploraT('ui.addLine')}</ion-button>
+          <ion-button size="small" type="submit" ?disabled=${this.saving || !this.itemsValid}>${this.saving ? erploraT('ui.issuing') : erploraT('ui.issueInvoice')}</ion-button>
+          <ion-button size="small" fill="clear" color="medium" @click=${() => (this.showCreate = false)}>${erploraT('ui.cancel')}</ion-button>
         </div>
         ${this.formError ? html`<p class="err">${this.formError}</p>` : nothing}
       </form>
@@ -414,15 +450,15 @@ export class ErpInvoiceList extends LitElement {
     if (this.detail) return this.renderDetail();
     return html`<div>
         <header>
-          <h2>Facturas</h2>
-          ${this.canAdd ? html`<ion-button size="small" @click=${() => this.toggleCreate()}>${this.showCreate ? 'Cerrar' : 'Nueva factura'}</ion-button>` : nothing}
+          <h2>${erploraT('ui.pageTitle')}</h2>
+          ${this.canAdd ? html`<ion-button size="small" @click=${() => this.toggleCreate()}>${this.showCreate ? erploraT('ui.close') : erploraT('ui.newInvoice')}</ion-button>` : nothing}
         </header>
         ${this.showCreate ? this.renderCreateForm() : nothing}
         ${this.renderRectifyCard()}
         ${this.actionError ? html`<p class="err">${this.actionError}</p>` : nothing}
         ${this.detailError ? html`<p class="err">${this.detailError}</p>` : nothing}
         ${this.ctrl?.error ? html`<p class="err">${this.ctrl.error}</p>` : nothing}
-        <ok-data-table .serverSide=${true} .columns=${this.columns} .rows=${this.ctrl?.rows ?? []} .total=${this.ctrl?.total ?? 0} .page=${this.ctrl?.state.page ?? 0} .pageSize=${this.ctrl?.state.pageSize ?? 50} .sort=${this.ctrl?.state.sort} .sortDir=${this.ctrl?.state.dir ?? 'asc'} .searchable=${true} .searchPlaceholder=${"Buscar número, cliente o estado…"} .actions=${this.rowActions} .emptyMessage=${this.ctrl?.loading ? 'Cargando…' : 'Aún no hay facturas.'} @rowAction=${(e: CustomEvent<{ actionId: string; row: Record<string, unknown> }>) => this.onRowAction(e)} @pageChange=${(e: CustomEvent<number>) => this.ctrl.setPage(e.detail)} @sortChange=${(e: CustomEvent<{ sort: string; dir: 'asc' | 'desc' }>) => this.ctrl.setSort(e.detail.sort, e.detail.dir)} @searchChange=${(e: CustomEvent<string>) => this.ctrl.setSearch(e.detail)} @filterChange=${(e: CustomEvent<{ col: string; value: unknown }>) => this.ctrl.setFilter(e.detail.col, e.detail.value)}></ok-data-table>
+        <ok-data-table .serverSide=${true} .columns=${this.columns} .rows=${this.ctrl?.rows ?? []} .total=${this.ctrl?.total ?? 0} .page=${this.ctrl?.state.page ?? 0} .pageSize=${this.ctrl?.state.pageSize ?? 50} .sort=${this.ctrl?.state.sort} .sortDir=${this.ctrl?.state.dir ?? 'asc'} .searchable=${true} .searchPlaceholder=${erploraT('ui.searchPlaceholder')} .actions=${this.rowActions} .emptyMessage=${this.ctrl?.loading ? erploraT('ui.loading') : erploraT('ui.empty')} @rowAction=${(e: CustomEvent<{ actionId: string; row: Record<string, unknown> }>) => this.onRowAction(e)} @pageChange=${(e: CustomEvent<number>) => this.ctrl.setPage(e.detail)} @sortChange=${(e: CustomEvent<{ sort: string; dir: 'asc' | 'desc' }>) => this.ctrl.setSort(e.detail.sort, e.detail.dir)} @searchChange=${(e: CustomEvent<string>) => this.ctrl.setSearch(e.detail)} @filterChange=${(e: CustomEvent<{ col: string; value: unknown }>) => this.ctrl.setFilter(e.detail.col, e.detail.value)}></ok-data-table>
       </div>`;
   }
 }

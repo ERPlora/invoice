@@ -9,7 +9,7 @@ var __decorateClass = (decorators, target, key, kind) => {
   return result;
 };
 
-// node_modules/.pnpm/@lit-labs+ssr-dom-shim@1.6.0/node_modules/@lit-labs/ssr-dom-shim/lib/element-internals.js
+// node_modules/@lit-labs/ssr-dom-shim/lib/element-internals.js
 var ElementInternalsShim = class ElementInternals {
   get shadowRoot() {
     return this.__host.__shadowRoot;
@@ -88,7 +88,7 @@ var ElementInternalsShim = class ElementInternals {
   }
 };
 
-// node_modules/.pnpm/@lit-labs+ssr-dom-shim@1.6.0/node_modules/@lit-labs/ssr-dom-shim/lib/events.js
+// node_modules/@lit-labs/ssr-dom-shim/lib/events.js
 var __classPrivateFieldSet = function(receiver, state, value, kind, f3) {
   if (kind === "m") throw new TypeError("Private method is not writable");
   if (kind === "a" && !f3) throw new TypeError("Private accessor was defined without a setter");
@@ -246,7 +246,7 @@ Object.defineProperties(CustomEventShim.prototype, {
 var EventShimWithRealType = EventShim;
 var CustomEventShimWithRealType = CustomEventShim;
 
-// node_modules/.pnpm/@lit-labs+ssr-dom-shim@1.6.0/node_modules/@lit-labs/ssr-dom-shim/lib/css.js
+// node_modules/@lit-labs/ssr-dom-shim/lib/css.js
 var _a2;
 var CSSRuleShim = (_a2 = class CSSRule {
   constructor() {
@@ -277,7 +277,7 @@ var CSSRuleShim = (_a2 = class CSSRule {
   }
 }, _a2.STYLE_RULE = 1, _a2.CHARSET_RULE = 2, _a2.IMPORT_RULE = 3, _a2.MEDIA_RULE = 4, _a2.FONT_FACE_RULE = 5, _a2.PAGE_RULE = 6, _a2.NAMESPACE_RULE = 10, _a2.KEYFRAMES_RULE = 7, _a2.KEYFRAME_RULE = 8, _a2.SUPPORTS_RULE = 12, _a2.COUNTER_STYLE_RULE = 11, _a2.FONT_FEATURE_VALUES_RULE = 14, _a2.MARGIN_RULE = 9, _a2);
 
-// node_modules/.pnpm/@lit-labs+ssr-dom-shim@1.6.0/node_modules/@lit-labs/ssr-dom-shim/index.js
+// node_modules/@lit-labs/ssr-dom-shim/index.js
 globalThis.Event ??= EventShimWithRealType;
 globalThis.CustomEvent ??= CustomEventShimWithRealType;
 var constructionToken = Symbol();
@@ -674,7 +674,7 @@ var CustomElementRegistryShimWithRealType = CustomElementRegistry;
 var customElements2 = new CustomElementRegistryShimWithRealType();
 var windowShim = new WindowShim(constructionToken);
 
-// node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/node/css-tag.js
+// node_modules/@lit/reactive-element/node/css-tag.js
 var t = globalThis;
 var e = t.ShadowRoot && (void 0 === t.ShadyCSS || t.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype;
 var s = Symbol();
@@ -719,7 +719,7 @@ var c = e || void 0 === t.CSSStyleSheet ? (t5) => t5 : (t5) => t5 instanceof CSS
   return r(e5);
 })(t5) : t5;
 
-// node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/node/reactive-element.js
+// node_modules/@lit/reactive-element/node/reactive-element.js
 var { is: h, defineProperty: r2, getOwnPropertyDescriptor: o2, getOwnPropertyNames: n2, getOwnPropertySymbols: a, getPrototypeOf: c2 } = Object;
 var l = globalThis;
 l.customElements ??= customElements2;
@@ -942,7 +942,7 @@ var g = class extends (globalThis.HTMLElement ?? HTMLElementShimWithRealType) {
 };
 g.elementStyles = [], g.shadowRootOptions = { mode: "open" }, g[f("elementProperties")] = /* @__PURE__ */ new Map(), g[f("finalized")] = /* @__PURE__ */ new Map(), u?.({ ReactiveElement: g }), (l.reactiveElementVersions ??= []).push("2.1.2");
 
-// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/lit-html.js
+// node_modules/lit-html/lit-html.js
 var t2 = globalThis;
 var i2 = (t5) => t5;
 var s2 = t2.trustedTypes;
@@ -1197,7 +1197,7 @@ var D = (t5, i7, s5) => {
   return h4._$AI(t5), h4;
 };
 
-// node_modules/.pnpm/lit-element@4.2.2/node_modules/lit-element/lit-element.js
+// node_modules/lit-element/lit-element.js
 var s3 = globalThis;
 var i3 = class extends g {
   constructor() {
@@ -1226,7 +1226,7 @@ var o4 = s3.litElementPolyfillSupport;
 o4?.({ LitElement: i3 });
 (s3.litElementVersions ??= []).push("4.2.2");
 
-// node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/node/decorators/property.js
+// node_modules/@lit/reactive-element/node/decorators/property.js
 var o5 = { attribute: true, type: String, converter: b, reflect: false, hasChanged: m };
 var r4 = (t5 = o5, e5, r6) => {
   const { kind: n6, metadata: i7 } = r6;
@@ -1256,19 +1256,19 @@ function n4(t5) {
   })(t5, e5, o7);
 }
 
-// node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/node/decorators/state.js
+// node_modules/@lit/reactive-element/node/decorators/state.js
 function r5(r6) {
   return n4({ ...r6, state: true, attribute: false });
 }
 
-// node_modules/.pnpm/@outfitkit+core@file+..+outfitkit/node_modules/@outfitkit/core/dist/define.js
+// ../outfitkit/dist/define.js
 function define(tag, ctor) {
   if (typeof customElements !== "undefined" && !customElements.get(tag)) {
     customElements.define(tag, ctor);
   }
 }
 
-// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directive.js
+// node_modules/lit-html/directive.js
 var t3 = { ATTRIBUTE: 1, CHILD: 2, PROPERTY: 3, BOOLEAN_ATTRIBUTE: 4, EVENT: 5, ELEMENT: 6 };
 var e4 = (t5) => (...e5) => ({ _$litDirective$: t5, values: e5 });
 var i4 = class {
@@ -1288,7 +1288,7 @@ var i4 = class {
   }
 };
 
-// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directive-helpers.js
+// node_modules/lit-html/directive-helpers.js
 var { I: t4 } = j;
 var i5 = (o7) => o7;
 var s4 = () => document.createComment("");
@@ -1321,7 +1321,7 @@ var h3 = (o7) => {
   o7._$AR(), o7._$AA.remove();
 };
 
-// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/repeat.js
+// node_modules/lit-html/directives/repeat.js
 var u4 = (e5, s5, t5) => {
   const r6 = /* @__PURE__ */ new Map();
   for (let l3 = s5; l3 <= t5; l3++) r6.set(e5[l3], l3);
@@ -1374,7 +1374,7 @@ var c4 = e4(class extends i4 {
   }
 });
 
-// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/style-map.js
+// node_modules/lit-html/directives/style-map.js
 var n5 = "important";
 var i6 = " !" + n5;
 var o6 = e4(class extends i4 {
@@ -1403,7 +1403,7 @@ var o6 = e4(class extends i4 {
   }
 });
 
-// node_modules/.pnpm/@outfitkit+core@file+..+outfitkit/node_modules/@outfitkit/core/dist/ok-data-table.js
+// ../outfitkit/dist/ok-data-table.js
 var __defProp2 = Object.defineProperty;
 var __decorateClass2 = (decorators, target, key, kind) => {
   var result = void 0;
@@ -1571,12 +1571,15 @@ var OkDataTable = class extends i3 {
 
     /* ── Topbar / cabecera (relieve) ─────────────────────────────────────────────────────── */
     .bar { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.65rem 1rem; border-bottom: 1px solid var(--border-color); background: var(--header-background); }
-    /* Toolbar CONSOLIDADA: TODOS los controles (buscador, filtros, page-size, vistas, columnas,
-     * CSV, ⋮, alta) son hijos directos de UNA sola fila flex que envuelve ELEMENTO A ELEMENTO
-     * (no por bloques): caben en una línea → una línea; los que no caben bajan a la(s) línea(s)
-     * que hagan falta. El cluster derecho se empuja al borde con .tk-spacer (hueco flexible)
-     * solo cuando todo cabe en una línea; al envolver, el spacer se oculta y todo se apila a la
-     * izquierda. */
+    /* Toolbar CONSOLIDADA: TODOS los controles son hijos directos de UNA sola fila flex que
+     * envuelve ELEMENTO A ELEMENTO (no por bloques): caben en una línea → una línea; los que no
+     * caben bajan a la(s) línea(s) que hagan falta. El cluster derecho se empuja al borde con
+     * .tk-spacer (hueco flexible) solo cuando todo cabe en una línea; al envolver, el spacer se
+     * oculta y todo se apila a la izquierda.
+     * ORDEN CANÓNICO (2026-06-22, izquierda→derecha): [buscador] · [filtros en línea] · ‹spacer› ·
+     * [SELECTORES: columnas → filas/página] · [BOTONES: vistas → filtros(funnel) → import → export →
+     * alta → ⋮ → acción primaria]. Es decir: buscador al inicio, filtros en medio, y al final los
+     * selectores (columnas, luego «N por página») seguidos de los botones de acción. */
     .bar-main { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
     .bar-main > ion-button { --padding-start: 0.5rem; --padding-end: 0.5rem; margin: 0; }
     /* Spacer que absorbe el hueco libre en pantallas anchas (empuja el cluster derecho al borde).
@@ -2287,6 +2290,19 @@ var OkDataTable = class extends i3 {
                   ${this.hasSearch ? b2`<div class="search">${searchbar}</div>` : A}
                   ${this.inlineFilters ? this.renderInlineFilters() : A}
                   <span class="tk-spacer"></span>
+                    ${this.effColumnPicker ? b2`
+                          <ion-select
+                            class="tk-cols"
+                            multiple
+                            interface="popover"
+                            aria-label=${this.t.columnsVisible}
+                            .value=${this.visibleColumns.map((c5) => c5.key)}
+                            .selectedText=${this.t.columns}
+                            @ionChange=${(e5) => this.setVisibleColumns(e5.detail.value)}
+                          >
+                            ${this.columns.map((c5) => b2`<ion-select-option value=${c5.key}>${c5.header}</ion-select-option>`)}
+                          </ion-select>
+                        ` : A}
                     ${this.effPageSizes.length ? b2`
                           <ion-select
                             class="tk-psize"
@@ -2303,19 +2319,6 @@ var OkDataTable = class extends i3 {
                             ${this.toolButton("list-outline", this.viewMode === "table", () => this.setViewMode("table"), this.t.viewList)}
                             ${this.toolButton("grid-outline", this.viewMode === "cards", () => this.setViewMode("cards"), this.t.viewCards)}
                           </span>
-                        ` : A}
-                    ${this.effColumnPicker ? b2`
-                          <ion-select
-                            class="tk-cols"
-                            multiple
-                            interface="popover"
-                            aria-label=${this.t.columnsVisible}
-                            .value=${this.visibleColumns.map((c5) => c5.key)}
-                            .selectedText=${this.t.columns}
-                            @ionChange=${(e5) => this.setVisibleColumns(e5.detail.value)}
-                          >
-                            ${this.columns.map((c5) => b2`<ion-select-option value=${c5.key}>${c5.header}</ion-select-option>`)}
-                          </ion-select>
                         ` : A}
                     ${this.hasFilterRow && !this.inlineFilters ? this.toolButton("funnel-outline", this.panel === "filters" || this.activeFilterCount > 0, () => this.toggle("filters"), this.t.filters, this.serverSide ? void 0 : this.activeFilterCount) : A}
                     ${this.effImport ? b2`
@@ -2678,7 +2681,7 @@ __decorateClass2([
 ], OkDataTable.prototype, "menuOpen");
 define("ok-data-table", OkDataTable);
 
-// node_modules/.pnpm/@erplora+module-sdk@file+..+hub+packages+module-sdk/node_modules/@erplora/module-sdk/src/index.ts
+// ../hub/packages/module-sdk/src/index.ts
 function isEmpty(v3) {
   return v3 === null || v3 === void 0 || v3 === "";
 }
@@ -2796,28 +2799,194 @@ function createListController(client, queryName, onChange = () => {
   return new ListController(client, queryName, onChange, opts);
 }
 
-// modules/invoice/ui/components/erp-invoice-list/erp-invoice-list.ts
+// ../modules-workspace/modules/invoice/locales/es.json
+var es_default = {
+  name: "Facturaci\xF3n",
+  navigation: {
+    invoice: {
+      label: "Facturas"
+    }
+  },
+  ui: {
+    pageTitle: "Facturas",
+    newInvoice: "Nueva factura",
+    close: "Cerrar",
+    back: "Volver",
+    cancel: "Cancelar",
+    loading: "Cargando\u2026",
+    empty: "A\xFAn no hay facturas.",
+    searchPlaceholder: "Buscar n\xFAmero, cliente o estado\u2026",
+    colNumber: "N\xFAmero",
+    colType: "Tipo",
+    colDate: "Fecha",
+    colCustomer: "Cliente",
+    colStatus: "Estado",
+    colTotal: "Total",
+    actionView: "Ver",
+    actionMarkPaid: "Marcar pagada",
+    actionRectify: "Rectificar",
+    typeInvoice: "Factura",
+    typeTicket: "Ticket",
+    typeRectifying: "Rectificativa",
+    statusDraft: "Borrador",
+    statusIssued: "Emitida",
+    statusPaid: "Pagada",
+    statusCancelled: "Cancelada",
+    detailTitle: "Factura {number}",
+    fieldType: "Tipo",
+    fieldSeries: "Serie",
+    fieldIssueDate: "Fecha de emisi\xF3n",
+    fieldCustomer: "Cliente",
+    fieldCustomerTaxId: "NIF cliente",
+    fieldAddress: "Direcci\xF3n",
+    fieldIssuer: "Emisor",
+    fieldSource: "Origen",
+    fieldRectifies: "Rectifica a",
+    fieldPaidAt: "Pagada el",
+    fieldNotes: "Notas",
+    lineDescription: "Descripci\xF3n",
+    lineQty: "Cant.",
+    linePrice: "Precio",
+    lineTaxPct: "IVA %",
+    lineBase: "Base",
+    lineTax: "Impuesto",
+    lineTotal: "Total",
+    noLines: "Sin l\xEDneas de detalle.",
+    totalBase: "Base",
+    totalTaxes: "Impuestos",
+    totalTotal: "Total",
+    rectifyTitle: "Rectificar {number}",
+    rectifyNote: "Se emitir\xE1 una rectificativa R1 (serie RECT) con los importes negados y la factura original quedar\xE1 cancelada. Esta operaci\xF3n no se puede deshacer.",
+    rectifyReasonPlaceholder: "Motivo de la rectificaci\xF3n",
+    rectifying: "Rectificando\u2026",
+    issueRectifying: "Emitir rectificativa",
+    createTitle: "Nueva factura manual",
+    placeholderTaxId: "NIF",
+    addLine: "+ L\xEDnea",
+    issuing: "Emitiendo\u2026",
+    issueInvoice: "Emitir factura",
+    errNotFound: "Factura no encontrada",
+    errLoadDetail: "No se pudo cargar el detalle",
+    errMarkPaidStatus: "Solo se puede marcar como pagada una factura emitida.",
+    errMarkPaid: "No se pudo marcar como pagada",
+    errRectifyRectifying: "Una rectificativa no se puede rectificar.",
+    errAlreadyCancelled: "La factura ya est\xE1 cancelada.",
+    errRectify: "No se pudo rectificar",
+    errCreate: "No se pudo crear la factura"
+  }
+};
+
+// ../modules-workspace/modules/invoice/locales/en.json
+var en_default = {
+  name: "Invoicing",
+  navigation: {
+    invoice: {
+      label: "Invoices"
+    }
+  },
+  ui: {
+    pageTitle: "Invoices",
+    newInvoice: "New invoice",
+    close: "Close",
+    back: "Back",
+    cancel: "Cancel",
+    loading: "Loading\u2026",
+    empty: "No invoices yet.",
+    searchPlaceholder: "Search number, customer or status\u2026",
+    colNumber: "Number",
+    colType: "Type",
+    colDate: "Date",
+    colCustomer: "Customer",
+    colStatus: "Status",
+    colTotal: "Total",
+    actionView: "View",
+    actionMarkPaid: "Mark as paid",
+    actionRectify: "Rectify",
+    typeInvoice: "Invoice",
+    typeTicket: "Receipt",
+    typeRectifying: "Corrective",
+    statusDraft: "Draft",
+    statusIssued: "Issued",
+    statusPaid: "Paid",
+    statusCancelled: "Cancelled",
+    detailTitle: "Invoice {number}",
+    fieldType: "Type",
+    fieldSeries: "Series",
+    fieldIssueDate: "Issue date",
+    fieldCustomer: "Customer",
+    fieldCustomerTaxId: "Customer tax ID",
+    fieldAddress: "Address",
+    fieldIssuer: "Issuer",
+    fieldSource: "Source",
+    fieldRectifies: "Rectifies",
+    fieldPaidAt: "Paid on",
+    fieldNotes: "Notes",
+    lineDescription: "Description",
+    lineQty: "Qty",
+    linePrice: "Price",
+    lineTaxPct: "Tax %",
+    lineBase: "Base",
+    lineTax: "Tax",
+    lineTotal: "Total",
+    noLines: "No line items.",
+    totalBase: "Base",
+    totalTaxes: "Taxes",
+    totalTotal: "Total",
+    rectifyTitle: "Rectify {number}",
+    rectifyNote: "An R1 corrective invoice (RECT series) with negated amounts will be issued and the original invoice will be cancelled. This operation cannot be undone.",
+    rectifyReasonPlaceholder: "Reason for the correction",
+    rectifying: "Rectifying\u2026",
+    issueRectifying: "Issue corrective",
+    createTitle: "New manual invoice",
+    placeholderTaxId: "Tax ID",
+    addLine: "+ Line",
+    issuing: "Issuing\u2026",
+    issueInvoice: "Issue invoice",
+    errNotFound: "Invoice not found",
+    errLoadDetail: "Could not load the detail",
+    errMarkPaidStatus: "Only an issued invoice can be marked as paid.",
+    errMarkPaid: "Could not mark as paid",
+    errRectifyRectifying: "A corrective invoice cannot be rectified.",
+    errAlreadyCancelled: "The invoice is already cancelled.",
+    errRectify: "Could not rectify",
+    errCreate: "Could not create the invoice"
+  }
+};
+
+// ../modules-workspace/modules/invoice/ui/components/erp-invoice-list/erp-invoice-list.ts
+var CATALOG = { es: es_default, en: en_default };
 function erplora() {
   const c5 = globalThis.erplora;
   if (!c5) throw new Error("erplora SDK no inicializado por el shell");
   return c5;
 }
-var TYPE_LABEL = {
-  F1: "Factura",
-  F2: "Ticket",
-  F3: "Factura",
-  R1: "Rectificativa",
-  R2: "Rectificativa",
-  R3: "Rectificativa",
-  R4: "Rectificativa",
-  R5: "Rectificativa"
-};
-var STATUS_LABEL = {
-  draft: "Borrador",
-  issued: "Emitida",
-  paid: "Pagada",
-  cancelled: "Cancelada"
-};
+function erploraT(key, params) {
+  return erplora().t(CATALOG, key, params);
+}
+function typeLabel(code) {
+  const map = {
+    F1: erploraT("ui.typeInvoice"),
+    F2: erploraT("ui.typeTicket"),
+    F3: erploraT("ui.typeInvoice"),
+    R1: erploraT("ui.typeRectifying"),
+    R2: erploraT("ui.typeRectifying"),
+    R3: erploraT("ui.typeRectifying"),
+    R4: erploraT("ui.typeRectifying"),
+    R5: erploraT("ui.typeRectifying")
+  };
+  return map[code] ?? code;
+}
+function statusLabel(code) {
+  const map = {
+    draft: erploraT("ui.statusDraft"),
+    issued: erploraT("ui.statusIssued"),
+    paid: erploraT("ui.statusPaid"),
+    cancelled: erploraT("ui.statusCancelled")
+  };
+  return map[code] ?? code;
+}
+var TYPE_CODES = ["F1", "F2", "F3", "R1", "R2", "R3", "R4", "R5"];
+var STATUS_CODES = ["draft", "issued", "paid", "cancelled"];
 var STATUS_COLOR = {
   draft: "medium",
   issued: "primary",
@@ -2849,30 +3018,9 @@ var ErpInvoiceList = class extends i3 {
     this.busy = false;
     this.canAdd = true;
     this.canRectify = true;
-    this.columns = [
-      { key: "number", header: "N\xFAmero", sortable: true, filterable: true, filterType: "text" },
-      {
-        key: "invoice_type",
-        header: "Tipo",
-        sortable: true,
-        filterable: true,
-        filterType: "select",
-        options: Object.entries(TYPE_LABEL).map(([value, label]) => ({ value, label })),
-        format: (r6) => TYPE_LABEL[r6.invoice_type] ?? r6.invoice_type
-      },
-      { key: "issue_date", header: "Fecha", sortable: true, filterable: true, filterType: "daterange" },
-      { key: "customer_name", header: "Cliente", sortable: true, filterable: true, filterType: "text", format: (r6) => r6.customer_name || "\u2014" },
-      {
-        key: "status",
-        header: "Estado",
-        sortable: true,
-        filterable: true,
-        filterType: "select",
-        options: Object.entries(STATUS_LABEL).map(([value, label]) => ({ value, label })),
-        render: (r6) => b2`<ion-badge color=${STATUS_COLOR[r6.status] ?? "medium"}>${STATUS_LABEL[r6.status] ?? r6.status}</ion-badge>`
-      },
-      { key: "total_amount", header: "Total", align: "right", sortable: true, filterable: true, filterType: "range", format: (r6) => money(r6.total_amount) }
-    ];
+    // Re-render al cambiar el idioma del shell (ADR-0055): los getters `columns`/`rowActions` y el
+    // texto del template se re-evalúan con el nuevo `erplora.locale`.
+    this.onLocaleChange = () => this.requestUpdate();
   }
   static {
     this.styles = i`
@@ -2898,14 +3046,44 @@ var ErpInvoiceList = class extends i3 {
     .row-actions { display:flex; gap:.5rem; margin-top:.6rem; }
   `;
   }
+  // Getter (no campo): se re-evalúa en cada render, así los textos cambian con el idioma activo
+  // (ADR-0055). `connectedCallback` re-renderiza al recibir `erplora:locale-changed`.
+  get columns() {
+    const t5 = (k2) => erploraT(k2);
+    return [
+      { key: "number", header: t5("ui.colNumber"), sortable: true, filterable: true, filterType: "text" },
+      {
+        key: "invoice_type",
+        header: t5("ui.colType"),
+        sortable: true,
+        filterable: true,
+        filterType: "select",
+        options: TYPE_CODES.map((value) => ({ value, label: typeLabel(value) })),
+        format: (r6) => typeLabel(r6.invoice_type)
+      },
+      { key: "issue_date", header: t5("ui.colDate"), sortable: true, filterable: true, filterType: "daterange" },
+      { key: "customer_name", header: t5("ui.colCustomer"), sortable: true, filterable: true, filterType: "text", format: (r6) => r6.customer_name || "\u2014" },
+      {
+        key: "status",
+        header: t5("ui.colStatus"),
+        sortable: true,
+        filterable: true,
+        filterType: "select",
+        options: STATUS_CODES.map((value) => ({ value, label: statusLabel(value) })),
+        render: (r6) => b2`<ion-badge color=${STATUS_COLOR[r6.status] ?? "medium"}>${statusLabel(r6.status)}</ion-badge>`
+      },
+      { key: "total_amount", header: t5("ui.colTotal"), align: "right", sortable: true, filterable: true, filterType: "range", format: (r6) => money(r6.total_amount) }
+    ];
+  }
   get rowActions() {
-    const acts = [{ id: "view", label: "Ver", icon: "eye-outline" }];
-    if (this.canAdd) acts.push({ id: "paid", label: "Marcar pagada", icon: "checkmark-circle-outline", color: "success" });
-    if (this.canRectify) acts.push({ id: "rectify", label: "Rectificar", icon: "arrow-undo-outline", color: "danger" });
+    const acts = [{ id: "view", label: erploraT("ui.actionView"), icon: "eye-outline" }];
+    if (this.canAdd) acts.push({ id: "paid", label: erploraT("ui.actionMarkPaid"), icon: "checkmark-circle-outline", color: "success" });
+    if (this.canRectify) acts.push({ id: "rectify", label: erploraT("ui.actionRectify"), icon: "arrow-undo-outline", color: "danger" });
     return acts;
   }
   async connectedCallback() {
     super.connectedCallback();
+    window.addEventListener("erplora:locale-changed", this.onLocaleChange);
     try {
       const c5 = erplora();
       this.canAdd = c5.hasPermission?.("invoice.add_invoice") ?? true;
@@ -2929,6 +3107,7 @@ var ErpInvoiceList = class extends i3 {
     }
   }
   disconnectedCallback() {
+    window.removeEventListener("erplora:locale-changed", this.onLocaleChange);
     super.disconnectedCallback();
     this.unsub?.();
   }
@@ -2942,13 +3121,13 @@ var ErpInvoiceList = class extends i3 {
       ]);
       const row = Array.isArray(inv) ? inv[0] : inv;
       if (!row) {
-        this.detailError = "Factura no encontrada";
+        this.detailError = erploraT("ui.errNotFound");
         return;
       }
       this.detail = row;
       this.detailLines = Array.isArray(lines) ? lines : [];
     } catch (e5) {
-      this.detailError = e5 instanceof Error ? e5.message : "No se pudo cargar el detalle";
+      this.detailError = e5 instanceof Error ? e5.message : erploraT("ui.errLoadDetail");
     }
   }
   closeDetail() {
@@ -2960,7 +3139,7 @@ var ErpInvoiceList = class extends i3 {
   // ── acciones (mark_paid / rectify) ────────────────────────────────────────
   async markPaid(inv) {
     if (inv.status !== "issued") {
-      this.actionError = "Solo se puede marcar como pagada una factura emitida.";
+      this.actionError = erploraT("ui.errMarkPaidStatus");
       return;
     }
     this.actionError = "";
@@ -2970,18 +3149,18 @@ var ErpInvoiceList = class extends i3 {
       await this.ctrl.load();
       if (this.detail?.id === inv.id) await this.openDetail(inv.id);
     } catch (e5) {
-      this.actionError = e5 instanceof Error ? e5.message : "No se pudo marcar como pagada";
+      this.actionError = e5 instanceof Error ? e5.message : erploraT("ui.errMarkPaid");
     } finally {
       this.busy = false;
     }
   }
   startRectify(inv) {
     if (inv.invoice_type?.startsWith("R")) {
-      this.actionError = "Una rectificativa no se puede rectificar.";
+      this.actionError = erploraT("ui.errRectifyRectifying");
       return;
     }
     if (inv.status === "cancelled") {
-      this.actionError = "La factura ya est\xE1 cancelada.";
+      this.actionError = erploraT("ui.errAlreadyCancelled");
       return;
     }
     this.actionError = "";
@@ -3005,7 +3184,7 @@ var ErpInvoiceList = class extends i3 {
       await this.ctrl.load();
       if (this.detail?.id === target.id) await this.openDetail(target.id);
     } catch (e5) {
-      this.actionError = e5 instanceof Error ? e5.message : "No se pudo rectificar";
+      this.actionError = e5 instanceof Error ? e5.message : erploraT("ui.errRectify");
     } finally {
       this.busy = false;
     }
@@ -3065,7 +3244,7 @@ var ErpInvoiceList = class extends i3 {
       this.showCreate = false;
       await this.ctrl.load();
     } catch (e5) {
-      this.formError = e5 instanceof Error ? e5.message : "No se pudo crear la factura";
+      this.formError = e5 instanceof Error ? e5.message : erploraT("ui.errCreate");
     } finally {
       this.saving = false;
     }
@@ -3075,14 +3254,14 @@ var ErpInvoiceList = class extends i3 {
     const t5 = this.rectifyTarget;
     if (!t5) return A;
     return b2`<div class="card">
-      <h3>Rectificar ${t5.number}</h3>
-      <p>Se emitirá una rectificativa R1 (serie RECT) con los importes negados y la factura original quedará cancelada. Esta operación no se puede deshacer.</p>
+      <h3>${erploraT("ui.rectifyTitle", { number: t5.number })}</h3>
+      <p>${erploraT("ui.rectifyNote")}</p>
       <div class="form">
-        <ion-textarea placeholder="Motivo de la rectificación" auto-grow .value=${this.rectifyReason} @ionInput=${(e5) => this.rectifyReason = e5.target.value}></ion-textarea>
+        <ion-textarea placeholder=${erploraT("ui.rectifyReasonPlaceholder")} auto-grow .value=${this.rectifyReason} @ionInput=${(e5) => this.rectifyReason = e5.target.value}></ion-textarea>
       </div>
       <div class="row-actions">
-        <ion-button size="small" color="danger" ?disabled=${this.busy || !this.rectifyReason.trim()} @click=${() => this.confirmRectify()}>${this.busy ? "Rectificando\u2026" : "Emitir rectificativa"}</ion-button>
-        <ion-button size="small" fill="outline" color="medium" @click=${() => this.rectifyTarget = null}>Cancelar</ion-button>
+        <ion-button size="small" color="danger" ?disabled=${this.busy || !this.rectifyReason.trim()} @click=${() => this.confirmRectify()}>${this.busy ? erploraT("ui.rectifying") : erploraT("ui.issueRectifying")}</ion-button>
+        <ion-button size="small" fill="outline" color="medium" @click=${() => this.rectifyTarget = null}>${erploraT("ui.cancel")}</ion-button>
       </div>
     </div>`;
   }
@@ -3090,70 +3269,70 @@ var ErpInvoiceList = class extends i3 {
     const d3 = this.detail;
     return b2`<div>
       <header>
-        <h2>Factura ${d3.number}</h2>
-        <ion-badge color=${STATUS_COLOR[d3.status] ?? "medium"}>${STATUS_LABEL[d3.status] ?? d3.status}</ion-badge>
-        <ion-button size="small" fill="outline" color="medium" @click=${() => this.closeDetail()}>← Volver</ion-button>
+        <h2>${erploraT("ui.detailTitle", { number: d3.number })}</h2>
+        <ion-badge color=${STATUS_COLOR[d3.status] ?? "medium"}>${statusLabel(d3.status)}</ion-badge>
+        <ion-button size="small" fill="outline" color="medium" @click=${() => this.closeDetail()}>← ${erploraT("ui.back")}</ion-button>
       </header>
       ${this.actionError ? b2`<p class="err">${this.actionError}</p>` : A}
       ${this.renderRectifyCard()}
       <div class="card">
         <dl class="grid">
-          <div><dt>Tipo</dt><dd>${TYPE_LABEL[d3.invoice_type] ?? d3.invoice_type} (${d3.invoice_type})</dd></div>
-          <div><dt>Serie</dt><dd>${d3.series}</dd></div>
-          <div><dt>Fecha de emisión</dt><dd>${d3.issue_date}</dd></div>
-          <div><dt>Cliente</dt><dd>${d3.customer_name || "\u2014"}</dd></div>
-          <div><dt>NIF cliente</dt><dd>${d3.customer_tax_id || "\u2014"}</dd></div>
-          <div><dt>Dirección</dt><dd>${d3.customer_address || "\u2014"}</dd></div>
-          <div><dt>Emisor</dt><dd>${d3.issuer_name || "\u2014"} ${d3.issuer_nif ? `(${d3.issuer_nif})` : ""}</dd></div>
-          <div><dt>Origen</dt><dd>${d3.source_type}${d3.source_id ? ` \xB7 ${d3.source_id}` : ""}</dd></div>
-          ${d3.rectifies_invoice_id ? b2`<div><dt>Rectifica a</dt><dd>${d3.rectifies_invoice_id}</dd></div>` : A}
-          ${d3.paid_at ? b2`<div><dt>Pagada el</dt><dd>${d3.paid_at}</dd></div>` : A}
-          ${d3.notes ? b2`<div><dt>Notas</dt><dd>${d3.notes}</dd></div>` : A}
+          <div><dt>${erploraT("ui.fieldType")}</dt><dd>${typeLabel(d3.invoice_type)} (${d3.invoice_type})</dd></div>
+          <div><dt>${erploraT("ui.fieldSeries")}</dt><dd>${d3.series}</dd></div>
+          <div><dt>${erploraT("ui.fieldIssueDate")}</dt><dd>${d3.issue_date}</dd></div>
+          <div><dt>${erploraT("ui.fieldCustomer")}</dt><dd>${d3.customer_name || "\u2014"}</dd></div>
+          <div><dt>${erploraT("ui.fieldCustomerTaxId")}</dt><dd>${d3.customer_tax_id || "\u2014"}</dd></div>
+          <div><dt>${erploraT("ui.fieldAddress")}</dt><dd>${d3.customer_address || "\u2014"}</dd></div>
+          <div><dt>${erploraT("ui.fieldIssuer")}</dt><dd>${d3.issuer_name || "\u2014"} ${d3.issuer_nif ? `(${d3.issuer_nif})` : ""}</dd></div>
+          <div><dt>${erploraT("ui.fieldSource")}</dt><dd>${d3.source_type}${d3.source_id ? ` \xB7 ${d3.source_id}` : ""}</dd></div>
+          ${d3.rectifies_invoice_id ? b2`<div><dt>${erploraT("ui.fieldRectifies")}</dt><dd>${d3.rectifies_invoice_id}</dd></div>` : A}
+          ${d3.paid_at ? b2`<div><dt>${erploraT("ui.fieldPaidAt")}</dt><dd>${d3.paid_at}</dd></div>` : A}
+          ${d3.notes ? b2`<div><dt>${erploraT("ui.fieldNotes")}</dt><dd>${d3.notes}</dd></div>` : A}
         </dl>
         ${this.detailLines.length ? b2`<table class="lines">
-          <thead><tr><th>#</th><th>Descripción</th><th>Cant.</th><th>Precio</th><th>IVA %</th><th>Base</th><th>Impuesto</th><th>Total</th></tr></thead>
+          <thead><tr><th>#</th><th>${erploraT("ui.lineDescription")}</th><th>${erploraT("ui.lineQty")}</th><th>${erploraT("ui.linePrice")}</th><th>${erploraT("ui.lineTaxPct")}</th><th>${erploraT("ui.lineBase")}</th><th>${erploraT("ui.lineTax")}</th><th>${erploraT("ui.lineTotal")}</th></tr></thead>
           <tbody>${this.detailLines.map((l3) => b2`<tr>
             <td>${l3.line_number}</td><td>${l3.description}</td><td>${l3.quantity}</td>
             <td>${money(l3.unit_price)}</td><td>${money(l3.tax_rate)}</td>
             <td>${money(l3.base_amount)}</td><td>${money(l3.tax_amount)}</td><td>${money(l3.total_amount)}</td>
           </tr>`)}</tbody>
-        </table>` : b2`<p>Sin líneas de detalle.</p>`}
+        </table>` : b2`<p>${erploraT("ui.noLines")}</p>`}
         <div class="totals">
-          <span>Base: ${money(d3.base_amount)} ${d3.currency}</span>
-          <span>Impuestos: ${money(d3.tax_amount)} ${d3.currency}</span>
-          <span>Total: ${money(d3.total_amount)} ${d3.currency}</span>
+          <span>${erploraT("ui.totalBase")}: ${money(d3.base_amount)} ${d3.currency}</span>
+          <span>${erploraT("ui.totalTaxes")}: ${money(d3.tax_amount)} ${d3.currency}</span>
+          <span>${erploraT("ui.totalTotal")}: ${money(d3.total_amount)} ${d3.currency}</span>
         </div>
         <div class="row-actions">
-          ${this.canAdd && d3.status === "issued" ? b2`<ion-button size="small" color="success" ?disabled=${this.busy} @click=${() => this.markPaid(d3)}>Marcar pagada</ion-button>` : A}
-          ${this.canRectify && !(d3.invoice_type ?? "").startsWith("R") && d3.status !== "cancelled" ? b2`<ion-button size="small" fill="outline" color="danger" ?disabled=${this.busy} @click=${() => this.startRectify(d3)}>Rectificar</ion-button>` : A}
+          ${this.canAdd && d3.status === "issued" ? b2`<ion-button size="small" color="success" ?disabled=${this.busy} @click=${() => this.markPaid(d3)}>${erploraT("ui.actionMarkPaid")}</ion-button>` : A}
+          ${this.canRectify && !(d3.invoice_type ?? "").startsWith("R") && d3.status !== "cancelled" ? b2`<ion-button size="small" fill="outline" color="danger" ?disabled=${this.busy} @click=${() => this.startRectify(d3)}>${erploraT("ui.actionRectify")}</ion-button>` : A}
         </div>
       </div>
     </div>`;
   }
   renderCreateForm() {
     return b2`<div class="card">
-      <h3>Nueva factura manual</h3>
+      <h3>${erploraT("ui.createTitle")}</h3>
       <form @submit=${(e5) => this.create(e5)}>
         <div class="form">
-          <ion-select label="Serie" interface="popover" .value=${this.newSeriesCode} @ionChange=${(e5) => this.newSeriesCode = e5.target.value}>
-            ${this.seriesOptions.length ? this.seriesOptions.map((sr) => b2`<ion-select-option .value=${sr.code}>${sr.code} — ${sr.name || sr.invoice_type}</ion-select-option>`) : b2`<ion-select-option value="FACT">FACT — Factura (F1)</ion-select-option><ion-select-option value="TICKET">TICKET — Ticket (F2)</ion-select-option>`}
+          <ion-select label=${erploraT("ui.fieldSeries")} interface="popover" .value=${this.newSeriesCode} @ionChange=${(e5) => this.newSeriesCode = e5.target.value}>
+            ${this.seriesOptions.length ? this.seriesOptions.map((sr) => b2`<ion-select-option .value=${sr.code}>${sr.code} — ${sr.name || typeLabel(sr.invoice_type)}</ion-select-option>`) : b2`<ion-select-option value="FACT">FACT — ${typeLabel("F1")} (F1)</ion-select-option><ion-select-option value="TICKET">TICKET — ${typeLabel("F2")} (F2)</ion-select-option>`}
           </ion-select>
-          <ion-input placeholder="Cliente" .value=${this.newCustomerName} @ionInput=${(e5) => this.newCustomerName = e5.target.value}></ion-input>
-          <ion-input placeholder="NIF" .value=${this.newCustomerTaxId} @ionInput=${(e5) => this.newCustomerTaxId = e5.target.value}></ion-input>
-          <ion-input placeholder="Dirección" .value=${this.newCustomerAddress} @ionInput=${(e5) => this.newCustomerAddress = e5.target.value}></ion-input>
-          <ion-input placeholder="Notas" .value=${this.newNotes} @ionInput=${(e5) => this.newNotes = e5.target.value}></ion-input>
+          <ion-input placeholder=${erploraT("ui.fieldCustomer")} .value=${this.newCustomerName} @ionInput=${(e5) => this.newCustomerName = e5.target.value}></ion-input>
+          <ion-input placeholder=${erploraT("ui.placeholderTaxId")} .value=${this.newCustomerTaxId} @ionInput=${(e5) => this.newCustomerTaxId = e5.target.value}></ion-input>
+          <ion-input placeholder=${erploraT("ui.fieldAddress")} .value=${this.newCustomerAddress} @ionInput=${(e5) => this.newCustomerAddress = e5.target.value}></ion-input>
+          <ion-input placeholder=${erploraT("ui.fieldNotes")} .value=${this.newNotes} @ionInput=${(e5) => this.newNotes = e5.target.value}></ion-input>
         </div>
         ${this.newItems.map((it, i7) => b2`<div class="item-row">
-          <ion-input class="desc" placeholder="Descripción" .value=${it.description} @ionInput=${(e5) => this.setItem(i7, "description", e5.target.value)}></ion-input>
-          <ion-input class="num" type="number" placeholder="Cant." .value=${it.quantity} @ionInput=${(e5) => this.setItem(i7, "quantity", e5.target.value)}></ion-input>
-          <ion-input class="num" type="number" placeholder="Precio" .value=${it.unit_price} @ionInput=${(e5) => this.setItem(i7, "unit_price", e5.target.value)}></ion-input>
-          <ion-input class="num" type="number" placeholder="IVA %" .value=${it.tax_rate} @ionInput=${(e5) => this.setItem(i7, "tax_rate", e5.target.value)}></ion-input>
+          <ion-input class="desc" placeholder=${erploraT("ui.lineDescription")} .value=${it.description} @ionInput=${(e5) => this.setItem(i7, "description", e5.target.value)}></ion-input>
+          <ion-input class="num" type="number" placeholder=${erploraT("ui.lineQty")} .value=${it.quantity} @ionInput=${(e5) => this.setItem(i7, "quantity", e5.target.value)}></ion-input>
+          <ion-input class="num" type="number" placeholder=${erploraT("ui.linePrice")} .value=${it.unit_price} @ionInput=${(e5) => this.setItem(i7, "unit_price", e5.target.value)}></ion-input>
+          <ion-input class="num" type="number" placeholder=${erploraT("ui.lineTaxPct")} .value=${it.tax_rate} @ionInput=${(e5) => this.setItem(i7, "tax_rate", e5.target.value)}></ion-input>
           ${this.newItems.length > 1 ? b2`<ion-button size="small" fill="clear" color="danger" @click=${() => this.newItems = this.newItems.filter((_2, j2) => j2 !== i7)}>✕</ion-button>` : A}
         </div>`)}
         <div class="row-actions">
-          <ion-button size="small" fill="outline" @click=${() => this.newItems = [...this.newItems, emptyItem()]}>+ Línea</ion-button>
-          <ion-button size="small" type="submit" ?disabled=${this.saving || !this.itemsValid}>${this.saving ? "Emitiendo\u2026" : "Emitir factura"}</ion-button>
-          <ion-button size="small" fill="clear" color="medium" @click=${() => this.showCreate = false}>Cancelar</ion-button>
+          <ion-button size="small" fill="outline" @click=${() => this.newItems = [...this.newItems, emptyItem()]}>${erploraT("ui.addLine")}</ion-button>
+          <ion-button size="small" type="submit" ?disabled=${this.saving || !this.itemsValid}>${this.saving ? erploraT("ui.issuing") : erploraT("ui.issueInvoice")}</ion-button>
+          <ion-button size="small" fill="clear" color="medium" @click=${() => this.showCreate = false}>${erploraT("ui.cancel")}</ion-button>
         </div>
         ${this.formError ? b2`<p class="err">${this.formError}</p>` : A}
       </form>
@@ -3163,15 +3342,15 @@ var ErpInvoiceList = class extends i3 {
     if (this.detail) return this.renderDetail();
     return b2`<div>
         <header>
-          <h2>Facturas</h2>
-          ${this.canAdd ? b2`<ion-button size="small" @click=${() => this.toggleCreate()}>${this.showCreate ? "Cerrar" : "Nueva factura"}</ion-button>` : A}
+          <h2>${erploraT("ui.pageTitle")}</h2>
+          ${this.canAdd ? b2`<ion-button size="small" @click=${() => this.toggleCreate()}>${this.showCreate ? erploraT("ui.close") : erploraT("ui.newInvoice")}</ion-button>` : A}
         </header>
         ${this.showCreate ? this.renderCreateForm() : A}
         ${this.renderRectifyCard()}
         ${this.actionError ? b2`<p class="err">${this.actionError}</p>` : A}
         ${this.detailError ? b2`<p class="err">${this.detailError}</p>` : A}
         ${this.ctrl?.error ? b2`<p class="err">${this.ctrl.error}</p>` : A}
-        <ok-data-table .serverSide=${true} .columns=${this.columns} .rows=${this.ctrl?.rows ?? []} .total=${this.ctrl?.total ?? 0} .page=${this.ctrl?.state.page ?? 0} .pageSize=${this.ctrl?.state.pageSize ?? 50} .sort=${this.ctrl?.state.sort} .sortDir=${this.ctrl?.state.dir ?? "asc"} .searchable=${true} .searchPlaceholder=${"Buscar n\xFAmero, cliente o estado\u2026"} .actions=${this.rowActions} .emptyMessage=${this.ctrl?.loading ? "Cargando\u2026" : "A\xFAn no hay facturas."} @rowAction=${(e5) => this.onRowAction(e5)} @pageChange=${(e5) => this.ctrl.setPage(e5.detail)} @sortChange=${(e5) => this.ctrl.setSort(e5.detail.sort, e5.detail.dir)} @searchChange=${(e5) => this.ctrl.setSearch(e5.detail)} @filterChange=${(e5) => this.ctrl.setFilter(e5.detail.col, e5.detail.value)}></ok-data-table>
+        <ok-data-table .serverSide=${true} .columns=${this.columns} .rows=${this.ctrl?.rows ?? []} .total=${this.ctrl?.total ?? 0} .page=${this.ctrl?.state.page ?? 0} .pageSize=${this.ctrl?.state.pageSize ?? 50} .sort=${this.ctrl?.state.sort} .sortDir=${this.ctrl?.state.dir ?? "asc"} .searchable=${true} .searchPlaceholder=${erploraT("ui.searchPlaceholder")} .actions=${this.rowActions} .emptyMessage=${this.ctrl?.loading ? erploraT("ui.loading") : erploraT("ui.empty")} @rowAction=${(e5) => this.onRowAction(e5)} @pageChange=${(e5) => this.ctrl.setPage(e5.detail)} @sortChange=${(e5) => this.ctrl.setSort(e5.detail.sort, e5.detail.dir)} @searchChange=${(e5) => this.ctrl.setSearch(e5.detail)} @filterChange=${(e5) => this.ctrl.setFilter(e5.detail.col, e5.detail.value)}></ok-data-table>
       </div>`;
   }
 };
