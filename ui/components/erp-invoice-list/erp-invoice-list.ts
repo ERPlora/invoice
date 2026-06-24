@@ -91,12 +91,12 @@ export class ErpInvoiceList extends LitElement {
     h2 { margin:0; font-size:1.15rem; flex:1; }
     h3 { margin:0 0 .5rem; font-size:1rem; }
     .err { color:#d9480f; font-weight:600; }
-    .card { border:1px solid var(--line,#e7e2d6); border-radius:10px; padding:1rem; margin-bottom:1rem; background:var(--surface-1,#fffdf7); }
+    .card { border:1px solid var(--ion-border-color,#e7e2d6); border-radius:10px; padding:1rem; margin-bottom:1rem; background:var(--ion-card-background,#fffdf7); }
     .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap:.35rem .75rem; margin:.5rem 0; }
     .grid dt { font-size:.72rem; text-transform:uppercase; letter-spacing:.03em; color:var(--ion-color-medium,#8a8577); margin:0; }
     .grid dd { margin:0 0 .4rem; font-weight:500; word-break:break-word; }
     table.lines { width:100%; border-collapse:collapse; margin-top:.5rem; font-size:.9rem; }
-    table.lines th, table.lines td { padding:.35rem .5rem; border-bottom:1px solid var(--line,#e7e2d6); text-align:left; }
+    table.lines th, table.lines td { padding:.35rem .5rem; border-bottom:1px solid var(--ion-border-color,#e7e2d6); text-align:left; }
     table.lines th:nth-child(n+3), table.lines td:nth-child(n+3) { text-align:right; }
     .totals { display:flex; gap:1.5rem; justify-content:flex-end; margin-top:.6rem; font-weight:600; }
     .form { display:flex; gap:.75rem; flex-wrap:wrap; align-items:end; margin:.5rem 0 1.25rem; }
