@@ -3,6 +3,9 @@
   "navigation": {
     "invoice": {
       "label": "Invoices"
+    },
+    "settings": {
+      "label": "Settings"
     }
   },
   "ui": {
@@ -22,7 +25,17 @@
     "colTotal": "Total",
     "actionView": "View",
     "actionMarkPaid": "Mark as paid",
-    "actionRectify": "Rectify",
+    "actionRectify": "Refund",
+    "actionPrint": "Print / PDF",
+    "aeatTitle": "VeriFactu receipt",
+    "aeatCsv": "AEAT CSV",
+    "aeatValidateLink": "Verify at the tax agency ↗",
+    "aeatNoRecord": "Not sent to the AEAT yet.",
+    "aeatAccepted": "Accepted by the AEAT",
+    "aeatPending": "Pending submission",
+    "aeatRejected": "Rejected by the AEAT",
+    "aeatErrorStatus": "Submission error",
+    "qrValidateNote": "Scan to validate the invoice at the AEAT",
     "typeInvoice": "Invoice",
     "typeTicket": "Receipt",
     "typeRectifying": "Corrective",
@@ -71,6 +84,43 @@
     "errRectifyRectifying": "A corrective invoice cannot be rectified.",
     "errAlreadyCancelled": "The invoice is already cancelled.",
     "errRectify": "Could not rectify",
-    "errCreate": "Could not create the invoice"
+    "errCreate": "Could not create the invoice",
+    "seriesTitle": "Numbering series",
+    "seriesIntro": "Each series defines the prefix and counter of the invoice numbering (PREFIX-YYYY-NNNNNN) per invoice type (F1, F2, …). The code, year and counter are immutable for fiscal integrity; only the name, prefix, active state and default flag can be edited.",
+    "newSeries": "New series",
+    "seriesColCode": "Code",
+    "seriesColName": "Name",
+    "seriesColType": "Type",
+    "seriesColYear": "Year",
+    "seriesColNumber": "Current no.",
+    "seriesColPrefix": "Prefix",
+    "seriesColActive": "Active",
+    "seriesColDefault": "Default",
+    "seriesEmpty": "No series yet. Create the first one to number your invoices.",
+    "seriesLoading": "Loading series…",
+    "seriesSearchPlaceholder": "Search code, name…",
+    "seriesActionEdit": "Edit",
+    "seriesCreateTitle": "New numbering series",
+    "seriesEditTitle": "Edit series {code}",
+    "fieldCode": "Code",
+    "fieldName": "Name",
+    "fieldInvoiceType": "Invoice type",
+    "fieldYear": "Year",
+    "fieldPrefix": "Prefix",
+    "fieldActive": "Active",
+    "fieldDefault": "Default series",
+    "codeHint": "Internal identifier of the series (immutable once created).",
+    "prefixHint": "Optional text prepended to the number (e.g. FAC → FAC-2026-000001).",
+    "yes": "Yes",
+    "no": "No",
+    "save": "Save",
+    "saving": "Saving…",
+    "create": "Create series",
+    "creating": "Creating…",
+    "errSeriesLoad": "Could not load the series",
+    "errSeriesCreate": "Could not create the series",
+    "errSeriesUpdate": "Could not update the series",
+    "errSeriesCodeRequired": "The code is required.",
+    "settingsIntro": "Manage invoice numbering here through series."
   }
 }

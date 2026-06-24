@@ -43,6 +43,13 @@
       "label": "Invoices",
       "icon": "document-text-outline",
       "component": "erp-invoice-list"
+    },
+    {
+      "id": "settings",
+      "label": "Settings",
+      "icon": "settings-outline",
+      "component": "erp-invoice-settings",
+      "permission": "invoice.view_invoice"
     }
   ],
   "migrations": {
@@ -53,6 +60,7 @@
   "queries": {
     "invoice.list": {
       "permission": "invoice.view_invoice",
+      "expose_api": true,
       "sql": "queries/list.sql",
       "list": {
         "search": [
@@ -119,13 +127,24 @@
     },
     "invoice.get": {
       "permission": "invoice.view_invoice",
+      "expose_api": true,
       "sql": "queries/get.sql",
       "ai": {
         "description": "Retrieves the full detail of an invoice by its identifier."
       }
     },
+    "invoice.by_source": {
+      "permission": "invoice.view_invoice",
+      "expose_api": true,
+      "sql": "queries/by_source.sql",
+      "schema": "schemas/by_source.json",
+      "ai": {
+        "description": "Returns the invoice generated from a given source (e.g. a POS sale) by its source id."
+      }
+    },
     "invoice.lines": {
       "permission": "invoice.view_invoice",
+      "expose_api": true,
       "sql": "queries/lines.sql",
       "ai": {
         "description": "Lists the line items (products/services) of an invoice."

@@ -2,7 +2,9 @@ import { LitElement, html, css, nothing } from 'lit';
 import { state } from 'lit/decorators.js';
 import { define } from '@erplora/outfitkit/define';
 import '@erplora/outfitkit/ok-data-table';
-import type { DataTableColumn, DataTableAction } from '@erplora/outfitkit';
+import '@erplora/outfitkit/ok-invoice';
+import '@erplora/outfitkit/ok-qr';
+import type { DataTableColumn, DataTableAction, InvoiceData } from '@erplora/outfitkit';
 import { createListController } from '@erplora/module-sdk';
 import type { ListController, ListClient, ListParams, ListPage } from '@erplora/module-sdk';
 // Catálogo i18n del módulo (ADR-0055): esbuild inlinea estos JSON en el `dist` del WC. Los textos
@@ -20,6 +22,9 @@ interface ErploraClientLike extends ListClient {
   /** i18n del módulo (ADR-0055): idioma activo + traducción del catálogo `ui`. */
   locale: string;
   t(catalog: Record<string, unknown>, key: string, params?: Record<string, unknown>): string;
+  /** Moneda del hub + formateo de dinero (ADR-0059). `opts.currency` sobreescribe (factura en otra divisa). */
+  currency: string;
+  formatAmount(units: number, opts?: { currency?: string; locale?: string }): string;
 }
 
 interface Invoice {
@@ -81,7 +86,12 @@ const STATUS_COLOR: Record<string, string> = {
   draft: 'medium', issued: 'primary', paid: 'success', cancelled: 'danger',
 };
 
-const money = (v: unknown) => Number(v || 0).toFixed(2);
+// Importes en UNIDADES mayores (la factura guarda decimales, no céntimos). Dinero → formateado con
+// la moneda del HUB por defecto (ADR-0059) o la propia de la factura (`fmtDoc`, que pasa `d.currency`);
+// `num` es para valores NO monetarios (cantidades, % de impuesto) que solo quieren 2 decimales.
+const fmtMoney = (v: unknown) => erplora().formatAmount(Number(v || 0));
+const fmtDoc = (v: unknown, currency: string) => erplora().formatAmount(Number(v || 0), { currency });
+const num = (v: unknown) => Number(v || 0).toFixed(2);
 const emptyItem = (): DraftItem => ({ description: '', quantity: '1', unit_price: '', tax_rate: '21' });
 
 export class ErpInvoiceList extends LitElement {
@@ -106,6 +116,21 @@ export class ErpInvoiceList extends LitElement {
     .item-row .desc { flex:2 1 20rem; min-width:16rem; }
     .item-row .num { flex:1 1 6.5rem; min-width:6.5rem; }
     .row-actions { display:flex; gap:.5rem; margin-top:.6rem; }
+    .muted { color: var(--ion-color-medium,#8a8577); }
+    .kv { display:flex; gap:.5rem; align-items:baseline; margin:.25rem 0; }
+    .kv .k { font-size:.72rem; text-transform:uppercase; letter-spacing:.03em; color:var(--ion-color-medium,#8a8577); }
+    .kv code { font-family: ui-monospace, monospace; font-size:.85rem; word-break:break-all; }
+    .link { color: var(--ion-color-primary,#3880ff); font-weight:600; text-decoration:none; }
+    .aeat-card .aeat-head { display:flex; gap:.5rem; align-items:center; }
+    .aeat-card .aeat-head h3 { margin:0; flex:1; }
+    .qr-wrap { display:flex; flex-direction:column; align-items:center; gap:.4rem; padding:.5rem 0; }
+    .qr-note { font-size:.72rem; color:var(--ion-color-medium,#8a8577); text-align:center; }
+    /* Documento imprimible: oculto en pantalla, único visible al imprimir / Guardar como PDF. */
+    .print-only { display:none; }
+    @media print {
+      .screen-only { display:none !important; }
+      .print-only { display:block !important; }
+    }
   `;
 
   @state() tick = 0;
@@ -116,6 +141,9 @@ export class ErpInvoiceList extends LitElement {
   @state() detailLines: InvoiceLine[] = [];
 
   @state() detailError = '';
+
+  /** Justificante VeriFactu de la factura abierta (estado AEAT + CSV + QR). */
+  @state() aeat: { status?: string; csv?: string; qr?: string; record_type?: string } | null = null;
 
   // ── alta manual ──
   @state() showCreate = false;
@@ -181,7 +209,7 @@ export class ErpInvoiceList extends LitElement {
       options: STATUS_CODES.map((value) => ({ value, label: statusLabel(value) })),
       render: (r) => html`<ion-badge color=${STATUS_COLOR[r.status as string] ?? 'medium'}>${statusLabel(r.status as string)}</ion-badge>`,
     },
-    { key: 'total_amount', header: t('ui.colTotal'), align: 'right', sortable: true, filterable: true, filterType: 'range', format: (r) => money(r.total_amount) },
+    { key: 'total_amount', header: t('ui.colTotal'), align: 'right', sortable: true, filterable: true, filterType: 'range', format: (r) => fmtMoney(r.total_amount) },
     ];
   }
 
@@ -235,12 +263,33 @@ export class ErpInvoiceList extends LitElement {
       if (!row) { this.detailError = erploraT('ui.errNotFound'); return; }
       this.detail = row;
       this.detailLines = Array.isArray(lines) ? lines : [];
+      // Justificante VeriFactu (estado AEAT + CSV + QR) — best-effort: si no hay registro o permiso,
+      // la factura se muestra igual sin el bloque AEAT.
+      this.aeat = await this.loadAeat(id);
     } catch (e) {
       this.detailError = e instanceof Error ? e.message : erploraT('ui.errLoadDetail');
     }
   }
 
-  private closeDetail() { this.detail = null; this.detailLines = []; this.detailError = ''; this.rectifyTarget = null; }
+  /** Carga el registro VeriFactu de la factura (qr_url + CSV + estado). Tolerante a fallos. */
+  private async loadAeat(invoiceId: string) {
+    try {
+      const rows = await erplora().query<Record<string, unknown> | Record<string, unknown>[]>(
+        'verifactu.records.by_invoice', { invoice_id: invoiceId });
+      const rec = (Array.isArray(rows) ? rows[0] : rows) as Record<string, unknown> | undefined;
+      if (!rec) return null;
+      return {
+        status: (rec.status as string) || '',
+        csv: (rec.aeat_csv as string) || '',
+        qr: (rec.qr_url as string) || '',
+        record_type: (rec.record_type as string) || '',
+      };
+    } catch {
+      return null; // verifactu no instalado / sin registro / sin permiso
+    }
+  }
+
+  private closeDetail() { this.detail = null; this.detailLines = []; this.detailError = ''; this.rectifyTarget = null; this.aeat = null; }
 
   // ── acciones (mark_paid / rectify) ────────────────────────────────────────
 
@@ -353,6 +402,77 @@ export class ErpInvoiceList extends LitElement {
 
   // ── render ────────────────────────────────────────────────────────────────
 
+  // ── documento imprimible (ok-invoice) + estado AEAT ───────────────────────
+
+  private aeatStatusLabel(s?: string): string {
+    const map: Record<string, string> = {
+      accepted: erploraT('ui.aeatAccepted'), pending: erploraT('ui.aeatPending'),
+      rejected: erploraT('ui.aeatRejected'), error: erploraT('ui.aeatErrorStatus'),
+    };
+    return s ? (map[s] ?? s) : '';
+  }
+
+  private aeatStatusColor(s?: string): string {
+    const map: Record<string, string> = { accepted: 'success', pending: 'warning', rejected: 'danger', error: 'danger' };
+    return (s && map[s]) || 'medium';
+  }
+
+  /** tax_breakdown JSON {"21.00":{base,tax}} → líneas de impuesto de ok-invoice. */
+  private parseTaxes(d: InvoiceDetail): Array<{ label: string; rate?: number; base: number; amount: number }> {
+    let obj: Record<string, { base?: number; tax?: number }> = {};
+    try { obj = d.tax_breakdown ? JSON.parse(d.tax_breakdown) : {}; } catch { obj = {}; }
+    const entries = Object.entries(obj);
+    if (!entries.length) {
+      // Sin desglose (p.ej. rectificativa): una línea con base/impuesto de cabecera.
+      return [{ label: 'IVA', base: d.base_amount, amount: d.tax_amount }];
+    }
+    return entries.map(([rate, v]) => {
+      const r = Number(rate);
+      return { label: `IVA ${Number.isFinite(r) ? r.toFixed(0) : rate}%`, rate: Number.isFinite(r) ? r : undefined, base: Number(v?.base ?? 0), amount: Number(v?.tax ?? 0) };
+    });
+  }
+
+  /** Factura → contrato ok-invoice (layout PDF/print) con el QR de VeriFactu. */
+  private invoiceDocData(): InvoiceData {
+    const d = this.detail!;
+    const qr = this.aeat?.qr || '';
+    const csv = this.aeat?.csv || '';
+    return {
+      issuer: { name: d.issuer_name || '—', tax_id: d.issuer_nif || undefined },
+      customer: { name: d.customer_name || '—', tax_id: d.customer_tax_id || undefined, address: d.customer_address || undefined },
+      number: d.number,
+      issue_date: d.issue_date,
+      lines: this.detailLines.map((l) => ({ description: l.description, qty: l.quantity, unit_price: l.unit_price, tax_rate: l.tax_rate, total: l.total_amount })),
+      subtotal: d.base_amount,
+      taxes: this.parseTaxes(d),
+      tax_total: d.tax_amount,
+      total: d.total_amount,
+      currency: d.currency || erplora().currency,
+      qr: qr || undefined,
+      qr_note: csv ? `CSV: ${csv}` : (qr ? erploraT('ui.qrValidateNote') : undefined),
+      footer: d.notes || undefined,
+    };
+  }
+
+  private renderAeatCard() {
+    const a = this.aeat;
+    if (!a) return nothing;
+    return html`<div class="card aeat-card screen-only">
+      <div class="aeat-head">
+        <h3>${erploraT('ui.aeatTitle')}</h3>
+        <ion-badge color=${this.aeatStatusColor(a.status)}>${this.aeatStatusLabel(a.status) || '—'}</ion-badge>
+      </div>
+      ${a.csv ? html`<div class="kv"><span class="k">${erploraT('ui.aeatCsv')}</span><code>${a.csv}</code></div>` : nothing}
+      ${a.qr
+        ? html`<div class="qr-wrap">
+            <ok-qr value=${a.qr} size="120" ec="M"></ok-qr>
+            <span class="qr-note">${erploraT('ui.qrValidateNote')}</span>
+            <a class="link" href=${a.qr} target="_blank" rel="noopener noreferrer">${erploraT('ui.aeatValidateLink')}</a>
+          </div>`
+        : html`<p class="muted">${erploraT('ui.aeatNoRecord')}</p>`}
+    </div>`;
+  }
+
   private renderRectifyCard() {
     const t = this.rectifyTarget;
     if (!t) return nothing;
@@ -372,14 +492,18 @@ export class ErpInvoiceList extends LitElement {
   private renderDetail() {
     const d = this.detail!;
     return html`<div>
-      <header>
+      <header class="screen-only">
         <h2>${erploraT('ui.detailTitle', { number: d.number })}</h2>
         <ion-badge color=${STATUS_COLOR[d.status] ?? 'medium'}>${statusLabel(d.status)}</ion-badge>
+        <ion-button size="small" @click=${() => window.print()}>
+          <ion-icon slot="start" name="print-outline"></ion-icon> ${erploraT('ui.actionPrint')}
+        </ion-button>
         <ion-button size="small" fill="outline" color="medium" @click=${() => this.closeDetail()}>← ${erploraT('ui.back')}</ion-button>
       </header>
-      ${this.actionError ? html`<p class="err">${this.actionError}</p>` : nothing}
-      ${this.renderRectifyCard()}
-      <div class="card">
+      ${this.actionError ? html`<p class="err screen-only">${this.actionError}</p>` : nothing}
+      <div class="screen-only">${this.renderRectifyCard()}</div>
+      ${this.renderAeatCard()}
+      <div class="card screen-only">
         <dl class="grid">
           <div><dt>${erploraT('ui.fieldType')}</dt><dd>${typeLabel(d.invoice_type)} (${d.invoice_type})</dd></div>
           <div><dt>${erploraT('ui.fieldSeries')}</dt><dd>${d.series}</dd></div>
@@ -397,20 +521,22 @@ export class ErpInvoiceList extends LitElement {
           <thead><tr><th>#</th><th>${erploraT('ui.lineDescription')}</th><th>${erploraT('ui.lineQty')}</th><th>${erploraT('ui.linePrice')}</th><th>${erploraT('ui.lineTaxPct')}</th><th>${erploraT('ui.lineBase')}</th><th>${erploraT('ui.lineTax')}</th><th>${erploraT('ui.lineTotal')}</th></tr></thead>
           <tbody>${this.detailLines.map((l) => html`<tr>
             <td>${l.line_number}</td><td>${l.description}</td><td>${l.quantity}</td>
-            <td>${money(l.unit_price)}</td><td>${money(l.tax_rate)}</td>
-            <td>${money(l.base_amount)}</td><td>${money(l.tax_amount)}</td><td>${money(l.total_amount)}</td>
+            <td>${fmtDoc(l.unit_price, d.currency)}</td><td>${num(l.tax_rate)}%</td>
+            <td>${fmtDoc(l.base_amount, d.currency)}</td><td>${fmtDoc(l.tax_amount, d.currency)}</td><td>${fmtDoc(l.total_amount, d.currency)}</td>
           </tr>`)}</tbody>
         </table>` : html`<p>${erploraT('ui.noLines')}</p>`}
         <div class="totals">
-          <span>${erploraT('ui.totalBase')}: ${money(d.base_amount)} ${d.currency}</span>
-          <span>${erploraT('ui.totalTaxes')}: ${money(d.tax_amount)} ${d.currency}</span>
-          <span>${erploraT('ui.totalTotal')}: ${money(d.total_amount)} ${d.currency}</span>
+          <span>${erploraT('ui.totalBase')}: ${fmtDoc(d.base_amount, d.currency)}</span>
+          <span>${erploraT('ui.totalTaxes')}: ${fmtDoc(d.tax_amount, d.currency)}</span>
+          <span>${erploraT('ui.totalTotal')}: ${fmtDoc(d.total_amount, d.currency)}</span>
         </div>
         <div class="row-actions">
           ${this.canAdd && d.status === 'issued' ? html`<ion-button size="small" color="success" ?disabled=${this.busy} @click=${() => this.markPaid(d)}>${erploraT('ui.actionMarkPaid')}</ion-button>` : nothing}
           ${this.canRectify && !(d.invoice_type ?? '').startsWith('R') && d.status !== 'cancelled' ? html`<ion-button size="small" fill="outline" color="danger" ?disabled=${this.busy} @click=${() => this.startRectify(d)}>${erploraT('ui.actionRectify')}</ion-button>` : nothing}
         </div>
       </div>
+      <!-- Documento imprimible (solo al imprimir / Guardar como PDF): layout factura con QR VeriFactu. -->
+      <div class="print-only"><ok-invoice .invoice=${this.invoiceDocData()}></ok-invoice></div>
     </div>`;
   }
 

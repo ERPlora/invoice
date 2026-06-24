@@ -3,6 +3,9 @@
   "navigation": {
     "invoice": {
       "label": "Facturas"
+    },
+    "settings": {
+      "label": "Ajustes"
     }
   },
   "ui": {
@@ -22,7 +25,17 @@
     "colTotal": "Total",
     "actionView": "Ver",
     "actionMarkPaid": "Marcar pagada",
-    "actionRectify": "Rectificar",
+    "actionRectify": "Devolución",
+    "actionPrint": "Imprimir / PDF",
+    "aeatTitle": "Justificante VeriFactu",
+    "aeatCsv": "CSV de la AEAT",
+    "aeatValidateLink": "Validar en la Agencia Tributaria ↗",
+    "aeatNoRecord": "Aún no enviada a la AEAT.",
+    "aeatAccepted": "Aceptada por la AEAT",
+    "aeatPending": "Pendiente de envío",
+    "aeatRejected": "Rechazada por la AEAT",
+    "aeatErrorStatus": "Error de envío",
+    "qrValidateNote": "Escanea para validar la factura en la AEAT",
     "typeInvoice": "Factura",
     "typeTicket": "Ticket",
     "typeRectifying": "Rectificativa",
@@ -71,6 +84,43 @@
     "errRectifyRectifying": "Una rectificativa no se puede rectificar.",
     "errAlreadyCancelled": "La factura ya está cancelada.",
     "errRectify": "No se pudo rectificar",
-    "errCreate": "No se pudo crear la factura"
+    "errCreate": "No se pudo crear la factura",
+    "seriesTitle": "Series de numeración",
+    "seriesIntro": "Cada serie define el prefijo y el contador de la numeración de facturas (PREFIX-YYYY-NNNNNN) por tipo de factura (F1, F2, …). El código, el año y el contador son inmutables por integridad fiscal; solo se pueden editar el nombre, el prefijo, si está activa y si es la predeterminada.",
+    "newSeries": "Nueva serie",
+    "seriesColCode": "Código",
+    "seriesColName": "Nombre",
+    "seriesColType": "Tipo",
+    "seriesColYear": "Año",
+    "seriesColNumber": "Nº actual",
+    "seriesColPrefix": "Prefijo",
+    "seriesColActive": "Activa",
+    "seriesColDefault": "Predet.",
+    "seriesEmpty": "Aún no hay series. Crea la primera para numerar tus facturas.",
+    "seriesLoading": "Cargando series…",
+    "seriesSearchPlaceholder": "Buscar código, nombre…",
+    "seriesActionEdit": "Editar",
+    "seriesCreateTitle": "Nueva serie de numeración",
+    "seriesEditTitle": "Editar serie {code}",
+    "fieldCode": "Código",
+    "fieldName": "Nombre",
+    "fieldInvoiceType": "Tipo de factura",
+    "fieldYear": "Año",
+    "fieldPrefix": "Prefijo",
+    "fieldActive": "Activa",
+    "fieldDefault": "Serie predeterminada",
+    "codeHint": "Identificador interno de la serie (inmutable tras crearla).",
+    "prefixHint": "Texto opcional antepuesto al número (ej. FAC → FAC-2026-000001).",
+    "yes": "Sí",
+    "no": "No",
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "create": "Crear serie",
+    "creating": "Creando…",
+    "errSeriesLoad": "No se pudieron cargar las series",
+    "errSeriesCreate": "No se pudo crear la serie",
+    "errSeriesUpdate": "No se pudo actualizar la serie",
+    "errSeriesCodeRequired": "El código es obligatorio.",
+    "settingsIntro": "Gestiona aquí la numeración de las facturas mediante series."
   }
 }

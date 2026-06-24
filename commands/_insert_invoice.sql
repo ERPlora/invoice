@@ -21,7 +21,12 @@ SELECT
         WHERE hub_id = :hub_id AND code = :series AND year = :year
     ), 6),
     :issue_date,
-    :issuer_nif, :issuer_name, :customer_tax_id, :customer_name, :customer_address, :description,
+    -- Emisor (obligado tributario): si la factura no lo trae, cae a la identidad de NEGOCIO GLOBAL del
+    -- hub (hub_settings, inyectada por el runtime como :business_tax_id/:business_legal_name —
+    -- ADR-0061). Fuente única país-agnóstica: el caller (POS, prueba VeriFactu) ya no pasa el NIF.
+    COALESCE(NULLIF(:issuer_nif, ''), :business_tax_id),
+    COALESCE(NULLIF(:issuer_name, ''), :business_legal_name),
+    :customer_tax_id, :customer_name, :customer_address, :description,
     :base_amount, :tax_amount, :total_amount, :tax_breakdown, 'EUR',
     :source_type, :source_id, 'issued', :notes,
     0, :current_user_id, :current_user_id, :now, :now

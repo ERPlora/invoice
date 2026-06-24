@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "invoice.by_source",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_id"],
+  "properties": {
+    "source_id": { "type": "string", "minLength": 1 }
+  }
+}
