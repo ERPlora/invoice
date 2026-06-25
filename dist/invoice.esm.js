@@ -2,29 +2,694 @@ var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __decorateClass = (decorators, target, key, kind) => {
   var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc(target, key) : target;
-  for (var i8 = decorators.length - 1, decorator; i8 >= 0; i8--)
-    if (decorator = decorators[i8])
+  for (var i7 = decorators.length - 1, decorator; i7 >= 0; i7--)
+    if (decorator = decorators[i7])
       result = (kind ? decorator(target, key, result) : decorator(result)) || result;
   if (kind && result) __defProp(target, key, result);
   return result;
 };
 
-// ../modules-workspace/node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/css-tag.js
+// node_modules/.pnpm/@lit-labs+ssr-dom-shim@1.6.0/node_modules/@lit-labs/ssr-dom-shim/lib/element-internals.js
+var ElementInternalsShim = class ElementInternals {
+  get shadowRoot() {
+    return this.__host.__shadowRoot;
+  }
+  constructor(_host) {
+    this.ariaActiveDescendantElement = null;
+    this.ariaAtomic = "";
+    this.ariaAutoComplete = "";
+    this.ariaBrailleLabel = "";
+    this.ariaBrailleRoleDescription = "";
+    this.ariaBusy = "";
+    this.ariaChecked = "";
+    this.ariaColCount = "";
+    this.ariaColIndex = "";
+    this.ariaColIndexText = "";
+    this.ariaColSpan = "";
+    this.ariaControlsElements = null;
+    this.ariaCurrent = "";
+    this.ariaDescribedByElements = null;
+    this.ariaDescription = "";
+    this.ariaDetailsElements = null;
+    this.ariaDisabled = "";
+    this.ariaErrorMessageElements = null;
+    this.ariaExpanded = "";
+    this.ariaFlowToElements = null;
+    this.ariaHasPopup = "";
+    this.ariaHidden = "";
+    this.ariaInvalid = "";
+    this.ariaKeyShortcuts = "";
+    this.ariaLabel = "";
+    this.ariaLabelledByElements = null;
+    this.ariaLevel = "";
+    this.ariaLive = "";
+    this.ariaModal = "";
+    this.ariaMultiLine = "";
+    this.ariaMultiSelectable = "";
+    this.ariaOrientation = "";
+    this.ariaOwnsElements = null;
+    this.ariaPlaceholder = "";
+    this.ariaPosInSet = "";
+    this.ariaPressed = "";
+    this.ariaReadOnly = "";
+    this.ariaRelevant = "";
+    this.ariaRequired = "";
+    this.ariaRoleDescription = "";
+    this.ariaRowCount = "";
+    this.ariaRowIndex = "";
+    this.ariaRowIndexText = "";
+    this.ariaRowSpan = "";
+    this.ariaSelected = "";
+    this.ariaSetSize = "";
+    this.ariaSort = "";
+    this.ariaValueMax = "";
+    this.ariaValueMin = "";
+    this.ariaValueNow = "";
+    this.ariaValueText = "";
+    this.role = "";
+    this.form = null;
+    this.labels = [];
+    this.states = /* @__PURE__ */ new Set();
+    this.validationMessage = "";
+    this.validity = {};
+    this.willValidate = true;
+    this.__host = _host;
+  }
+  checkValidity() {
+    console.warn("`ElementInternals.checkValidity()` was called on the server.This method always returns true.");
+    return true;
+  }
+  reportValidity() {
+    return true;
+  }
+  setFormValue() {
+  }
+  setValidity() {
+  }
+};
+
+// node_modules/.pnpm/@lit-labs+ssr-dom-shim@1.6.0/node_modules/@lit-labs/ssr-dom-shim/lib/events.js
+var __classPrivateFieldSet = function(receiver, state, value, kind, f3) {
+  if (kind === "m") throw new TypeError("Private method is not writable");
+  if (kind === "a" && !f3) throw new TypeError("Private accessor was defined without a setter");
+  if (typeof state === "function" ? receiver !== state || !f3 : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+  return kind === "a" ? f3.call(receiver, value) : f3 ? f3.value = value : state.set(receiver, value), value;
+};
+var __classPrivateFieldGet = function(receiver, state, kind, f3) {
+  if (kind === "a" && !f3) throw new TypeError("Private accessor was defined without a getter");
+  if (typeof state === "function" ? receiver !== state || !f3 : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+  return kind === "m" ? f3 : kind === "a" ? f3.call(receiver) : f3 ? f3.value : state.get(receiver);
+};
+var _Event_cancelable;
+var _Event_bubbles;
+var _Event_composed;
+var _Event_defaultPrevented;
+var _Event_timestamp;
+var _Event_propagationStopped;
+var _Event_type;
+var _Event_target;
+var _Event_isBeingDispatched;
+var _a;
+var _CustomEvent_detail;
+var _b;
+var NONE = 0;
+var CAPTURING_PHASE = 1;
+var AT_TARGET = 2;
+var BUBBLING_PHASE = 3;
+var enumerableProperty = { __proto__: null };
+enumerableProperty.enumerable = true;
+Object.freeze(enumerableProperty);
+var EventShim = (_a = class Event {
+  constructor(type, options = {}) {
+    _Event_cancelable.set(this, false);
+    _Event_bubbles.set(this, false);
+    _Event_composed.set(this, false);
+    _Event_defaultPrevented.set(this, false);
+    _Event_timestamp.set(this, Date.now());
+    _Event_propagationStopped.set(this, false);
+    _Event_type.set(this, void 0);
+    _Event_target.set(this, void 0);
+    _Event_isBeingDispatched.set(this, void 0);
+    this.NONE = NONE;
+    this.CAPTURING_PHASE = CAPTURING_PHASE;
+    this.AT_TARGET = AT_TARGET;
+    this.BUBBLING_PHASE = BUBBLING_PHASE;
+    if (arguments.length === 0)
+      throw new Error(`The type argument must be specified`);
+    if (typeof options !== "object" || !options) {
+      throw new Error(`The "options" argument must be an object`);
+    }
+    const { bubbles, cancelable, composed } = options;
+    __classPrivateFieldSet(this, _Event_cancelable, !!cancelable, "f");
+    __classPrivateFieldSet(this, _Event_bubbles, !!bubbles, "f");
+    __classPrivateFieldSet(this, _Event_composed, !!composed, "f");
+    __classPrivateFieldSet(this, _Event_type, `${type}`, "f");
+    __classPrivateFieldSet(this, _Event_target, null, "f");
+    __classPrivateFieldSet(this, _Event_isBeingDispatched, false, "f");
+  }
+  initEvent(_type, _bubbles, _cancelable) {
+    throw new Error("Method not implemented.");
+  }
+  stopImmediatePropagation() {
+    this.stopPropagation();
+  }
+  preventDefault() {
+    __classPrivateFieldSet(this, _Event_defaultPrevented, true, "f");
+  }
+  get target() {
+    return __classPrivateFieldGet(this, _Event_target, "f");
+  }
+  get currentTarget() {
+    return __classPrivateFieldGet(this, _Event_target, "f");
+  }
+  get srcElement() {
+    return __classPrivateFieldGet(this, _Event_target, "f");
+  }
+  get type() {
+    return __classPrivateFieldGet(this, _Event_type, "f");
+  }
+  get cancelable() {
+    return __classPrivateFieldGet(this, _Event_cancelable, "f");
+  }
+  get defaultPrevented() {
+    return __classPrivateFieldGet(this, _Event_cancelable, "f") && __classPrivateFieldGet(this, _Event_defaultPrevented, "f");
+  }
+  get timeStamp() {
+    return __classPrivateFieldGet(this, _Event_timestamp, "f");
+  }
+  composedPath() {
+    return __classPrivateFieldGet(this, _Event_isBeingDispatched, "f") ? [__classPrivateFieldGet(this, _Event_target, "f")] : [];
+  }
+  get returnValue() {
+    return !__classPrivateFieldGet(this, _Event_cancelable, "f") || !__classPrivateFieldGet(this, _Event_defaultPrevented, "f");
+  }
+  get bubbles() {
+    return __classPrivateFieldGet(this, _Event_bubbles, "f");
+  }
+  get composed() {
+    return __classPrivateFieldGet(this, _Event_composed, "f");
+  }
+  get eventPhase() {
+    return __classPrivateFieldGet(this, _Event_isBeingDispatched, "f") ? _a.AT_TARGET : _a.NONE;
+  }
+  get cancelBubble() {
+    return __classPrivateFieldGet(this, _Event_propagationStopped, "f");
+  }
+  set cancelBubble(value) {
+    if (value) {
+      __classPrivateFieldSet(this, _Event_propagationStopped, true, "f");
+    }
+  }
+  stopPropagation() {
+    __classPrivateFieldSet(this, _Event_propagationStopped, true, "f");
+  }
+  get isTrusted() {
+    return false;
+  }
+}, _Event_cancelable = /* @__PURE__ */ new WeakMap(), _Event_bubbles = /* @__PURE__ */ new WeakMap(), _Event_composed = /* @__PURE__ */ new WeakMap(), _Event_defaultPrevented = /* @__PURE__ */ new WeakMap(), _Event_timestamp = /* @__PURE__ */ new WeakMap(), _Event_propagationStopped = /* @__PURE__ */ new WeakMap(), _Event_type = /* @__PURE__ */ new WeakMap(), _Event_target = /* @__PURE__ */ new WeakMap(), _Event_isBeingDispatched = /* @__PURE__ */ new WeakMap(), _a.NONE = NONE, _a.CAPTURING_PHASE = CAPTURING_PHASE, _a.AT_TARGET = AT_TARGET, _a.BUBBLING_PHASE = BUBBLING_PHASE, _a);
+Object.defineProperties(EventShim.prototype, {
+  initEvent: enumerableProperty,
+  stopImmediatePropagation: enumerableProperty,
+  preventDefault: enumerableProperty,
+  target: enumerableProperty,
+  currentTarget: enumerableProperty,
+  srcElement: enumerableProperty,
+  type: enumerableProperty,
+  cancelable: enumerableProperty,
+  defaultPrevented: enumerableProperty,
+  timeStamp: enumerableProperty,
+  composedPath: enumerableProperty,
+  returnValue: enumerableProperty,
+  bubbles: enumerableProperty,
+  composed: enumerableProperty,
+  eventPhase: enumerableProperty,
+  cancelBubble: enumerableProperty,
+  stopPropagation: enumerableProperty,
+  isTrusted: enumerableProperty
+});
+var CustomEventShim = (_b = class CustomEvent2 extends EventShim {
+  constructor(type, options = {}) {
+    super(type, options);
+    _CustomEvent_detail.set(this, void 0);
+    __classPrivateFieldSet(this, _CustomEvent_detail, options?.detail ?? null, "f");
+  }
+  initCustomEvent(_type, _bubbles, _cancelable, _detail) {
+    throw new Error("Method not implemented.");
+  }
+  get detail() {
+    return __classPrivateFieldGet(this, _CustomEvent_detail, "f");
+  }
+}, _CustomEvent_detail = /* @__PURE__ */ new WeakMap(), _b);
+Object.defineProperties(CustomEventShim.prototype, {
+  detail: enumerableProperty
+});
+var EventShimWithRealType = EventShim;
+var CustomEventShimWithRealType = CustomEventShim;
+
+// node_modules/.pnpm/@lit-labs+ssr-dom-shim@1.6.0/node_modules/@lit-labs/ssr-dom-shim/lib/css.js
+var _a2;
+var CSSRuleShim = (_a2 = class CSSRule {
+  constructor() {
+    this.STYLE_RULE = 1;
+    this.CHARSET_RULE = 2;
+    this.IMPORT_RULE = 3;
+    this.MEDIA_RULE = 4;
+    this.FONT_FACE_RULE = 5;
+    this.PAGE_RULE = 6;
+    this.NAMESPACE_RULE = 10;
+    this.KEYFRAMES_RULE = 7;
+    this.KEYFRAME_RULE = 8;
+    this.SUPPORTS_RULE = 12;
+    this.COUNTER_STYLE_RULE = 11;
+    this.FONT_FEATURE_VALUES_RULE = 14;
+    this.MARGIN_RULE = 9;
+    this.__parentStyleSheet = null;
+    this.cssText = "";
+  }
+  get parentRule() {
+    return null;
+  }
+  get parentStyleSheet() {
+    return this.__parentStyleSheet;
+  }
+  get type() {
+    return 0;
+  }
+}, _a2.STYLE_RULE = 1, _a2.CHARSET_RULE = 2, _a2.IMPORT_RULE = 3, _a2.MEDIA_RULE = 4, _a2.FONT_FACE_RULE = 5, _a2.PAGE_RULE = 6, _a2.NAMESPACE_RULE = 10, _a2.KEYFRAMES_RULE = 7, _a2.KEYFRAME_RULE = 8, _a2.SUPPORTS_RULE = 12, _a2.COUNTER_STYLE_RULE = 11, _a2.FONT_FEATURE_VALUES_RULE = 14, _a2.MARGIN_RULE = 9, _a2);
+
+// node_modules/.pnpm/@lit-labs+ssr-dom-shim@1.6.0/node_modules/@lit-labs/ssr-dom-shim/index.js
+globalThis.Event ??= EventShimWithRealType;
+globalThis.CustomEvent ??= CustomEventShimWithRealType;
+var constructionToken = Symbol();
+var isCaptureEventListener = (options) => typeof options === "boolean" ? options : options?.capture ?? false;
+var enumerableProperty2 = { __proto__: null };
+enumerableProperty2.enumerable = true;
+Object.freeze(enumerableProperty2);
+var EventTarget = class {
+  constructor() {
+    this.__eventListeners = /* @__PURE__ */ new Map();
+    this.__captureEventListeners = /* @__PURE__ */ new Map();
+  }
+  addEventListener(type, callback, options) {
+    if (callback === void 0 || callback === null) {
+      return;
+    }
+    const eventListenersMap = isCaptureEventListener(options) ? this.__captureEventListeners : this.__eventListeners;
+    let eventListeners = eventListenersMap.get(type);
+    if (eventListeners === void 0) {
+      eventListeners = /* @__PURE__ */ new Map();
+      eventListenersMap.set(type, eventListeners);
+    } else if (eventListeners.has(callback)) {
+      return;
+    }
+    const normalizedOptions = typeof options === "object" && options ? options : {};
+    normalizedOptions.signal?.addEventListener("abort", () => this.removeEventListener(type, callback, options));
+    eventListeners.set(callback, normalizedOptions ?? {});
+  }
+  removeEventListener(type, callback, options) {
+    if (callback === void 0 || callback === null) {
+      return;
+    }
+    const eventListenersMap = isCaptureEventListener(options) ? this.__captureEventListeners : this.__eventListeners;
+    const eventListeners = eventListenersMap.get(type);
+    if (eventListeners !== void 0) {
+      eventListeners.delete(callback);
+      if (!eventListeners.size) {
+        eventListenersMap.delete(type);
+      }
+    }
+  }
+  dispatchEvent(event) {
+    let composedPath = this.__resolveFullEventPath();
+    if (!event.composed && this.__host) {
+      composedPath = composedPath.slice(0, composedPath.indexOf(this.__host));
+    }
+    let stopPropagation = false;
+    let stopImmediatePropagation = false;
+    let eventPhase = EventShimWithRealType.NONE;
+    let target = null;
+    let tmpTarget = null;
+    let currentTarget = null;
+    const originalStopPropagation = event.stopPropagation;
+    const originalStopImmediatePropagation = event.stopImmediatePropagation;
+    Object.defineProperties(event, {
+      target: {
+        get() {
+          return target ?? tmpTarget;
+        },
+        ...enumerableProperty2
+      },
+      srcElement: {
+        get() {
+          return event.target;
+        },
+        ...enumerableProperty2
+      },
+      currentTarget: {
+        get() {
+          return currentTarget;
+        },
+        ...enumerableProperty2
+      },
+      eventPhase: {
+        get() {
+          return eventPhase;
+        },
+        ...enumerableProperty2
+      },
+      composedPath: {
+        value: () => composedPath,
+        ...enumerableProperty2
+      },
+      stopPropagation: {
+        value: () => {
+          stopPropagation = true;
+          originalStopPropagation.call(event);
+        },
+        ...enumerableProperty2
+      },
+      stopImmediatePropagation: {
+        value: () => {
+          stopImmediatePropagation = true;
+          originalStopImmediatePropagation.call(event);
+        },
+        ...enumerableProperty2
+      }
+    });
+    const invokeEventListener = (listener, options, eventListenerMap) => {
+      if (typeof listener === "function") {
+        listener(event);
+      } else if (typeof listener?.handleEvent === "function") {
+        listener.handleEvent(event);
+      }
+      if (options.once) {
+        eventListenerMap.delete(listener);
+      }
+    };
+    const finishDispatch = () => {
+      currentTarget = null;
+      eventPhase = EventShimWithRealType.NONE;
+      return !event.defaultPrevented;
+    };
+    const captureEventPath = composedPath.slice().reverse();
+    target = !this.__host || !event.composed ? this : null;
+    const retarget = (eventTargets) => {
+      tmpTarget = this;
+      while (tmpTarget.__host && eventTargets.includes(tmpTarget.__host)) {
+        tmpTarget = tmpTarget.__host;
+      }
+    };
+    for (const eventTarget of captureEventPath) {
+      if (!target && (!tmpTarget || tmpTarget === eventTarget.__host)) {
+        retarget(captureEventPath.slice(captureEventPath.indexOf(eventTarget)));
+      }
+      currentTarget = eventTarget;
+      eventPhase = eventTarget === event.target ? EventShimWithRealType.AT_TARGET : EventShimWithRealType.CAPTURING_PHASE;
+      const captureEventListeners = eventTarget.__captureEventListeners.get(event.type);
+      if (captureEventListeners) {
+        for (const [listener, options] of captureEventListeners) {
+          invokeEventListener(listener, options, captureEventListeners);
+          if (stopImmediatePropagation) {
+            return finishDispatch();
+          }
+        }
+      }
+      if (stopPropagation) {
+        return finishDispatch();
+      }
+    }
+    const bubbleEventPath = event.bubbles ? composedPath : [this];
+    tmpTarget = null;
+    for (const eventTarget of bubbleEventPath) {
+      if (!target && (!tmpTarget || eventTarget === tmpTarget.__host)) {
+        retarget(bubbleEventPath.slice(0, bubbleEventPath.indexOf(eventTarget) + 1));
+      }
+      currentTarget = eventTarget;
+      eventPhase = eventTarget === event.target ? EventShimWithRealType.AT_TARGET : EventShimWithRealType.BUBBLING_PHASE;
+      const eventListeners = eventTarget.__eventListeners.get(event.type);
+      if (eventListeners) {
+        for (const [listener, options] of eventListeners) {
+          invokeEventListener(listener, options, eventListeners);
+          if (stopImmediatePropagation) {
+            return finishDispatch();
+          }
+        }
+      }
+      if (stopPropagation) {
+        return finishDispatch();
+      }
+    }
+    return finishDispatch();
+  }
+  __resolveFullEventPath() {
+    if (this.__eventPathCache) {
+      return this.__eventPathCache;
+    } else if (!this.__eventTargetParent) {
+      return this.__eventPathCache = [this, documentShim, windowShim];
+    } else {
+      return this.__eventPathCache = [
+        this,
+        ...this.__eventTargetParent.__resolveFullEventPath()
+      ];
+    }
+  }
+};
+var attributes = /* @__PURE__ */ new WeakMap();
+var attributesForElement = (element) => {
+  let attrs = attributes.get(element);
+  if (attrs === void 0) {
+    attributes.set(element, attrs = /* @__PURE__ */ new Map());
+  }
+  return attrs;
+};
+var NodeShim = class Node extends EventTarget {
+  getRootNode(options) {
+    if (options?.composed) {
+      return document2;
+    }
+    const host = this.__host;
+    return host?.__shadowRoot ?? document2;
+  }
+};
+var DocumentShim = class Document2 extends NodeShim {
+  get adoptedStyleSheets() {
+    return [];
+  }
+  createTreeWalker() {
+    return {};
+  }
+  createTextNode() {
+    return {};
+  }
+  createElement() {
+    return {};
+  }
+};
+var documentShim = new DocumentShim();
+var document2 = documentShim;
+var WindowShim = class Window extends NodeShim {
+  constructor(token) {
+    super();
+    if (token !== constructionToken) {
+      throw new TypeError("Illegal constructor");
+    }
+    Object.assign(this, globalThis, {
+      CustomElementRegistry,
+      customElements: customElements2,
+      document: document2,
+      Document: DocumentShim,
+      Element: ElementShim,
+      EventTarget,
+      HTMLElement: HTMLElementShim,
+      Node: NodeShim,
+      ShadowRoot: ShadowRootShim,
+      window: this,
+      Window: WindowShim
+    });
+  }
+};
+var ElementShim = class Element extends NodeShim {
+  constructor() {
+    super(...arguments);
+    this.__shadowRootMode = null;
+    this.__shadowRoot = null;
+    this.__internals = null;
+  }
+  get attributes() {
+    return Array.from(attributesForElement(this)).map(([name, value]) => ({
+      name,
+      value
+    }));
+  }
+  get shadowRoot() {
+    if (this.__shadowRootMode === "closed") {
+      return null;
+    }
+    return this.__shadowRoot;
+  }
+  get localName() {
+    return this.constructor.__localName;
+  }
+  get tagName() {
+    return this.localName?.toUpperCase();
+  }
+  setAttribute(name, value) {
+    attributesForElement(this).set(name, String(value));
+  }
+  removeAttribute(name) {
+    attributesForElement(this).delete(name);
+  }
+  toggleAttribute(name, force) {
+    if (this.hasAttribute(name)) {
+      if (force === void 0 || !force) {
+        this.removeAttribute(name);
+        return false;
+      }
+    } else {
+      if (force === void 0 || force) {
+        this.setAttribute(name, "");
+        return true;
+      } else {
+        return false;
+      }
+    }
+    return true;
+  }
+  hasAttribute(name) {
+    return attributesForElement(this).has(name);
+  }
+  attachShadow(init) {
+    this.__shadowRootMode = init.mode;
+    const shadowRoot = new ShadowRootShim(constructionToken, init);
+    shadowRoot.__eventTargetParent = this;
+    shadowRoot.__host = this;
+    return this.__shadowRoot = shadowRoot;
+  }
+  attachInternals() {
+    if (this.__internals !== null) {
+      throw new Error(`Failed to execute 'attachInternals' on 'HTMLElement': ElementInternals for the specified element was already attached.`);
+    }
+    const internals = new ElementInternalsShim(this);
+    this.__internals = internals;
+    return internals;
+  }
+  getAttribute(name) {
+    const value = attributesForElement(this).get(name);
+    return value ?? null;
+  }
+};
+var HTMLElementShim = class HTMLElement extends ElementShim {
+};
+var HTMLElementShimWithRealType = HTMLElementShim;
+var ShadowRootShim = class ShadowRoot extends NodeShim {
+  get host() {
+    return this.__host;
+  }
+  constructor(constructionToken2, init) {
+    super();
+    if (constructionToken2 !== constructionToken2) {
+      throw new TypeError("Illegal constructor");
+    }
+    this.mode = init.mode;
+  }
+};
+globalThis.litServerRoot ??= Object.defineProperty(new HTMLElementShimWithRealType(), "localName", {
+  // Patch localName (and tagName) to return a unique name.
+  get() {
+    return "lit-server-root";
+  }
+});
+function promiseWithResolvers() {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+var CustomElementRegistry = class {
+  constructor() {
+    this.__definitions = /* @__PURE__ */ new Map();
+    this.__reverseDefinitions = /* @__PURE__ */ new Map();
+    this.__pendingWhenDefineds = /* @__PURE__ */ new Map();
+  }
+  define(name, ctor) {
+    if (this.__definitions.has(name)) {
+      if (true) {
+        console.warn(`'CustomElementRegistry' already has "${name}" defined. This may have been caused by live reload or hot module replacement in which case it can be safely ignored.
+Make sure to test your application with a production build as repeat registrations will throw in production.`);
+      } else {
+        throw new Error(`Failed to execute 'define' on 'CustomElementRegistry': the name "${name}" has already been used with this registry`);
+      }
+    }
+    if (this.__reverseDefinitions.has(ctor)) {
+      throw new Error(`Failed to execute 'define' on 'CustomElementRegistry': the constructor has already been used with this registry for the tag name ${this.__reverseDefinitions.get(ctor)}`);
+    }
+    ctor.__localName = name;
+    this.__definitions.set(name, {
+      ctor,
+      // Note it's important we read `observedAttributes` in case it is a getter
+      // with side-effects, as is the case in Lit, where it triggers class
+      // finalization.
+      //
+      // TODO(aomarks) To be spec compliant, we should also capture the
+      // registration-time lifecycle methods like `connectedCallback`. For them
+      // to be actually accessible to e.g. the Lit SSR element renderer, though,
+      // we'd need to introduce a new API for accessing them (since `get` only
+      // returns the constructor).
+      observedAttributes: ctor.observedAttributes ?? []
+    });
+    this.__reverseDefinitions.set(ctor, name);
+    this.__pendingWhenDefineds.get(name)?.resolve(ctor);
+    this.__pendingWhenDefineds.delete(name);
+  }
+  get(name) {
+    const definition = this.__definitions.get(name);
+    return definition?.ctor;
+  }
+  getName(ctor) {
+    return this.__reverseDefinitions.get(ctor) ?? null;
+  }
+  initialize(_root) {
+    throw new Error(`customElements.initialize is not currently supported in SSR. Please file a bug if you need it.`);
+  }
+  upgrade(_element) {
+    throw new Error(`customElements.upgrade is not currently supported in SSR. Please file a bug if you need it.`);
+  }
+  async whenDefined(name) {
+    const definition = this.__definitions.get(name);
+    if (definition) {
+      return definition.ctor;
+    }
+    let withResolvers = this.__pendingWhenDefineds.get(name);
+    if (!withResolvers) {
+      withResolvers = promiseWithResolvers();
+      this.__pendingWhenDefineds.set(name, withResolvers);
+    }
+    return withResolvers.promise;
+  }
+};
+var CustomElementRegistryShimWithRealType = CustomElementRegistry;
+var customElements2 = new CustomElementRegistryShimWithRealType();
+var windowShim = new WindowShim(constructionToken);
+
+// node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/node/css-tag.js
 var t = globalThis;
 var e = t.ShadowRoot && (void 0 === t.ShadyCSS || t.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype;
 var s = Symbol();
 var o = /* @__PURE__ */ new WeakMap();
 var n = class {
-  constructor(t5, e6, o7) {
+  constructor(t5, e5, o7) {
     if (this._$cssResult$ = true, o7 !== s) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
-    this.cssText = t5, this.t = e6;
+    this.cssText = t5, this.t = e5;
   }
   get styleSheet() {
     let t5 = this.o;
     const s5 = this.t;
     if (e && void 0 === t5) {
-      const e6 = void 0 !== s5 && 1 === s5.length;
-      e6 && (t5 = o.get(s5)), void 0 === t5 && ((this.o = t5 = new CSSStyleSheet()).replaceSync(this.cssText), e6 && o.set(s5, t5));
+      const e5 = void 0 !== s5 && 1 === s5.length;
+      e5 && (t5 = o.get(s5)), void 0 === t5 && ((this.o = t5 = new CSSStyleSheet()).replaceSync(this.cssText), e5 && o.set(s5, t5));
     }
     return t5;
   }
@@ -33,8 +698,8 @@ var n = class {
   }
 };
 var r = (t5) => new n("string" == typeof t5 ? t5 : t5 + "", void 0, s);
-var i = (t5, ...e6) => {
-  const o7 = 1 === t5.length ? t5[0] : e6.reduce((e7, s5, o8) => e7 + ((t6) => {
+var i = (t5, ...e5) => {
+  const o7 = 1 === t5.length ? t5[0] : e5.reduce((e6, s5, o8) => e6 + ((t6) => {
     if (true === t6._$cssResult$) return t6.cssText;
     if ("number" == typeof t6) return t6;
     throw Error("Value passed to 'css' function must be a 'css' function result: " + t6 + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
@@ -43,28 +708,29 @@ var i = (t5, ...e6) => {
 };
 var S = (s5, o7) => {
   if (e) s5.adoptedStyleSheets = o7.map((t5) => t5 instanceof CSSStyleSheet ? t5 : t5.styleSheet);
-  else for (const e6 of o7) {
+  else for (const e5 of o7) {
     const o8 = document.createElement("style"), n6 = t.litNonce;
-    void 0 !== n6 && o8.setAttribute("nonce", n6), o8.textContent = e6.cssText, s5.appendChild(o8);
+    void 0 !== n6 && o8.setAttribute("nonce", n6), o8.textContent = e5.cssText, s5.appendChild(o8);
   }
 };
-var c = e ? (t5) => t5 : (t5) => t5 instanceof CSSStyleSheet ? ((t6) => {
-  let e6 = "";
-  for (const s5 of t6.cssRules) e6 += s5.cssText;
-  return r(e6);
+var c = e || void 0 === t.CSSStyleSheet ? (t5) => t5 : (t5) => t5 instanceof CSSStyleSheet ? ((t6) => {
+  let e5 = "";
+  for (const s5 of t6.cssRules) e5 += s5.cssText;
+  return r(e5);
 })(t5) : t5;
 
-// ../modules-workspace/node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/reactive-element.js
-var { is: i2, defineProperty: e2, getOwnPropertyDescriptor: h, getOwnPropertyNames: r2, getOwnPropertySymbols: o2, getPrototypeOf: n2 } = Object;
-var a = globalThis;
-var c2 = a.trustedTypes;
-var l = c2 ? c2.emptyScript : "";
-var p = a.reactiveElementPolyfillSupport;
-var d = (t5, s5) => t5;
-var u = { toAttribute(t5, s5) {
+// node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/node/reactive-element.js
+var { is: h, defineProperty: r2, getOwnPropertyDescriptor: o2, getOwnPropertyNames: n2, getOwnPropertySymbols: a, getPrototypeOf: c2 } = Object;
+var l = globalThis;
+l.customElements ??= customElements2;
+var p = l.trustedTypes;
+var d = p ? p.emptyScript : "";
+var u = l.reactiveElementPolyfillSupport;
+var f = (t5, s5) => t5;
+var b = { toAttribute(t5, s5) {
   switch (s5) {
     case Boolean:
-      t5 = t5 ? l : null;
+      t5 = t5 ? d : null;
       break;
     case Object:
     case Array:
@@ -72,88 +738,88 @@ var u = { toAttribute(t5, s5) {
   }
   return t5;
 }, fromAttribute(t5, s5) {
-  let i8 = t5;
+  let i7 = t5;
   switch (s5) {
     case Boolean:
-      i8 = null !== t5;
+      i7 = null !== t5;
       break;
     case Number:
-      i8 = null === t5 ? null : Number(t5);
+      i7 = null === t5 ? null : Number(t5);
       break;
     case Object:
     case Array:
       try {
-        i8 = JSON.parse(t5);
+        i7 = JSON.parse(t5);
       } catch (t6) {
-        i8 = null;
+        i7 = null;
       }
   }
-  return i8;
+  return i7;
 } };
-var f = (t5, s5) => !i2(t5, s5);
-var b = { attribute: true, type: String, converter: u, reflect: false, useDefault: false, hasChanged: f };
-Symbol.metadata ??= Symbol("metadata"), a.litPropertyMetadata ??= /* @__PURE__ */ new WeakMap();
-var y = class extends HTMLElement {
+var m = (t5, s5) => !h(t5, s5);
+var y = { attribute: true, type: String, converter: b, reflect: false, useDefault: false, hasChanged: m };
+Symbol.metadata ??= Symbol("metadata"), l.litPropertyMetadata ??= /* @__PURE__ */ new WeakMap();
+var g = class extends (globalThis.HTMLElement ?? HTMLElementShimWithRealType) {
   static addInitializer(t5) {
     this._$Ei(), (this.l ??= []).push(t5);
   }
   static get observedAttributes() {
     return this.finalize(), this._$Eh && [...this._$Eh.keys()];
   }
-  static createProperty(t5, s5 = b) {
+  static createProperty(t5, s5 = y) {
     if (s5.state && (s5.attribute = false), this._$Ei(), this.prototype.hasOwnProperty(t5) && ((s5 = Object.create(s5)).wrapped = true), this.elementProperties.set(t5, s5), !s5.noAccessor) {
-      const i8 = Symbol(), h4 = this.getPropertyDescriptor(t5, i8, s5);
-      void 0 !== h4 && e2(this.prototype, t5, h4);
+      const i7 = Symbol(), e5 = this.getPropertyDescriptor(t5, i7, s5);
+      void 0 !== e5 && r2(this.prototype, t5, e5);
     }
   }
-  static getPropertyDescriptor(t5, s5, i8) {
-    const { get: e6, set: r6 } = h(this.prototype, t5) ?? { get() {
+  static getPropertyDescriptor(t5, s5, i7) {
+    const { get: e5, set: h4 } = o2(this.prototype, t5) ?? { get() {
       return this[s5];
     }, set(t6) {
       this[s5] = t6;
     } };
-    return { get: e6, set(s6) {
-      const h4 = e6?.call(this);
-      r6?.call(this, s6), this.requestUpdate(t5, h4, i8);
+    return { get: e5, set(s6) {
+      const r6 = e5?.call(this);
+      h4?.call(this, s6), this.requestUpdate(t5, r6, i7);
     }, configurable: true, enumerable: true };
   }
   static getPropertyOptions(t5) {
-    return this.elementProperties.get(t5) ?? b;
+    return this.elementProperties.get(t5) ?? y;
   }
   static _$Ei() {
-    if (this.hasOwnProperty(d("elementProperties"))) return;
-    const t5 = n2(this);
+    if (this.hasOwnProperty(f("elementProperties"))) return;
+    const t5 = c2(this);
     t5.finalize(), void 0 !== t5.l && (this.l = [...t5.l]), this.elementProperties = new Map(t5.elementProperties);
   }
   static finalize() {
-    if (this.hasOwnProperty(d("finalized"))) return;
-    if (this.finalized = true, this._$Ei(), this.hasOwnProperty(d("properties"))) {
-      const t6 = this.properties, s5 = [...r2(t6), ...o2(t6)];
-      for (const i8 of s5) this.createProperty(i8, t6[i8]);
+    if (this.hasOwnProperty(f("finalized"))) return;
+    if (this.finalized = true, this._$Ei(), this.hasOwnProperty(f("properties"))) {
+      const t6 = this.properties, s5 = [...n2(t6), ...a(t6)];
+      for (const i7 of s5) this.createProperty(i7, t6[i7]);
     }
     const t5 = this[Symbol.metadata];
     if (null !== t5) {
       const s5 = litPropertyMetadata.get(t5);
-      if (void 0 !== s5) for (const [t6, i8] of s5) this.elementProperties.set(t6, i8);
+      if (void 0 !== s5) for (const [t6, i7] of s5) this.elementProperties.set(t6, i7);
     }
     this._$Eh = /* @__PURE__ */ new Map();
     for (const [t6, s5] of this.elementProperties) {
-      const i8 = this._$Eu(t6, s5);
-      void 0 !== i8 && this._$Eh.set(i8, t6);
+      const i7 = this._$Eu(t6, s5);
+      void 0 !== i7 && this._$Eh.set(i7, t6);
     }
     this.elementStyles = this.finalizeStyles(this.styles);
   }
-  static finalizeStyles(s5) {
-    const i8 = [];
-    if (Array.isArray(s5)) {
-      const e6 = new Set(s5.flat(1 / 0).reverse());
-      for (const s6 of e6) i8.unshift(c(s6));
-    } else void 0 !== s5 && i8.push(c(s5));
-    return i8;
+  static finalizeStyles(t5) {
+    const s5 = [];
+    if (Array.isArray(t5)) {
+      const e5 = new Set(t5.flat(1 / 0).reverse());
+      for (const t6 of e5) s5.unshift(c(t6));
+    } else void 0 !== t5 && s5.push(c(t5));
+    return s5;
   }
   static _$Eu(t5, s5) {
-    const i8 = s5.attribute;
-    return false === i8 ? void 0 : "string" == typeof i8 ? i8 : "string" == typeof t5 ? t5.toLowerCase() : void 0;
+    const i7 = s5.attribute;
+    return false === i7 ? void 0 : "string" == typeof i7 ? i7 : "string" == typeof t5 ? t5.toLowerCase() : void 0;
   }
   constructor() {
     super(), this._$Ep = void 0, this.isUpdatePending = false, this.hasUpdated = false, this._$Em = null, this._$Ev();
@@ -169,7 +835,7 @@ var y = class extends HTMLElement {
   }
   _$E_() {
     const t5 = /* @__PURE__ */ new Map(), s5 = this.constructor.elementProperties;
-    for (const i8 of s5.keys()) this.hasOwnProperty(i8) && (t5.set(i8, this[i8]), delete this[i8]);
+    for (const i7 of s5.keys()) this.hasOwnProperty(i7) && (t5.set(i7, this[i7]), delete this[i7]);
     t5.size > 0 && (this._$Ep = t5);
   }
   createRenderRoot() {
@@ -184,35 +850,35 @@ var y = class extends HTMLElement {
   disconnectedCallback() {
     this._$EO?.forEach((t5) => t5.hostDisconnected?.());
   }
-  attributeChangedCallback(t5, s5, i8) {
-    this._$AK(t5, i8);
+  attributeChangedCallback(t5, s5, i7) {
+    this._$AK(t5, i7);
   }
   _$ET(t5, s5) {
-    const i8 = this.constructor.elementProperties.get(t5), e6 = this.constructor._$Eu(t5, i8);
-    if (void 0 !== e6 && true === i8.reflect) {
-      const h4 = (void 0 !== i8.converter?.toAttribute ? i8.converter : u).toAttribute(s5, i8.type);
-      this._$Em = t5, null == h4 ? this.removeAttribute(e6) : this.setAttribute(e6, h4), this._$Em = null;
+    const i7 = this.constructor.elementProperties.get(t5), e5 = this.constructor._$Eu(t5, i7);
+    if (void 0 !== e5 && true === i7.reflect) {
+      const h4 = (void 0 !== i7.converter?.toAttribute ? i7.converter : b).toAttribute(s5, i7.type);
+      this._$Em = t5, null == h4 ? this.removeAttribute(e5) : this.setAttribute(e5, h4), this._$Em = null;
     }
   }
   _$AK(t5, s5) {
-    const i8 = this.constructor, e6 = i8._$Eh.get(t5);
-    if (void 0 !== e6 && this._$Em !== e6) {
-      const t6 = i8.getPropertyOptions(e6), h4 = "function" == typeof t6.converter ? { fromAttribute: t6.converter } : void 0 !== t6.converter?.fromAttribute ? t6.converter : u;
-      this._$Em = e6;
+    const i7 = this.constructor, e5 = i7._$Eh.get(t5);
+    if (void 0 !== e5 && this._$Em !== e5) {
+      const t6 = i7.getPropertyOptions(e5), h4 = "function" == typeof t6.converter ? { fromAttribute: t6.converter } : void 0 !== t6.converter?.fromAttribute ? t6.converter : b;
+      this._$Em = e5;
       const r6 = h4.fromAttribute(s5, t6.type);
-      this[e6] = r6 ?? this._$Ej?.get(e6) ?? r6, this._$Em = null;
+      this[e5] = r6 ?? this._$Ej?.get(e5) ?? r6, this._$Em = null;
     }
   }
-  requestUpdate(t5, s5, i8, e6 = false, h4) {
+  requestUpdate(t5, s5, i7, e5 = false, h4) {
     if (void 0 !== t5) {
       const r6 = this.constructor;
-      if (false === e6 && (h4 = this[t5]), i8 ??= r6.getPropertyOptions(t5), !((i8.hasChanged ?? f)(h4, s5) || i8.useDefault && i8.reflect && h4 === this._$Ej?.get(t5) && !this.hasAttribute(r6._$Eu(t5, i8)))) return;
-      this.C(t5, s5, i8);
+      if (false === e5 && (h4 = this[t5]), i7 ??= r6.getPropertyOptions(t5), !((i7.hasChanged ?? m)(h4, s5) || i7.useDefault && i7.reflect && h4 === this._$Ej?.get(t5) && !this.hasAttribute(r6._$Eu(t5, i7)))) return;
+      this.C(t5, s5, i7);
     }
     false === this.isUpdatePending && (this._$ES = this._$EP());
   }
-  C(t5, s5, { useDefault: i8, reflect: e6, wrapped: h4 }, r6) {
-    i8 && !(this._$Ej ??= /* @__PURE__ */ new Map()).has(t5) && (this._$Ej.set(t5, r6 ?? s5 ?? this[t5]), true !== h4 || void 0 !== r6) || (this._$AL.has(t5) || (this.hasUpdated || i8 || (s5 = void 0), this._$AL.set(t5, s5)), true === e6 && this._$Em !== t5 && (this._$Eq ??= /* @__PURE__ */ new Set()).add(t5));
+  C(t5, s5, { useDefault: i7, reflect: e5, wrapped: h4 }, r6) {
+    i7 && !(this._$Ej ??= /* @__PURE__ */ new Map()).has(t5) && (this._$Ej.set(t5, r6 ?? s5 ?? this[t5]), true !== h4 || void 0 !== r6) || (this._$AL.has(t5) || (this.hasUpdated || i7 || (s5 = void 0), this._$AL.set(t5, s5)), true === e5 && this._$Em !== t5 && (this._$Eq ??= /* @__PURE__ */ new Set()).add(t5));
   }
   async _$EP() {
     this.isUpdatePending = true;
@@ -235,9 +901,9 @@ var y = class extends HTMLElement {
         this._$Ep = void 0;
       }
       const t6 = this.constructor.elementProperties;
-      if (t6.size > 0) for (const [s6, i8] of t6) {
-        const { wrapped: t7 } = i8, e6 = this[s6];
-        true !== t7 || this._$AL.has(s6) || void 0 === e6 || this.C(s6, void 0, i8, e6);
+      if (t6.size > 0) for (const [s6, i7] of t6) {
+        const { wrapped: t7 } = i7, e5 = this[s6];
+        true !== t7 || this._$AL.has(s6) || void 0 === e5 || this.C(s6, void 0, i7, e5);
       }
     }
     let t5 = false;
@@ -274,13 +940,13 @@ var y = class extends HTMLElement {
   firstUpdated(t5) {
   }
 };
-y.elementStyles = [], y.shadowRootOptions = { mode: "open" }, y[d("elementProperties")] = /* @__PURE__ */ new Map(), y[d("finalized")] = /* @__PURE__ */ new Map(), p?.({ ReactiveElement: y }), (a.reactiveElementVersions ??= []).push("2.1.2");
+g.elementStyles = [], g.shadowRootOptions = { mode: "open" }, g[f("elementProperties")] = /* @__PURE__ */ new Map(), g[f("finalized")] = /* @__PURE__ */ new Map(), u?.({ ReactiveElement: g }), (l.reactiveElementVersions ??= []).push("2.1.2");
 
-// ../modules-workspace/node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/lit-html.js
+// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/lit-html.js
 var t2 = globalThis;
-var i3 = (t5) => t5;
+var i2 = (t5) => t5;
 var s2 = t2.trustedTypes;
-var e3 = s2 ? s2.createPolicy("lit-html", { createHTML: (t5) => t5 }) : void 0;
+var e2 = s2 ? s2.createPolicy("lit-html", { createHTML: (t5) => t5 }) : void 0;
 var h2 = "$lit$";
 var o3 = `lit$${Math.random().toFixed(9).slice(2)}$`;
 var n3 = "?" + o3;
@@ -293,13 +959,13 @@ var d2 = (t5) => u2(t5) || "function" == typeof t5?.[Symbol.iterator];
 var f2 = "[ 	\n\f\r]";
 var v = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g;
 var _ = /-->/g;
-var m = />/g;
+var m2 = />/g;
 var p2 = RegExp(`>|${f2}(?:([^\\s"'>=/]+)(${f2}*=${f2}*(?:[^ 	
 \f\r"'\`<>=]|("|')|))|$)`, "g");
-var g = /'/g;
+var g2 = /'/g;
 var $ = /"/g;
 var y2 = /^(?:script|style|textarea|title)$/i;
-var x = (t5) => (i8, ...s5) => ({ _$litType$: t5, strings: i8, values: s5 });
+var x = (t5) => (i7, ...s5) => ({ _$litType$: t5, strings: i7, values: s5 });
 var b2 = x(1);
 var w = x(2);
 var T = x(3);
@@ -307,44 +973,44 @@ var E = Symbol.for("lit-noChange");
 var A = Symbol.for("lit-nothing");
 var C = /* @__PURE__ */ new WeakMap();
 var P = l2.createTreeWalker(l2, 129);
-function V(t5, i8) {
+function V(t5, i7) {
   if (!u2(t5) || !t5.hasOwnProperty("raw")) throw Error("invalid template strings array");
-  return void 0 !== e3 ? e3.createHTML(i8) : i8;
+  return void 0 !== e2 ? e2.createHTML(i7) : i7;
 }
-var N = (t5, i8) => {
-  const s5 = t5.length - 1, e6 = [];
-  let n6, l3 = 2 === i8 ? "<svg>" : 3 === i8 ? "<math>" : "", c5 = v;
-  for (let i9 = 0; i9 < s5; i9++) {
-    const s6 = t5[i9];
+var N = (t5, i7) => {
+  const s5 = t5.length - 1, e5 = [];
+  let n6, l3 = 2 === i7 ? "<svg>" : 3 === i7 ? "<math>" : "", c5 = v;
+  for (let i8 = 0; i8 < s5; i8++) {
+    const s6 = t5[i8];
     let a3, u5, d3 = -1, f3 = 0;
-    for (; f3 < s6.length && (c5.lastIndex = f3, u5 = c5.exec(s6), null !== u5); ) f3 = c5.lastIndex, c5 === v ? "!--" === u5[1] ? c5 = _ : void 0 !== u5[1] ? c5 = m : void 0 !== u5[2] ? (y2.test(u5[2]) && (n6 = RegExp("</" + u5[2], "g")), c5 = p2) : void 0 !== u5[3] && (c5 = p2) : c5 === p2 ? ">" === u5[0] ? (c5 = n6 ?? v, d3 = -1) : void 0 === u5[1] ? d3 = -2 : (d3 = c5.lastIndex - u5[2].length, a3 = u5[1], c5 = void 0 === u5[3] ? p2 : '"' === u5[3] ? $ : g) : c5 === $ || c5 === g ? c5 = p2 : c5 === _ || c5 === m ? c5 = v : (c5 = p2, n6 = void 0);
-    const x2 = c5 === p2 && t5[i9 + 1].startsWith("/>") ? " " : "";
-    l3 += c5 === v ? s6 + r3 : d3 >= 0 ? (e6.push(a3), s6.slice(0, d3) + h2 + s6.slice(d3) + o3 + x2) : s6 + o3 + (-2 === d3 ? i9 : x2);
+    for (; f3 < s6.length && (c5.lastIndex = f3, u5 = c5.exec(s6), null !== u5); ) f3 = c5.lastIndex, c5 === v ? "!--" === u5[1] ? c5 = _ : void 0 !== u5[1] ? c5 = m2 : void 0 !== u5[2] ? (y2.test(u5[2]) && (n6 = RegExp("</" + u5[2], "g")), c5 = p2) : void 0 !== u5[3] && (c5 = p2) : c5 === p2 ? ">" === u5[0] ? (c5 = n6 ?? v, d3 = -1) : void 0 === u5[1] ? d3 = -2 : (d3 = c5.lastIndex - u5[2].length, a3 = u5[1], c5 = void 0 === u5[3] ? p2 : '"' === u5[3] ? $ : g2) : c5 === $ || c5 === g2 ? c5 = p2 : c5 === _ || c5 === m2 ? c5 = v : (c5 = p2, n6 = void 0);
+    const x2 = c5 === p2 && t5[i8 + 1].startsWith("/>") ? " " : "";
+    l3 += c5 === v ? s6 + r3 : d3 >= 0 ? (e5.push(a3), s6.slice(0, d3) + h2 + s6.slice(d3) + o3 + x2) : s6 + o3 + (-2 === d3 ? i8 : x2);
   }
-  return [V(t5, l3 + (t5[s5] || "<?>") + (2 === i8 ? "</svg>" : 3 === i8 ? "</math>" : "")), e6];
+  return [V(t5, l3 + (t5[s5] || "<?>") + (2 === i7 ? "</svg>" : 3 === i7 ? "</math>" : "")), e5];
 };
 var S2 = class _S {
-  constructor({ strings: t5, _$litType$: i8 }, e6) {
+  constructor({ strings: t5, _$litType$: i7 }, e5) {
     let r6;
     this.parts = [];
     let l3 = 0, a3 = 0;
-    const u5 = t5.length - 1, d3 = this.parts, [f3, v3] = N(t5, i8);
-    if (this.el = _S.createElement(f3, e6), P.currentNode = this.el.content, 2 === i8 || 3 === i8) {
+    const u5 = t5.length - 1, d3 = this.parts, [f3, v3] = N(t5, i7);
+    if (this.el = _S.createElement(f3, e5), P.currentNode = this.el.content, 2 === i7 || 3 === i7) {
       const t6 = this.el.content.firstChild;
       t6.replaceWith(...t6.childNodes);
     }
     for (; null !== (r6 = P.nextNode()) && d3.length < u5; ) {
       if (1 === r6.nodeType) {
         if (r6.hasAttributes()) for (const t6 of r6.getAttributeNames()) if (t6.endsWith(h2)) {
-          const i9 = v3[a3++], s5 = r6.getAttribute(t6).split(o3), e7 = /([.?@])?(.*)/.exec(i9);
-          d3.push({ type: 1, index: l3, name: e7[2], strings: s5, ctor: "." === e7[1] ? I : "?" === e7[1] ? L : "@" === e7[1] ? z : H }), r6.removeAttribute(t6);
+          const i8 = v3[a3++], s5 = r6.getAttribute(t6).split(o3), e6 = /([.?@])?(.*)/.exec(i8);
+          d3.push({ type: 1, index: l3, name: e6[2], strings: s5, ctor: "." === e6[1] ? I : "?" === e6[1] ? L : "@" === e6[1] ? z : H }), r6.removeAttribute(t6);
         } else t6.startsWith(o3) && (d3.push({ type: 6, index: l3 }), r6.removeAttribute(t6));
         if (y2.test(r6.tagName)) {
-          const t6 = r6.textContent.split(o3), i9 = t6.length - 1;
-          if (i9 > 0) {
+          const t6 = r6.textContent.split(o3), i8 = t6.length - 1;
+          if (i8 > 0) {
             r6.textContent = s2 ? s2.emptyScript : "";
-            for (let s5 = 0; s5 < i9; s5++) r6.append(t6[s5], c3()), P.nextNode(), d3.push({ type: 2, index: ++l3 });
-            r6.append(t6[i9], c3());
+            for (let s5 = 0; s5 < i8; s5++) r6.append(t6[s5], c3()), P.nextNode(), d3.push({ type: 2, index: ++l3 });
+            r6.append(t6[i8], c3());
           }
         }
       } else if (8 === r6.nodeType) if (r6.data === n3) d3.push({ type: 2, index: l3 });
@@ -355,20 +1021,20 @@ var S2 = class _S {
       l3++;
     }
   }
-  static createElement(t5, i8) {
+  static createElement(t5, i7) {
     const s5 = l2.createElement("template");
     return s5.innerHTML = t5, s5;
   }
 };
-function M(t5, i8, s5 = t5, e6) {
-  if (i8 === E) return i8;
-  let h4 = void 0 !== e6 ? s5._$Co?.[e6] : s5._$Cl;
-  const o7 = a2(i8) ? void 0 : i8._$litDirective$;
-  return h4?.constructor !== o7 && (h4?._$AO?.(false), void 0 === o7 ? h4 = void 0 : (h4 = new o7(t5), h4._$AT(t5, s5, e6)), void 0 !== e6 ? (s5._$Co ??= [])[e6] = h4 : s5._$Cl = h4), void 0 !== h4 && (i8 = M(t5, h4._$AS(t5, i8.values), h4, e6)), i8;
+function M(t5, i7, s5 = t5, e5) {
+  if (i7 === E) return i7;
+  let h4 = void 0 !== e5 ? s5._$Co?.[e5] : s5._$Cl;
+  const o7 = a2(i7) ? void 0 : i7._$litDirective$;
+  return h4?.constructor !== o7 && (h4?._$AO?.(false), void 0 === o7 ? h4 = void 0 : (h4 = new o7(t5), h4._$AT(t5, s5, e5)), void 0 !== e5 ? (s5._$Co ??= [])[e5] = h4 : s5._$Cl = h4), void 0 !== h4 && (i7 = M(t5, h4._$AS(t5, i7.values), h4, e5)), i7;
 }
 var R = class {
-  constructor(t5, i8) {
-    this._$AV = [], this._$AN = void 0, this._$AD = t5, this._$AM = i8;
+  constructor(t5, i7) {
+    this._$AV = [], this._$AN = void 0, this._$AD = t5, this._$AM = i7;
   }
   get parentNode() {
     return this._$AM.parentNode;
@@ -377,34 +1043,34 @@ var R = class {
     return this._$AM._$AU;
   }
   u(t5) {
-    const { el: { content: i8 }, parts: s5 } = this._$AD, e6 = (t5?.creationScope ?? l2).importNode(i8, true);
-    P.currentNode = e6;
+    const { el: { content: i7 }, parts: s5 } = this._$AD, e5 = (t5?.creationScope ?? l2).importNode(i7, true);
+    P.currentNode = e5;
     let h4 = P.nextNode(), o7 = 0, n6 = 0, r6 = s5[0];
     for (; void 0 !== r6; ) {
       if (o7 === r6.index) {
-        let i9;
-        2 === r6.type ? i9 = new k(h4, h4.nextSibling, this, t5) : 1 === r6.type ? i9 = new r6.ctor(h4, r6.name, r6.strings, this, t5) : 6 === r6.type && (i9 = new Z(h4, this, t5)), this._$AV.push(i9), r6 = s5[++n6];
+        let i8;
+        2 === r6.type ? i8 = new k(h4, h4.nextSibling, this, t5) : 1 === r6.type ? i8 = new r6.ctor(h4, r6.name, r6.strings, this, t5) : 6 === r6.type && (i8 = new Z(h4, this, t5)), this._$AV.push(i8), r6 = s5[++n6];
       }
       o7 !== r6?.index && (h4 = P.nextNode(), o7++);
     }
-    return P.currentNode = l2, e6;
+    return P.currentNode = l2, e5;
   }
   p(t5) {
-    let i8 = 0;
-    for (const s5 of this._$AV) void 0 !== s5 && (void 0 !== s5.strings ? (s5._$AI(t5, s5, i8), i8 += s5.strings.length - 2) : s5._$AI(t5[i8])), i8++;
+    let i7 = 0;
+    for (const s5 of this._$AV) void 0 !== s5 && (void 0 !== s5.strings ? (s5._$AI(t5, s5, i7), i7 += s5.strings.length - 2) : s5._$AI(t5[i7])), i7++;
   }
 };
 var k = class _k {
   get _$AU() {
     return this._$AM?._$AU ?? this._$Cv;
   }
-  constructor(t5, i8, s5, e6) {
-    this.type = 2, this._$AH = A, this._$AN = void 0, this._$AA = t5, this._$AB = i8, this._$AM = s5, this.options = e6, this._$Cv = e6?.isConnected ?? true;
+  constructor(t5, i7, s5, e5) {
+    this.type = 2, this._$AH = A, this._$AN = void 0, this._$AA = t5, this._$AB = i7, this._$AM = s5, this.options = e5, this._$Cv = e5?.isConnected ?? true;
   }
   get parentNode() {
     let t5 = this._$AA.parentNode;
-    const i8 = this._$AM;
-    return void 0 !== i8 && 11 === t5?.nodeType && (t5 = i8.parentNode), t5;
+    const i7 = this._$AM;
+    return void 0 !== i7 && 11 === t5?.nodeType && (t5 = i7.parentNode), t5;
   }
   get startNode() {
     return this._$AA;
@@ -412,8 +1078,8 @@ var k = class _k {
   get endNode() {
     return this._$AB;
   }
-  _$AI(t5, i8 = this) {
-    t5 = M(this, t5, i8), a2(t5) ? t5 === A || null == t5 || "" === t5 ? (this._$AH !== A && this._$AR(), this._$AH = A) : t5 !== this._$AH && t5 !== E && this._(t5) : void 0 !== t5._$litType$ ? this.$(t5) : void 0 !== t5.nodeType ? this.T(t5) : d2(t5) ? this.k(t5) : this._(t5);
+  _$AI(t5, i7 = this) {
+    t5 = M(this, t5, i7), a2(t5) ? t5 === A || null == t5 || "" === t5 ? (this._$AH !== A && this._$AR(), this._$AH = A) : t5 !== this._$AH && t5 !== E && this._(t5) : void 0 !== t5._$litType$ ? this.$(t5) : void 0 !== t5.nodeType ? this.T(t5) : d2(t5) ? this.k(t5) : this._(t5);
   }
   O(t5) {
     return this._$AA.parentNode.insertBefore(t5, this._$AB);
@@ -425,28 +1091,28 @@ var k = class _k {
     this._$AH !== A && a2(this._$AH) ? this._$AA.nextSibling.data = t5 : this.T(l2.createTextNode(t5)), this._$AH = t5;
   }
   $(t5) {
-    const { values: i8, _$litType$: s5 } = t5, e6 = "number" == typeof s5 ? this._$AC(t5) : (void 0 === s5.el && (s5.el = S2.createElement(V(s5.h, s5.h[0]), this.options)), s5);
-    if (this._$AH?._$AD === e6) this._$AH.p(i8);
+    const { values: i7, _$litType$: s5 } = t5, e5 = "number" == typeof s5 ? this._$AC(t5) : (void 0 === s5.el && (s5.el = S2.createElement(V(s5.h, s5.h[0]), this.options)), s5);
+    if (this._$AH?._$AD === e5) this._$AH.p(i7);
     else {
-      const t6 = new R(e6, this), s6 = t6.u(this.options);
-      t6.p(i8), this.T(s6), this._$AH = t6;
+      const t6 = new R(e5, this), s6 = t6.u(this.options);
+      t6.p(i7), this.T(s6), this._$AH = t6;
     }
   }
   _$AC(t5) {
-    let i8 = C.get(t5.strings);
-    return void 0 === i8 && C.set(t5.strings, i8 = new S2(t5)), i8;
+    let i7 = C.get(t5.strings);
+    return void 0 === i7 && C.set(t5.strings, i7 = new S2(t5)), i7;
   }
   k(t5) {
     u2(this._$AH) || (this._$AH = [], this._$AR());
-    const i8 = this._$AH;
-    let s5, e6 = 0;
-    for (const h4 of t5) e6 === i8.length ? i8.push(s5 = new _k(this.O(c3()), this.O(c3()), this, this.options)) : s5 = i8[e6], s5._$AI(h4), e6++;
-    e6 < i8.length && (this._$AR(s5 && s5._$AB.nextSibling, e6), i8.length = e6);
+    const i7 = this._$AH;
+    let s5, e5 = 0;
+    for (const h4 of t5) e5 === i7.length ? i7.push(s5 = new _k(this.O(c3()), this.O(c3()), this, this.options)) : s5 = i7[e5], s5._$AI(h4), e5++;
+    e5 < i7.length && (this._$AR(s5 && s5._$AB.nextSibling, e5), i7.length = e5);
   }
   _$AR(t5 = this._$AA.nextSibling, s5) {
     for (this._$AP?.(false, true, s5); t5 !== this._$AB; ) {
-      const s6 = i3(t5).nextSibling;
-      i3(t5).remove(), t5 = s6;
+      const s6 = i2(t5).nextSibling;
+      i2(t5).remove(), t5 = s6;
     }
   }
   setConnected(t5) {
@@ -460,19 +1126,19 @@ var H = class {
   get _$AU() {
     return this._$AM._$AU;
   }
-  constructor(t5, i8, s5, e6, h4) {
-    this.type = 1, this._$AH = A, this._$AN = void 0, this.element = t5, this.name = i8, this._$AM = e6, this.options = h4, s5.length > 2 || "" !== s5[0] || "" !== s5[1] ? (this._$AH = Array(s5.length - 1).fill(new String()), this.strings = s5) : this._$AH = A;
+  constructor(t5, i7, s5, e5, h4) {
+    this.type = 1, this._$AH = A, this._$AN = void 0, this.element = t5, this.name = i7, this._$AM = e5, this.options = h4, s5.length > 2 || "" !== s5[0] || "" !== s5[1] ? (this._$AH = Array(s5.length - 1).fill(new String()), this.strings = s5) : this._$AH = A;
   }
-  _$AI(t5, i8 = this, s5, e6) {
+  _$AI(t5, i7 = this, s5, e5) {
     const h4 = this.strings;
     let o7 = false;
-    if (void 0 === h4) t5 = M(this, t5, i8, 0), o7 = !a2(t5) || t5 !== this._$AH && t5 !== E, o7 && (this._$AH = t5);
+    if (void 0 === h4) t5 = M(this, t5, i7, 0), o7 = !a2(t5) || t5 !== this._$AH && t5 !== E, o7 && (this._$AH = t5);
     else {
-      const e7 = t5;
+      const e6 = t5;
       let n6, r6;
-      for (t5 = h4[0], n6 = 0; n6 < h4.length - 1; n6++) r6 = M(this, e7[s5 + n6], i8, n6), r6 === E && (r6 = this._$AH[n6]), o7 ||= !a2(r6) || r6 !== this._$AH[n6], r6 === A ? t5 = A : t5 !== A && (t5 += (r6 ?? "") + h4[n6 + 1]), this._$AH[n6] = r6;
+      for (t5 = h4[0], n6 = 0; n6 < h4.length - 1; n6++) r6 = M(this, e6[s5 + n6], i7, n6), r6 === E && (r6 = this._$AH[n6]), o7 ||= !a2(r6) || r6 !== this._$AH[n6], r6 === A ? t5 = A : t5 !== A && (t5 += (r6 ?? "") + h4[n6 + 1]), this._$AH[n6] = r6;
     }
-    o7 && !e6 && this.j(t5);
+    o7 && !e5 && this.j(t5);
   }
   j(t5) {
     t5 === A ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, t5 ?? "");
@@ -495,21 +1161,21 @@ var L = class extends H {
   }
 };
 var z = class extends H {
-  constructor(t5, i8, s5, e6, h4) {
-    super(t5, i8, s5, e6, h4), this.type = 5;
+  constructor(t5, i7, s5, e5, h4) {
+    super(t5, i7, s5, e5, h4), this.type = 5;
   }
-  _$AI(t5, i8 = this) {
-    if ((t5 = M(this, t5, i8, 0) ?? A) === E) return;
-    const s5 = this._$AH, e6 = t5 === A && s5 !== A || t5.capture !== s5.capture || t5.once !== s5.once || t5.passive !== s5.passive, h4 = t5 !== A && (s5 === A || e6);
-    e6 && this.element.removeEventListener(this.name, this, s5), h4 && this.element.addEventListener(this.name, this, t5), this._$AH = t5;
+  _$AI(t5, i7 = this) {
+    if ((t5 = M(this, t5, i7, 0) ?? A) === E) return;
+    const s5 = this._$AH, e5 = t5 === A && s5 !== A || t5.capture !== s5.capture || t5.once !== s5.once || t5.passive !== s5.passive, h4 = t5 !== A && (s5 === A || e5);
+    e5 && this.element.removeEventListener(this.name, this, s5), h4 && this.element.addEventListener(this.name, this, t5), this._$AH = t5;
   }
   handleEvent(t5) {
     "function" == typeof this._$AH ? this._$AH.call(this.options?.host ?? this.element, t5) : this._$AH.handleEvent(t5);
   }
 };
 var Z = class {
-  constructor(t5, i8, s5) {
-    this.element = t5, this.type = 6, this._$AN = void 0, this._$AM = i8, this.options = s5;
+  constructor(t5, i7, s5) {
+    this.element = t5, this.type = 6, this._$AN = void 0, this._$AM = i7, this.options = s5;
   }
   get _$AU() {
     return this._$AM._$AU;
@@ -521,19 +1187,19 @@ var Z = class {
 var j = { M: h2, P: o3, A: n3, C: 1, L: N, R, D: d2, V: M, I: k, H, N: L, U: z, B: I, F: Z };
 var B = t2.litHtmlPolyfillSupport;
 B?.(S2, k), (t2.litHtmlVersions ??= []).push("3.3.3");
-var D = (t5, i8, s5) => {
-  const e6 = s5?.renderBefore ?? i8;
-  let h4 = e6._$litPart$;
+var D = (t5, i7, s5) => {
+  const e5 = s5?.renderBefore ?? i7;
+  let h4 = e5._$litPart$;
   if (void 0 === h4) {
     const t6 = s5?.renderBefore ?? null;
-    e6._$litPart$ = h4 = new k(i8.insertBefore(c3(), t6), t6, void 0, s5 ?? {});
+    e5._$litPart$ = h4 = new k(i7.insertBefore(c3(), t6), t6, void 0, s5 ?? {});
   }
   return h4._$AI(t5), h4;
 };
 
-// ../modules-workspace/node_modules/.pnpm/lit-element@4.2.2/node_modules/lit-element/lit-element.js
+// node_modules/.pnpm/lit-element@4.2.2/node_modules/lit-element/lit-element.js
 var s3 = globalThis;
-var i4 = class extends y {
+var i3 = class extends g {
   constructor() {
     super(...arguments), this.renderOptions = { host: this }, this._$Do = void 0;
   }
@@ -555,194 +1221,194 @@ var i4 = class extends y {
     return E;
   }
 };
-i4._$litElement$ = true, i4["finalized"] = true, s3.litElementHydrateSupport?.({ LitElement: i4 });
+i3._$litElement$ = true, i3["finalized"] = true, s3.litElementHydrateSupport?.({ LitElement: i3 });
 var o4 = s3.litElementPolyfillSupport;
-o4?.({ LitElement: i4 });
+o4?.({ LitElement: i3 });
 (s3.litElementVersions ??= []).push("4.2.2");
 
-// ../modules-workspace/node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/decorators/property.js
-var o5 = { attribute: true, type: String, converter: u, reflect: false, hasChanged: f };
-var r4 = (t5 = o5, e6, r6) => {
-  const { kind: n6, metadata: i8 } = r6;
-  let s5 = globalThis.litPropertyMetadata.get(i8);
-  if (void 0 === s5 && globalThis.litPropertyMetadata.set(i8, s5 = /* @__PURE__ */ new Map()), "setter" === n6 && ((t5 = Object.create(t5)).wrapped = true), s5.set(r6.name, t5), "accessor" === n6) {
+// node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/node/decorators/property.js
+var o5 = { attribute: true, type: String, converter: b, reflect: false, hasChanged: m };
+var r4 = (t5 = o5, e5, r6) => {
+  const { kind: n6, metadata: i7 } = r6;
+  let s5 = globalThis.litPropertyMetadata.get(i7);
+  if (void 0 === s5 && globalThis.litPropertyMetadata.set(i7, s5 = /* @__PURE__ */ new Map()), "setter" === n6 && ((t5 = Object.create(t5)).wrapped = true), s5.set(r6.name, t5), "accessor" === n6) {
     const { name: o7 } = r6;
     return { set(r7) {
-      const n7 = e6.get.call(this);
-      e6.set.call(this, r7), this.requestUpdate(o7, n7, t5, true, r7);
-    }, init(e7) {
-      return void 0 !== e7 && this.C(o7, void 0, t5, e7), e7;
+      const n7 = e5.get.call(this);
+      e5.set.call(this, r7), this.requestUpdate(o7, n7, t5, true, r7);
+    }, init(e6) {
+      return void 0 !== e6 && this.C(o7, void 0, t5, e6), e6;
     } };
   }
   if ("setter" === n6) {
     const { name: o7 } = r6;
     return function(r7) {
       const n7 = this[o7];
-      e6.call(this, r7), this.requestUpdate(o7, n7, t5, true, r7);
+      e5.call(this, r7), this.requestUpdate(o7, n7, t5, true, r7);
     };
   }
   throw Error("Unsupported decorator location: " + n6);
 };
 function n4(t5) {
-  return (e6, o7) => "object" == typeof o7 ? r4(t5, e6, o7) : ((t6, e7, o8) => {
-    const r6 = e7.hasOwnProperty(o8);
-    return e7.constructor.createProperty(o8, t6), r6 ? Object.getOwnPropertyDescriptor(e7, o8) : void 0;
-  })(t5, e6, o7);
+  return (e5, o7) => "object" == typeof o7 ? r4(t5, e5, o7) : ((t6, e6, o8) => {
+    const r6 = e6.hasOwnProperty(o8);
+    return e6.constructor.createProperty(o8, t6), r6 ? Object.getOwnPropertyDescriptor(e6, o8) : void 0;
+  })(t5, e5, o7);
 }
 
-// ../modules-workspace/node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/decorators/state.js
+// node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/node/decorators/state.js
 function r5(r6) {
   return n4({ ...r6, state: true, attribute: false });
 }
 
-// ../modules-workspace/node_modules/.pnpm/@outfitkit+core@file+..+outfitkit/node_modules/@outfitkit/core/dist/define.js
+// node_modules/.pnpm/@outfitkit+core@file+..+outfitkit/node_modules/@outfitkit/core/dist/define.js
 function define(tag, ctor) {
   if (typeof customElements !== "undefined" && !customElements.get(tag)) {
     customElements.define(tag, ctor);
   }
 }
 
-// ../modules-workspace/node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directive.js
+// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directive.js
 var t3 = { ATTRIBUTE: 1, CHILD: 2, PROPERTY: 3, BOOLEAN_ATTRIBUTE: 4, EVENT: 5, ELEMENT: 6 };
-var e5 = (t5) => (...e6) => ({ _$litDirective$: t5, values: e6 });
-var i5 = class {
+var e4 = (t5) => (...e5) => ({ _$litDirective$: t5, values: e5 });
+var i4 = class {
   constructor(t5) {
   }
   get _$AU() {
     return this._$AM._$AU;
   }
-  _$AT(t5, e6, i8) {
-    this._$Ct = t5, this._$AM = e6, this._$Ci = i8;
+  _$AT(t5, e5, i7) {
+    this._$Ct = t5, this._$AM = e5, this._$Ci = i7;
   }
-  _$AS(t5, e6) {
-    return this.update(t5, e6);
+  _$AS(t5, e5) {
+    return this.update(t5, e5);
   }
-  update(t5, e6) {
-    return this.render(...e6);
+  update(t5, e5) {
+    return this.render(...e5);
   }
 };
 
-// ../modules-workspace/node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directive-helpers.js
+// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directive-helpers.js
 var { I: t4 } = j;
-var i6 = (o7) => o7;
+var i5 = (o7) => o7;
 var s4 = () => document.createComment("");
-var v2 = (o7, n6, e6) => {
+var v2 = (o7, n6, e5) => {
   const l3 = o7._$AA.parentNode, d3 = void 0 === n6 ? o7._$AB : n6._$AA;
-  if (void 0 === e6) {
-    const i8 = l3.insertBefore(s4(), d3), n7 = l3.insertBefore(s4(), d3);
-    e6 = new t4(i8, n7, o7, o7.options);
+  if (void 0 === e5) {
+    const i7 = l3.insertBefore(s4(), d3), n7 = l3.insertBefore(s4(), d3);
+    e5 = new t4(i7, n7, o7, o7.options);
   } else {
-    const t5 = e6._$AB.nextSibling, n7 = e6._$AM, c5 = n7 !== o7;
+    const t5 = e5._$AB.nextSibling, n7 = e5._$AM, c5 = n7 !== o7;
     if (c5) {
       let t6;
-      e6._$AQ?.(o7), e6._$AM = o7, void 0 !== e6._$AP && (t6 = o7._$AU) !== n7._$AU && e6._$AP(t6);
+      e5._$AQ?.(o7), e5._$AM = o7, void 0 !== e5._$AP && (t6 = o7._$AU) !== n7._$AU && e5._$AP(t6);
     }
     if (t5 !== d3 || c5) {
-      let o8 = e6._$AA;
+      let o8 = e5._$AA;
       for (; o8 !== t5; ) {
-        const t6 = i6(o8).nextSibling;
-        i6(l3).insertBefore(o8, d3), o8 = t6;
+        const t6 = i5(o8).nextSibling;
+        i5(l3).insertBefore(o8, d3), o8 = t6;
       }
     }
   }
-  return e6;
+  return e5;
 };
-var u3 = (o7, t5, i8 = o7) => (o7._$AI(t5, i8), o7);
-var m2 = {};
-var p3 = (o7, t5 = m2) => o7._$AH = t5;
+var u3 = (o7, t5, i7 = o7) => (o7._$AI(t5, i7), o7);
+var m3 = {};
+var p3 = (o7, t5 = m3) => o7._$AH = t5;
 var M2 = (o7) => o7._$AH;
 var h3 = (o7) => {
   o7._$AR(), o7._$AA.remove();
 };
 
-// ../modules-workspace/node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/repeat.js
-var u4 = (e6, s5, t5) => {
+// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/repeat.js
+var u4 = (e5, s5, t5) => {
   const r6 = /* @__PURE__ */ new Map();
-  for (let l3 = s5; l3 <= t5; l3++) r6.set(e6[l3], l3);
+  for (let l3 = s5; l3 <= t5; l3++) r6.set(e5[l3], l3);
   return r6;
 };
-var c4 = e5(class extends i5 {
-  constructor(e6) {
-    if (super(e6), e6.type !== t3.CHILD) throw Error("repeat() can only be used in text expressions");
+var c4 = e4(class extends i4 {
+  constructor(e5) {
+    if (super(e5), e5.type !== t3.CHILD) throw Error("repeat() can only be used in text expressions");
   }
-  dt(e6, s5, t5) {
+  dt(e5, s5, t5) {
     let r6;
     void 0 === t5 ? t5 = s5 : void 0 !== s5 && (r6 = s5);
     const l3 = [], o7 = [];
-    let i8 = 0;
-    for (const s6 of e6) l3[i8] = r6 ? r6(s6, i8) : i8, o7[i8] = t5(s6, i8), i8++;
+    let i7 = 0;
+    for (const s6 of e5) l3[i7] = r6 ? r6(s6, i7) : i7, o7[i7] = t5(s6, i7), i7++;
     return { values: o7, keys: l3 };
   }
-  render(e6, s5, t5) {
-    return this.dt(e6, s5, t5).values;
+  render(e5, s5, t5) {
+    return this.dt(e5, s5, t5).values;
   }
   update(s5, [t5, r6, c5]) {
     const d3 = M2(s5), { values: p4, keys: a3 } = this.dt(t5, r6, c5);
     if (!Array.isArray(d3)) return this.ut = a3, p4;
     const h4 = this.ut ??= [], v3 = [];
-    let m3, y3, x2 = 0, j2 = d3.length - 1, k2 = 0, w2 = p4.length - 1;
+    let m4, y3, x2 = 0, j2 = d3.length - 1, k2 = 0, w2 = p4.length - 1;
     for (; x2 <= j2 && k2 <= w2; ) if (null === d3[x2]) x2++;
     else if (null === d3[j2]) j2--;
     else if (h4[x2] === a3[k2]) v3[k2] = u3(d3[x2], p4[k2]), x2++, k2++;
     else if (h4[j2] === a3[w2]) v3[w2] = u3(d3[j2], p4[w2]), j2--, w2--;
     else if (h4[x2] === a3[w2]) v3[w2] = u3(d3[x2], p4[w2]), v2(s5, v3[w2 + 1], d3[x2]), x2++, w2--;
     else if (h4[j2] === a3[k2]) v3[k2] = u3(d3[j2], p4[k2]), v2(s5, d3[x2], d3[j2]), j2--, k2++;
-    else if (void 0 === m3 && (m3 = u4(a3, k2, w2), y3 = u4(h4, x2, j2)), m3.has(h4[x2])) if (m3.has(h4[j2])) {
-      const e6 = y3.get(a3[k2]), t6 = void 0 !== e6 ? d3[e6] : null;
+    else if (void 0 === m4 && (m4 = u4(a3, k2, w2), y3 = u4(h4, x2, j2)), m4.has(h4[x2])) if (m4.has(h4[j2])) {
+      const e5 = y3.get(a3[k2]), t6 = void 0 !== e5 ? d3[e5] : null;
       if (null === t6) {
-        const e7 = v2(s5, d3[x2]);
-        u3(e7, p4[k2]), v3[k2] = e7;
-      } else v3[k2] = u3(t6, p4[k2]), v2(s5, d3[x2], t6), d3[e6] = null;
+        const e6 = v2(s5, d3[x2]);
+        u3(e6, p4[k2]), v3[k2] = e6;
+      } else v3[k2] = u3(t6, p4[k2]), v2(s5, d3[x2], t6), d3[e5] = null;
       k2++;
     } else h3(d3[j2]), j2--;
     else h3(d3[x2]), x2++;
     for (; k2 <= w2; ) {
-      const e6 = v2(s5, v3[w2 + 1]);
-      u3(e6, p4[k2]), v3[k2++] = e6;
+      const e5 = v2(s5, v3[w2 + 1]);
+      u3(e5, p4[k2]), v3[k2++] = e5;
     }
     for (; x2 <= j2; ) {
-      const e6 = d3[x2++];
-      null !== e6 && h3(e6);
+      const e5 = d3[x2++];
+      null !== e5 && h3(e5);
     }
     return this.ut = a3, p3(s5, v3), E;
   }
 });
 
-// ../modules-workspace/node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/style-map.js
+// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/style-map.js
 var n5 = "important";
-var i7 = " !" + n5;
-var o6 = e5(class extends i5 {
+var i6 = " !" + n5;
+var o6 = e4(class extends i4 {
   constructor(t5) {
     if (super(t5), t5.type !== t3.ATTRIBUTE || "style" !== t5.name || t5.strings?.length > 2) throw Error("The `styleMap` directive must be used in the `style` attribute and must be the only part in the attribute.");
   }
   render(t5) {
-    return Object.keys(t5).reduce((e6, r6) => {
+    return Object.keys(t5).reduce((e5, r6) => {
       const s5 = t5[r6];
-      return null == s5 ? e6 : e6 + `${r6 = r6.includes("-") ? r6 : r6.replace(/(?:^(webkit|moz|ms|o)|)(?=[A-Z])/g, "-$&").toLowerCase()}:${s5};`;
+      return null == s5 ? e5 : e5 + `${r6 = r6.includes("-") ? r6 : r6.replace(/(?:^(webkit|moz|ms|o)|)(?=[A-Z])/g, "-$&").toLowerCase()}:${s5};`;
     }, "");
   }
-  update(e6, [r6]) {
-    const { style: s5 } = e6.element;
+  update(e5, [r6]) {
+    const { style: s5 } = e5.element;
     if (void 0 === this.ft) return this.ft = new Set(Object.keys(r6)), this.render(r6);
     for (const t5 of this.ft) null == r6[t5] && (this.ft.delete(t5), t5.includes("-") ? s5.removeProperty(t5) : s5[t5] = null);
     for (const t5 in r6) {
-      const e7 = r6[t5];
-      if (null != e7) {
+      const e6 = r6[t5];
+      if (null != e6) {
         this.ft.add(t5);
-        const r7 = "string" == typeof e7 && e7.endsWith(i7);
-        t5.includes("-") || r7 ? s5.setProperty(t5, r7 ? e7.slice(0, -11) : e7, r7 ? n5 : "") : s5[t5] = e7;
+        const r7 = "string" == typeof e6 && e6.endsWith(i6);
+        t5.includes("-") || r7 ? s5.setProperty(t5, r7 ? e6.slice(0, -11) : e6, r7 ? n5 : "") : s5[t5] = e6;
       }
     }
     return E;
   }
 });
 
-// ../modules-workspace/node_modules/.pnpm/@outfitkit+core@file+..+outfitkit/node_modules/@outfitkit/core/dist/ok-data-table.js
+// node_modules/.pnpm/@outfitkit+core@file+..+outfitkit/node_modules/@outfitkit/core/dist/ok-data-table.js
 var __defProp2 = Object.defineProperty;
 var __decorateClass2 = (decorators, target, key, kind) => {
   var result = void 0;
-  for (var i8 = decorators.length - 1, decorator; i8 >= 0; i8--)
-    if (decorator = decorators[i8])
+  for (var i7 = decorators.length - 1, decorator; i7 >= 0; i7--)
+    if (decorator = decorators[i7])
       result = decorator(target, key, result) || result;
   if (result) __defProp2(target, key, result);
   return result;
@@ -783,7 +1449,7 @@ var DEFAULT_LABELS = {
   recordSingular: "record",
   recordPlural: "records"
 };
-var OkDataTable = class extends i4 {
+var OkDataTable = class extends i3 {
   constructor() {
     super(...arguments);
     this.columns = [];
@@ -884,13 +1550,7 @@ var OkDataTable = class extends i4 {
     .fblock { display: flex; flex-direction: column; gap: 0.45rem; }
     .flabel { font-size: 13px; font-weight: 500; color: var(--color); }
     .frange { display: flex; gap: 0.5rem; }
-    /* Filtros cliente: chips multi-select (estilo Hub) + rango de fechas. */
-    .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-    .chip { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.6rem; border: 1px solid var(--border-color); border-radius: 999px; background: var(--background); color: var(--color-muted); font-size: 12px; cursor: pointer; transition: color 0.12s, background 0.12s, border-color 0.12s; }
-    .chip:hover { color: var(--color); }
-    .chip.on { border-color: var(--primary); color: var(--primary); background: color-mix(in srgb, var(--primary) 15%, transparent); }
-    .chip ion-icon { font-size: 12px; }
-    .chip-empty { font-size: 12px; color: var(--color-muted); }
+    /* Filtros cliente: multi-select con ion-select (ventana flotante de Ionic) + rango de fechas. */
     .daterange { display: flex; gap: 0.6rem; }
     .daterange ion-input { flex: 1; }
     /* Pie del drawer de filtros: Limpiar / Aplicar. */
@@ -902,6 +1562,10 @@ var OkDataTable = class extends i4 {
     :host([fill]) .card { flex: 1 1 auto; min-height: 0; }
     :host([fill]) .bar, :host([fill]) .panel, :host([fill]) .pager { flex: 0 0 auto; }
     :host([fill]) .scroll, :host([fill]) .cards-grid { flex: 1 1 auto; min-height: 0; overflow: auto; }
+    /* Sin filas, renderTable/renderCards devuelven SOLO el bloque .empty (sin .scroll). En modo
+       fill hay que estirarlo para que ocupe el hueco entre toolbar y pager y centre su contenido
+       (icono + mensaje) en vertical; si no, queda pegado arriba con el pager a media altura. */
+    :host([fill]) .empty { flex: 1 1 auto; min-height: 0; }
 
     /* ── Topbar / cabecera (relieve) ─────────────────────────────────────────────────────── */
     .bar { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.65rem 1rem; border-bottom: 1px solid var(--border-color); background: var(--header-background); }
@@ -1006,27 +1670,35 @@ var OkDataTable = class extends i4 {
     .range { display: flex; gap: 0.25rem; }
 
     /* ── Vista tarjetas ──────────────────────────────────────────────────────────────────── */
-    .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 0.75rem; padding: 1rem; }
-    /* Flat: sin borde ni elevación — las tarjetas se delimitan por la superficie (no por sombra). */
-    .rcard { display: flex; flex-direction: column; border: 0; border-radius: 12px; overflow: hidden; background: var(--header-background); box-shadow: none; transition: background-color var(--ok-transition, 150ms ease), color var(--ok-transition, 150ms ease), box-shadow var(--ok-transition, 150ms ease), transform 120ms ease; }
-    @media (hover: hover) {
-      .rcard:hover { background: var(--row-hover); }
-    }
-    .rcard:active { transform: scale(0.995); }
+    /* Cada tarjeta mide SU contenido (no se estira al alto de la fila ni del contenedor):
+       - grid-auto-rows: max-content → cada fila implícita = alto de su contenido. CLAVE: sin esto,
+         en modo fill (grid de alto fijo + align-content:start) cuando las tarjetas no caben el
+         navegador encoge los tracks de fila y las tarjetas se solapan.
+       - align-content: start → empaqueta las filas arriba (no reparte el hueco sobrante estirando).
+       - align-items: start → en una fila multi-columna cada tarjeta mide su propio contenido.
+       En modo fill el grid es flex-child con overflow:auto → cuando las tarjetas no caben aparece el
+       scroll DENTRO de la tabla (no crece hacia fuera). */
+    .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 0.75rem; padding: 1rem; grid-auto-rows: max-content; align-content: start; align-items: start; }
+    /* Tarjeta = ion-card NATIVO de Ionic: su fondo, radio, elevación y padding son los de Ionic y NO
+       se sobrescriben. Aquí solo se ajusta lo que el contexto de rejilla exige (margin) y los huecos
+       que Ionic no trae (cabecera en fila, filas clave-valor, barra de acciones, resalte de selección). */
+    ion-card.rcard { margin: 0; } /* la rejilla aporta el gap → sin esto el margin por defecto de ion-card lo duplica */
+    ion-card.rcard.selected { outline: 2px solid var(--primary); outline-offset: -2px; }
     @media (prefers-reduced-motion: reduce) {
       .gh.sortable:hover, .gh.sortable:active,
-      .grow-data:hover, .grow-data:active,
-      .rcard:hover, .rcard:active { transform: none; }
+      .grow-data:hover, .grow-data:active { transform: none; }
     }
-    .rcard.selected { background: color-mix(in srgb, var(--primary) 12%, var(--header-background)); }
-    .rcard-head { display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--border-color); background: var(--header-background); }
+    /* Cabecera: ion-card-header en fila (icono + título + checkbox); se conserva su padding Ionic. */
+    ion-card-header.rcard-head { display: flex; align-items: center; gap: 0.5rem; }
     .rcard-head .rc-icon { display: inline-flex; color: var(--primary); }
     .rcard-head .rc-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-    .rcard-body { flex: 1; padding: 0.6rem 0.85rem; display: flex; flex-direction: column; gap: 0.4rem; }
+    /* Cuerpo: ion-card-content (padding Ionic por defecto) con las filas clave-valor apiladas. */
+    ion-card-content.rcard-body { display: flex; flex-direction: column; gap: 0.4rem; }
     .rrow { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 13px; }
     .rrow .rk { color: var(--color-muted); }
-    .rrow .rv { font-weight: 500; text-align: right; }
-    .ractions { display: flex; justify-content: flex-end; gap: 0.25rem; padding: 0.25rem 0.5rem; border-top: 1px solid var(--border-color-soft); background: var(--header-background); }
+    .rrow .rv { font-weight: 500; text-align: right; color: var(--color); }
+    /* Barra de acciones (Ionic no trae "card actions"): pie alineado a la derecha, fondo transparente. */
+    .ractions { display: flex; justify-content: flex-end; gap: 0.25rem; padding: 0 0.5rem 0.5rem; }
 
     /* ── Estado vacío ────────────────────────────────────────────────────────────────────── */
     .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; padding: 3.5rem 1rem; text-align: center; color: var(--color-muted); }
@@ -1147,13 +1819,13 @@ var OkDataTable = class extends i4 {
     let row = [];
     let field = "";
     let q = false;
-    for (let i8 = 0; i8 < text.length; i8++) {
-      const c5 = text[i8];
+    for (let i7 = 0; i7 < text.length; i7++) {
+      const c5 = text[i7];
       if (q) {
         if (c5 === '"') {
-          if (text[i8 + 1] === '"') {
+          if (text[i7 + 1] === '"') {
             field += '"';
-            i8++;
+            i7++;
           } else q = false;
         } else field += c5;
       } else if (c5 === '"') q = true;
@@ -1161,7 +1833,7 @@ var OkDataTable = class extends i4 {
         row.push(field);
         field = "";
       } else if (c5 === "\n" || c5 === "\r") {
-        if (c5 === "\r" && text[i8 + 1] === "\n") i8++;
+        if (c5 === "\r" && text[i7 + 1] === "\n") i7++;
         row.push(field);
         field = "";
         if (row.length > 1 || row[0] !== "") out.push(row);
@@ -1173,7 +1845,7 @@ var OkDataTable = class extends i4 {
       out.push(row);
     }
     const headers = out.shift() ?? [];
-    const rows = out.map((r6) => Object.fromEntries(headers.map((h4, i8) => [h4, r6[i8] ?? ""])));
+    const rows = out.map((r6) => Object.fromEntries(headers.map((h4, i7) => [h4, r6[i7] ?? ""])));
     return { headers, rows };
   }
   async onImportFile(ev) {
@@ -1200,12 +1872,12 @@ var OkDataTable = class extends i4 {
     }
     return out;
   }
-  toggleFilterValue(key, value) {
+  // Fija el conjunto de valores seleccionados de una columna (multi-select del drawer = ion-select).
+  setFilterValues(key, values) {
     const next = this.cloneFilters(this.filterDraft);
-    const values = new Set(next[key]?.values ?? []);
-    if (values.has(value)) values.delete(value);
-    else values.add(value);
-    next[key] = { ...next[key], values };
+    const clean = (values ?? []).filter((v3) => v3 != null && v3 !== "");
+    if (clean.length) next[key] = { ...next[key], values: new Set(clean) };
+    else next[key] = { ...next[key], values: void 0 };
     this.filterDraft = next;
   }
   setFilterRange(key, edge, value) {
@@ -1400,6 +2072,13 @@ var OkDataTable = class extends i4 {
     this.menuEv = ev;
     this.menuOpen = true;
   }
+  // Aplica la vista inicial declarada (`default-view`) una sola vez, tras el primer render. Es la
+  // forma robusta de arrancar en tarjetas sin depender de fijar `viewMode` por referencia (que
+  // falla si la tabla monta detrás de un `v-if`/loading y el ref aún es null).
+  firstUpdated() {
+    if (this.defaultView === "cards" && this.cardViewEnabled) this.viewMode = "cards";
+    else if (this.defaultView === "table") this.viewMode = "table";
+  }
   setViewMode(mode) {
     if (this.viewMode === mode) return;
     this.viewMode = mode;
@@ -1416,13 +2095,14 @@ var OkDataTable = class extends i4 {
         <ion-select
           label=${col.header}
           label-placement="stacked"
+          fill="outline"
           ?multiple=${multi}
           interface="modal"
           .interfaceOptions=${{ cssClass: "ok-overlay" }}
-          placeholder=${col.header}
-          @ionChange=${(e6) => this.onFilterSelect(col, e6.detail.value, multi)}
+          placeholder=${this.t.select}
+          @ionChange=${(e5) => this.onFilterSelect(col, e5.detail.value, multi)}
         >
-          ${multi ? A : b2`<ion-select-option value="">${col.header}</ion-select-option>`}
+          ${multi ? A : b2`<ion-select-option value="">${this.t.select}</ion-select-option>`}
           ${opts.map((o7) => b2`<ion-select-option value=${o7.value}>${o7.label}</ion-select-option>`)}
         </ion-select>
       `;
@@ -1435,9 +2115,9 @@ var OkDataTable = class extends i4 {
           <span class="flabel">${col.header}</span>
           <div class="frange">
             <ion-input type=${t5} fill="outline" placeholder=${type === "daterange" ? this.t.from : this.t.gte}
-              @ionInput=${(e6) => onEdge(col, "from", e6)}></ion-input>
+              @ionInput=${(e5) => onEdge(col, "from", e5)}></ion-input>
             <ion-input type=${t5} fill="outline" placeholder=${type === "daterange" ? this.t.to : this.t.lte}
-              @ionInput=${(e6) => onEdge(col, "to", e6)}></ion-input>
+              @ionInput=${(e5) => onEdge(col, "to", e5)}></ion-input>
           </div>
         </div>
       `;
@@ -1450,7 +2130,7 @@ var OkDataTable = class extends i4 {
         label=${col.header}
         label-placement="stacked"
         placeholder=${this.t.filterPlaceholder}
-        @ionInput=${(e6) => this.onFilterInput(col, e6)}
+        @ionInput=${(e5) => this.onFilterInput(col, e5)}
       ></ion-input>
     `;
   }
@@ -1481,7 +2161,7 @@ var OkDataTable = class extends i4 {
           aria-label=${col.header}
           placeholder=${col.header}
           .value=${current}
-          @ionChange=${(e6) => this.onFilterSelect(col, e6.detail.value, multi)}
+          @ionChange=${(e5) => this.onFilterSelect(col, e5.detail.value, multi)}
         >
           ${multi ? A : b2`<ion-select-option value="">${col.header}</ion-select-option>`}
           ${opts.map((o7) => b2`<ion-select-option value=${o7.value}>${o7.label}</ion-select-option>`)}
@@ -1491,9 +2171,9 @@ var OkDataTable = class extends i4 {
     return b2`
       <span class="tk-daterange" role="group" aria-label=${col.header}>
         <ion-icon name="calendar-outline"></ion-icon>
-        <ion-input type="date" aria-label=${this.t.fromOf.replace("{label}", col.header)} .value=${f3?.from ?? ""} @ionChange=${(e6) => this.onInlineRange(col, "from", e6)}></ion-input>
+        <ion-input type="date" aria-label=${this.t.fromOf.replace("{label}", col.header)} .value=${f3?.from ?? ""} @ionChange=${(e5) => this.onInlineRange(col, "from", e5)}></ion-input>
         <span class="arr">→</span>
-        <ion-input type="date" aria-label=${this.t.toOf.replace("{label}", col.header)} .value=${f3?.to ?? ""} @ionChange=${(e6) => this.onInlineRange(col, "to", e6)}></ion-input>
+        <ion-input type="date" aria-label=${this.t.toOf.replace("{label}", col.header)} .value=${f3?.to ?? ""} @ionChange=${(e5) => this.onInlineRange(col, "to", e5)}></ion-input>
       </span>
     `;
   }
@@ -1501,7 +2181,7 @@ var OkDataTable = class extends i4 {
   renderOverflowMenu() {
     if (!this.menuActions.length) return A;
     return b2`
-      <ion-button class="toolbtn" fill="clear" aria-label=${this.t.moreActions} @click=${(e6) => this.openMenu(e6)}>
+      <ion-button class="toolbtn" fill="clear" aria-label=${this.t.moreActions} @click=${(e5) => this.openMenu(e5)}>
         <ion-icon slot="icon-only" name="ellipsis-vertical"></ion-icon>
       </ion-button>
       <ion-popover
@@ -1569,7 +2249,7 @@ var OkDataTable = class extends i4 {
   /** Lista de páginas a mostrar en el pager numerado (1-based): primera, última, vecinas de la
    *  actual y «…» donde haya saltos. P.ej. en página 1 de 52 → [1,2,3,'…',52]. */
   pageList(cur1, total) {
-    if (total <= 7) return Array.from({ length: total }, (_2, i8) => i8 + 1);
+    if (total <= 7) return Array.from({ length: total }, (_2, i7) => i7 + 1);
     const want = /* @__PURE__ */ new Set([1, total, cur1, cur1 - 1, cur1 + 1]);
     if (cur1 <= 3) [2, 3].forEach((p4) => want.add(p4));
     if (cur1 >= total - 2) [total - 1, total - 2].forEach((p4) => want.add(p4));
@@ -1632,7 +2312,7 @@ var OkDataTable = class extends i4 {
                             aria-label=${this.t.columnsVisible}
                             .value=${this.visibleColumns.map((c5) => c5.key)}
                             .selectedText=${this.t.columns}
-                            @ionChange=${(e6) => this.setVisibleColumns(e6.detail.value)}
+                            @ionChange=${(e5) => this.setVisibleColumns(e5.detail.value)}
                           >
                             ${this.columns.map((c5) => b2`<ion-select-option value=${c5.key}>${c5.header}</ion-select-option>`)}
                           </ion-select>
@@ -1643,7 +2323,7 @@ var OkDataTable = class extends i4 {
                             interface="popover"
                             aria-label=${this.t.rowsPerPage}
                             .value=${ps}
-                            @ionChange=${(e6) => setPageSize(Number(e6.detail.value))}
+                            @ionChange=${(e5) => setPageSize(Number(e5.detail.value))}
                           >
                             ${this.effPageSizes.map((n6) => b2`<ion-select-option .value=${n6}>${n6}</ion-select-option>`)}
                           </ion-select>
@@ -1657,7 +2337,7 @@ var OkDataTable = class extends i4 {
                     ${this.hasFilterRow && !this.inlineFilters ? this.toolButton("funnel-outline", this.panel === "filters" || this.activeFilterCount > 0, () => this.toggle("filters"), this.t.filters, this.serverSide ? void 0 : this.activeFilterCount) : A}
                     ${this.effImport ? b2`
                           ${this.toolButton("cloud-upload-outline", false, () => this.renderRoot.querySelector(".tk-file")?.click(), this.t.importCsv)}
-                          <input class="tk-file" type="file" accept=".csv,text/csv" hidden @change=${(e6) => this.onImportFile(e6)} />
+                          <input class="tk-file" type="file" accept=".csv,text/csv" hidden @change=${(e5) => this.onImportFile(e5)} />
                         ` : A}
                     ${this.effExport ? this.toolButton("download-outline", false, () => this.exportCsv(), this.t.exportCsv) : A}
                     ${this.addable ? this.toolButton("add", this.panel === "create", () => this.toggle("create"), this.t.add) : A}
@@ -1695,7 +2375,7 @@ var OkDataTable = class extends i4 {
                     <span class="strong">${count}</span> ${count === 1 ? this.t.recordSingular : this.t.recordPlural}
                   </span>
                   ${!showTopbar && this.effPageSizes.length ? b2`
-                        <select class="psize" @change=${(e6) => setPageSize(Number(e6.target.value))}>
+                        <select class="psize" @change=${(e5) => setPageSize(Number(e5.target.value))}>
                           ${this.effPageSizes.map((n6) => b2`<option value=${n6} ?selected=${n6 === ps}>${this.t.perPageShort.replace("{n}", String(n6))}</option>`)}
                         </select>
                       ` : A}
@@ -1748,27 +2428,29 @@ var OkDataTable = class extends i4 {
         <div class="fblock">
           <span class="flabel">${label}</span>
           <div class="daterange">
-            <ion-input type="date" label=${this.t.from} label-placement="stacked" fill="outline" .value=${f3.from ?? ""} @ionChange=${(e6) => this.setFilterRange(col.key, "from", e6.detail.value ?? "")}></ion-input>
-            <ion-input type="date" label=${this.t.to} label-placement="stacked" fill="outline" .value=${f3.to ?? ""} @ionChange=${(e6) => this.setFilterRange(col.key, "to", e6.detail.value ?? "")}></ion-input>
+            <ion-input type="date" label=${this.t.from} label-placement="stacked" fill="outline" .value=${f3.from ?? ""} @ionChange=${(e5) => this.setFilterRange(col.key, "from", e5.detail.value ?? "")}></ion-input>
+            <ion-input type="date" label=${this.t.to} label-placement="stacked" fill="outline" .value=${f3.to ?? ""} @ionChange=${(e5) => this.setFilterRange(col.key, "to", e5.detail.value ?? "")}></ion-input>
           </div>
         </div>
       `;
     }
-    const distinct = this.distinctValues(col);
-    const selected = this.filterDraft[col.key]?.values ?? /* @__PURE__ */ new Set();
+    const opts = col.options ?? this.distinctValues(col).map((v3) => ({ value: v3, label: v3 }));
+    const selected = [...this.filterDraft[col.key]?.values ?? /* @__PURE__ */ new Set()];
     return b2`
       <div class="fblock">
-        <span class="flabel">${label}</span>
-        <div class="chips">
-          ${distinct.length === 0 ? b2`<span class="chip-empty">${this.t.noValues}</span>` : distinct.map((v3) => {
-      const on = selected.has(v3);
-      return b2`
-                  <button class=${`chip${on ? " on" : ""}`} @click=${() => this.toggleFilterValue(col.key, v3)}>
-                    ${on ? b2`<ion-icon name="checkmark-outline"></ion-icon>` : A}${v3}
-                  </button>
-                `;
-    })}
-        </div>
+        <ion-select
+          label=${label}
+          label-placement="stacked"
+          fill="outline"
+          multiple
+          interface="modal"
+          .interfaceOptions=${{ cssClass: "ok-overlay" }}
+          placeholder=${this.t.select}
+          .value=${selected}
+          @ionChange=${(e5) => this.setFilterValues(col.key, e5.detail.value ?? [])}
+        >
+          ${opts.length === 0 ? b2`<ion-select-option .disabled=${true} value="">${this.t.noValues}</ion-select-option>` : opts.map((o7) => b2`<ion-select-option value=${o7.value}>${o7.label}</ion-select-option>`)}
+        </ion-select>
       </div>
     `;
   }
@@ -1847,21 +2529,21 @@ var OkDataTable = class extends i4 {
         const selected = this.selectable && this.selection.has(key);
         const icon = this.cardIcon?.(row);
         return b2`
-              <div class=${`rcard${selected ? " selected" : ""}`}>
+              <ion-card class=${`rcard${selected ? " selected" : ""}`}>
                 ${hasHead ? b2`
-                      <header class="rcard-head">
+                      <ion-card-header class="rcard-head">
                         ${icon != null && icon !== "" ? b2`<span class="rc-icon">${typeof icon === "string" ? b2`<ion-icon name=${icon}></ion-icon>` : icon}</span>` : A}
                         <span class="rc-title">${this.cardTitle ? this.cardTitle(row) : A}</span>
                         ${this.selectable ? b2`<ion-checkbox .checked=${selected} aria-label=${this.t.select} @ionChange=${() => this.toggleRow(key)}></ion-checkbox>` : A}
-                      </header>
+                      </ion-card-header>
                     ` : A}
-                <div class="rcard-body">
+                <ion-card-content class="rcard-body">
                   ${this.renderCard ? this.renderCard(row) : this.visibleColumns.map(
           (c5) => b2`<div class="rrow"><span class="rk">${c5.header}</span><span class="rv">${c5.render ? c5.render(row) : this.cell(c5, row)}</span></div>`
         )}
-                </div>
+                </ion-card-content>
                 ${this.actions.length ? b2`<div class="ractions">${this.actionButtons(row)}</div>` : A}
-              </div>
+              </ion-card>
             `;
       }
     )}
@@ -1942,6 +2624,9 @@ __decorateClass2([
   n4({ attribute: false })
 ], OkDataTable.prototype, "views");
 __decorateClass2([
+  n4({ attribute: "default-view" })
+], OkDataTable.prototype, "defaultView");
+__decorateClass2([
   n4({ type: Boolean })
 ], OkDataTable.prototype, "exportable");
 __decorateClass2([
@@ -2015,12 +2700,12 @@ __decorateClass2([
 ], OkDataTable.prototype, "menuOpen");
 define("ok-data-table", OkDataTable);
 
-// ../modules-workspace/node_modules/.pnpm/@outfitkit+core@file+..+outfitkit/node_modules/@outfitkit/core/dist/ok-qr.js
+// node_modules/.pnpm/@outfitkit+core@file+..+outfitkit/node_modules/@outfitkit/core/dist/ok-qr.js
 var __defProp3 = Object.defineProperty;
 var __decorateClass3 = (decorators, target, key, kind) => {
   var result = void 0;
-  for (var i8 = decorators.length - 1, decorator; i8 >= 0; i8--)
-    if (decorator = decorators[i8])
+  for (var i7 = decorators.length - 1, decorator; i7 >= 0; i7--)
+    if (decorator = decorators[i7])
       result = decorator(target, key, result) || result;
   if (result) __defProp3(target, key, result);
   return result;
@@ -2029,13 +2714,13 @@ var GF_EXP = new Uint8Array(512);
 var GF_LOG = new Uint8Array(256);
 (() => {
   let x2 = 1;
-  for (let i8 = 0; i8 < 255; i8++) {
-    GF_EXP[i8] = x2;
-    GF_LOG[x2] = i8;
+  for (let i7 = 0; i7 < 255; i7++) {
+    GF_EXP[i7] = x2;
+    GF_LOG[x2] = i7;
     x2 <<= 1;
     if (x2 & 256) x2 ^= 285;
   }
-  for (let i8 = 255; i8 < 512; i8++) GF_EXP[i8] = GF_EXP[i8 - 255];
+  for (let i7 = 255; i7 < 512; i7++) GF_EXP[i7] = GF_EXP[i7 - 255];
 })();
 function gfMul(a3, b3) {
   if (a3 === 0 || b3 === 0) return 0;
@@ -2043,11 +2728,11 @@ function gfMul(a3, b3) {
 }
 function rsGeneratorPoly(degree) {
   let poly = new Uint8Array([1]);
-  for (let i8 = 0; i8 < degree; i8++) {
+  for (let i7 = 0; i7 < degree; i7++) {
     const next = new Uint8Array(poly.length + 1);
     for (let j2 = 0; j2 < poly.length; j2++) {
       next[j2] ^= poly[j2];
-      next[j2 + 1] ^= gfMul(poly[j2], GF_EXP[i8]);
+      next[j2 + 1] ^= gfMul(poly[j2], GF_EXP[i7]);
     }
     poly = next;
   }
@@ -2057,11 +2742,11 @@ function rsEncode(data, degree) {
   const gen = rsGeneratorPoly(degree);
   const res = new Uint8Array(data.length + degree);
   res.set(data);
-  for (let i8 = 0; i8 < data.length; i8++) {
-    const coef = res[i8];
+  for (let i7 = 0; i7 < data.length; i7++) {
+    const coef = res[i7];
     if (coef !== 0) {
       for (let j2 = 0; j2 < gen.length; j2++) {
-        res[i8 + j2] ^= gfMul(gen[j2], coef);
+        res[i7 + j2] ^= gfMul(gen[j2], coef);
       }
     }
   }
@@ -2310,8 +2995,8 @@ var BitBuffer = class {
     this.bits = [];
   }
   put(value, length) {
-    for (let i8 = length - 1; i8 >= 0; i8--) {
-      this.bits.push(value >>> i8 & 1);
+    for (let i7 = length - 1; i7 >= 0; i7--) {
+      this.bits.push(value >>> i7 & 1);
     }
   }
   get length() {
@@ -2345,17 +3030,17 @@ function encodeData(bytes, version, ec) {
     pi ^= 1;
   }
   const dataCw = new Uint8Array(dataCwCapacity);
-  for (let i8 = 0; i8 < dataCwCapacity; i8++) {
+  for (let i7 = 0; i7 < dataCwCapacity; i7++) {
     let byte = 0;
-    for (let j2 = 0; j2 < 8; j2++) byte = byte << 1 | buf.bits[i8 * 8 + j2];
-    dataCw[i8] = byte;
+    for (let j2 = 0; j2 < 8; j2++) byte = byte << 1 | buf.bits[i7 * 8 + j2];
+    dataCw[i7] = byte;
   }
   const dataBlocks = [];
   const ecBlocks = [];
   let offset = 0;
   const layout = [];
-  for (let g2 = 0; g2 < blocks[1]; g2++) layout.push([blocks[2]]);
-  for (let g2 = 0; g2 < blocks[3]; g2++) layout.push([blocks[4]]);
+  for (let g3 = 0; g3 < blocks[1]; g3++) layout.push([blocks[2]]);
+  for (let g3 = 0; g3 < blocks[3]; g3++) layout.push([blocks[4]]);
   for (const [dlen] of layout) {
     const dblk = dataCw.slice(offset, offset + dlen);
     offset += dlen;
@@ -2365,20 +3050,20 @@ function encodeData(bytes, version, ec) {
   const result = new Uint8Array(totalCw);
   let ri = 0;
   const maxData = Math.max(...dataBlocks.map((b3) => b3.length));
-  for (let i8 = 0; i8 < maxData; i8++) {
-    for (const blk of dataBlocks) if (i8 < blk.length) result[ri++] = blk[i8];
+  for (let i7 = 0; i7 < maxData; i7++) {
+    for (const blk of dataBlocks) if (i7 < blk.length) result[ri++] = blk[i7];
   }
-  for (let i8 = 0; i8 < ecPerBlock; i8++) {
-    for (const blk of ecBlocks) result[ri++] = blk[i8];
+  for (let i7 = 0; i7 < ecPerBlock; i7++) {
+    for (const blk of ecBlocks) result[ri++] = blk[i7];
   }
   return result;
 }
 function buildMatrix(codewords, version, ec) {
   const size = version * 4 + 17;
-  const m3 = Array.from({ length: size }, () => new Array(size).fill(null));
+  const m4 = Array.from({ length: size }, () => new Array(size).fill(null));
   const reserved = Array.from({ length: size }, () => new Array(size).fill(false));
   const set = (r6, c5, v3, isReserved = true) => {
-    m3[r6][c5] = v3;
+    m4[r6][c5] = v3;
     if (isReserved) reserved[r6][c5] = true;
   };
   const placeFinder = (r6, c5) => {
@@ -2396,10 +3081,10 @@ function buildMatrix(codewords, version, ec) {
   placeFinder(0, 0);
   placeFinder(0, size - 7);
   placeFinder(size - 7, 0);
-  for (let i8 = 8; i8 < size - 8; i8++) {
-    const v3 = i8 % 2 === 0 ? 1 : 0;
-    set(6, i8, v3);
-    set(i8, 6, v3);
+  for (let i7 = 8; i7 < size - 8; i7++) {
+    const v3 = i7 % 2 === 0 ? 1 : 0;
+    set(6, i7, v3);
+    set(i7, 6, v3);
   }
   const aps = ALIGN_POS[version - 1];
   for (const r6 of aps) {
@@ -2414,22 +3099,22 @@ function buildMatrix(codewords, version, ec) {
     }
   }
   set(size - 8, 8, 1);
-  for (let i8 = 0; i8 < 9; i8++) {
-    if (!reserved[8][i8]) reserved[8][i8] = true;
-    if (!reserved[i8][8]) reserved[i8][8] = true;
+  for (let i7 = 0; i7 < 9; i7++) {
+    if (!reserved[8][i7]) reserved[8][i7] = true;
+    if (!reserved[i7][8]) reserved[i7][8] = true;
   }
-  for (let i8 = 0; i8 < 8; i8++) {
-    reserved[8][size - 1 - i8] = true;
-    reserved[size - 1 - i8][8] = true;
+  for (let i7 = 0; i7 < 8; i7++) {
+    reserved[8][size - 1 - i7] = true;
+    reserved[size - 1 - i7][8] = true;
   }
   reserved[8][8] = true;
   reserved[8][7] = true;
   reserved[7][8] = true;
   if (version >= 7) {
-    for (let i8 = 0; i8 < 6; i8++) {
+    for (let i7 = 0; i7 < 6; i7++) {
       for (let j2 = 0; j2 < 3; j2++) {
-        reserved[i8][size - 11 + j2] = true;
-        reserved[size - 11 + j2][i8] = true;
+        reserved[i7][size - 11 + j2] = true;
+        reserved[size - 11 + j2][i7] = true;
       }
     }
   }
@@ -2439,12 +3124,12 @@ function buildMatrix(codewords, version, ec) {
   let upward = true;
   for (let col = size - 1; col > 0; col -= 2) {
     if (col === 6) col--;
-    for (let i8 = 0; i8 < size; i8++) {
-      const row = upward ? size - 1 - i8 : i8;
+    for (let i7 = 0; i7 < size; i7++) {
+      const row = upward ? size - 1 - i7 : i7;
       for (let k2 = 0; k2 < 2; k2++) {
         const c5 = col - k2;
-        if (reserved[row][c5] || m3[row][c5] !== null) continue;
-        m3[row][c5] = getBit(bitIdx);
+        if (reserved[row][c5] || m4[row][c5] !== null) continue;
+        m4[row][c5] = getBit(bitIdx);
         bitIdx++;
       }
     }
@@ -2466,7 +3151,7 @@ function buildMatrix(codewords, version, ec) {
     const grid = Array.from({ length: size }, () => new Array(size).fill(false));
     for (let r6 = 0; r6 < size; r6++) {
       for (let c5 = 0; c5 < size; c5++) {
-        let v3 = m3[r6][c5] === 1;
+        let v3 = m4[r6][c5] === 1;
         if (!reserved[r6][c5] && maskFns[mask](r6, c5)) v3 = !v3;
         grid[r6][c5] = v3;
       }
@@ -2483,23 +3168,23 @@ function buildMatrix(codewords, version, ec) {
 function applyFormatAndVersion(grid, _reserved, version, ec, mask) {
   const size = grid.length;
   const fmt = FORMAT_INFO[EC_FORMAT_BITS[ec] << 3 | mask];
-  for (let i8 = 0; i8 < 15; i8++) {
-    const bit = (fmt >> i8 & 1) === 1;
-    if (i8 < 6) grid[i8][8] = bit;
-    else if (i8 === 6) grid[7][8] = bit;
-    else if (i8 === 7) grid[8][8] = bit;
-    else if (i8 === 8) grid[8][7] = bit;
-    else grid[8][14 - i8] = bit;
-    if (i8 < 8) grid[8][size - 1 - i8] = bit;
-    else grid[size - 15 + i8][8] = bit;
+  for (let i7 = 0; i7 < 15; i7++) {
+    const bit = (fmt >> i7 & 1) === 1;
+    if (i7 < 6) grid[i7][8] = bit;
+    else if (i7 === 6) grid[7][8] = bit;
+    else if (i7 === 7) grid[8][8] = bit;
+    else if (i7 === 8) grid[8][7] = bit;
+    else grid[8][14 - i7] = bit;
+    if (i7 < 8) grid[8][size - 1 - i7] = bit;
+    else grid[size - 15 + i7][8] = bit;
   }
   grid[size - 8][8] = true;
   if (version >= 7) {
     const vinfo = VERSION_INFO[version - 7];
-    for (let i8 = 0; i8 < 18; i8++) {
-      const bit = (vinfo >> i8 & 1) === 1;
-      const r6 = Math.floor(i8 / 3);
-      const c5 = i8 % 3;
+    for (let i7 = 0; i7 < 18; i7++) {
+      const bit = (vinfo >> i7 & 1) === 1;
+      const r6 = Math.floor(i7 / 3);
+      const c5 = i7 % 3;
       grid[r6][size - 11 + c5] = bit;
       grid[size - 11 + c5][r6] = bit;
     }
@@ -2512,8 +3197,8 @@ function scorePenalty(grid) {
     let p4 = 0;
     let runColor = get(0);
     let runLen = 1;
-    for (let i8 = 1; i8 < n6; i8++) {
-      const v3 = get(i8);
+    for (let i7 = 1; i7 < n6; i7++) {
+      const v3 = get(i7);
       if (v3 === runColor) {
         runLen++;
       } else {
@@ -2547,12 +3232,12 @@ function scorePenalty(grid) {
   };
   for (let r6 = 0; r6 < n6; r6++) {
     for (let c5 = 0; c5 <= n6 - 11; c5++) {
-      if (matchAt((i8) => grid[r6][i8], c5)) penalty += 40;
+      if (matchAt((i7) => grid[r6][i7], c5)) penalty += 40;
     }
   }
   for (let c5 = 0; c5 < n6; c5++) {
     for (let r6 = 0; r6 <= n6 - 11; r6++) {
-      if (matchAt((i8) => grid[i8][c5], r6)) penalty += 40;
+      if (matchAt((i7) => grid[i7][c5], r6)) penalty += 40;
     }
   }
   let dark = 0;
@@ -2570,7 +3255,7 @@ function generateQr(value, ec) {
   }
   return null;
 }
-var OkQr = class extends i4 {
+var OkQr = class extends i3 {
   constructor() {
     super(...arguments);
     this.value = "";
@@ -2663,12 +3348,12 @@ __decorateClass3([
 ], OkQr.prototype, "margin");
 define("ok-qr", OkQr);
 
-// ../modules-workspace/node_modules/.pnpm/@outfitkit+core@file+..+outfitkit/node_modules/@outfitkit/core/dist/ok-invoice.js
+// node_modules/.pnpm/@outfitkit+core@file+..+outfitkit/node_modules/@outfitkit/core/dist/ok-invoice.js
 var __defProp4 = Object.defineProperty;
 var __decorateClass4 = (decorators, target, key, kind) => {
   var result = void 0;
-  for (var i8 = decorators.length - 1, decorator; i8 >= 0; i8--)
-    if (decorator = decorators[i8])
+  for (var i7 = decorators.length - 1, decorator; i7 >= 0; i7--)
+    if (decorator = decorators[i7])
       result = decorator(target, key, result) || result;
   if (result) __defProp4(target, key, result);
   return result;
@@ -2692,7 +3377,7 @@ var DEFAULT_LABELS2 = {
   total: "TOTAL",
   paymentMethod: "Payment method"
 };
-var OkInvoice = class extends i4 {
+var OkInvoice = class extends i3 {
   constructor() {
     super(...arguments);
     this.qrSize = 96;
@@ -2887,7 +3572,7 @@ __decorateClass4([
 ], OkInvoice.prototype, "labels");
 define("ok-invoice", OkInvoice);
 
-// ../modules-workspace/node_modules/.pnpm/@erplora+module-sdk@file+..+hub+packages+module-sdk/node_modules/@erplora/module-sdk/src/index.ts
+// node_modules/.pnpm/@erplora+module-sdk@file+..+hub+packages+module-sdk/node_modules/@erplora/module-sdk/src/index.ts
 function isEmpty(v3) {
   return v3 === null || v3 === void 0 || v3 === "";
 }
@@ -2937,11 +3622,11 @@ var ListController = class {
       if (mySeq !== this.seq) return;
       this.rows = page.rows ?? [];
       this.total = page.total ?? this.rows.length;
-    } catch (e6) {
+    } catch (e5) {
       if (mySeq !== this.seq) return;
       this.rows = [];
       this.total = 0;
-      this.error = e6 instanceof Error ? e6.message : "Error cargando datos";
+      this.error = e5 instanceof Error ? e5.message : "Error cargando datos";
     } finally {
       if (mySeq === this.seq) {
         this.loading = false;
@@ -3005,7 +3690,7 @@ function createListController(client, queryName, onChange = () => {
   return new ListController(client, queryName, onChange, opts);
 }
 
-// ../modules-workspace/modules/invoice/locales/es.json
+// modules/invoice/locales/es.json
 var es_default = {
   name: "Facturaci\xF3n",
   navigation: {
@@ -3133,7 +3818,7 @@ var es_default = {
   }
 };
 
-// ../modules-workspace/modules/invoice/locales/en.json
+// modules/invoice/locales/en.json
 var en_default = {
   name: "Invoicing",
   navigation: {
@@ -3261,7 +3946,7 @@ var en_default = {
   }
 };
 
-// ../modules-workspace/modules/invoice/ui/components/erp-invoice-list/erp-invoice-list.ts
+// modules/invoice/ui/components/erp-invoice-list/erp-invoice-list.ts
 var CATALOG = { es: es_default, en: en_default };
 function erplora() {
   const c5 = globalThis.erplora;
@@ -3305,7 +3990,7 @@ var fmtMoney = (v3) => erplora().formatAmount(Number(v3 || 0));
 var fmtDoc = (v3, currency) => erplora().formatAmount(Number(v3 || 0), { currency });
 var num = (v3) => Number(v3 || 0).toFixed(2);
 var emptyItem = () => ({ description: "", quantity: "1", unit_price: "", tax_rate: "21" });
-var ErpInvoiceList = class extends i4 {
+var ErpInvoiceList = class extends i3 {
   constructor() {
     super(...arguments);
     this.tick = 0;
@@ -3453,8 +4138,8 @@ var ErpInvoiceList = class extends i4 {
       this.detail = row;
       this.detailLines = Array.isArray(lines) ? lines : [];
       this.aeat = await this.loadAeat(id);
-    } catch (e6) {
-      this.detailError = e6 instanceof Error ? e6.message : erploraT("ui.errLoadDetail");
+    } catch (e5) {
+      this.detailError = e5 instanceof Error ? e5.message : erploraT("ui.errLoadDetail");
     }
   }
   /** Carga el registro VeriFactu de la factura (qr_url + CSV + estado). Tolerante a fallos. */
@@ -3495,8 +4180,8 @@ var ErpInvoiceList = class extends i4 {
       await erplora().command("invoice.mark_paid", { invoice_id: inv.id });
       await this.ctrl.load();
       if (this.detail?.id === inv.id) await this.openDetail(inv.id);
-    } catch (e6) {
-      this.actionError = e6 instanceof Error ? e6.message : erploraT("ui.errMarkPaid");
+    } catch (e5) {
+      this.actionError = e5 instanceof Error ? e5.message : erploraT("ui.errMarkPaid");
     } finally {
       this.busy = false;
     }
@@ -3530,8 +4215,8 @@ var ErpInvoiceList = class extends i4 {
       this.rectifyTarget = null;
       await this.ctrl.load();
       if (this.detail?.id === target.id) await this.openDetail(target.id);
-    } catch (e6) {
-      this.actionError = e6 instanceof Error ? e6.message : erploraT("ui.errRectify");
+    } catch (e5) {
+      this.actionError = e5 instanceof Error ? e5.message : erploraT("ui.errRectify");
     } finally {
       this.busy = false;
     }
@@ -3554,8 +4239,8 @@ var ErpInvoiceList = class extends i4 {
       }
     }
   }
-  setItem(i8, key, value) {
-    this.newItems = this.newItems.map((it, j2) => j2 === i8 ? { ...it, [key]: value } : it);
+  setItem(i7, key, value) {
+    this.newItems = this.newItems.map((it, j2) => j2 === i7 ? { ...it, [key]: value } : it);
   }
   get itemsValid() {
     return this.newItems.length > 0 && this.newItems.every(
@@ -3590,8 +4275,8 @@ var ErpInvoiceList = class extends i4 {
       this.newItems = [emptyItem()];
       this.showCreate = false;
       await this.ctrl.load();
-    } catch (e6) {
-      this.formError = e6 instanceof Error ? e6.message : erploraT("ui.errCreate");
+    } catch (e5) {
+      this.formError = e5 instanceof Error ? e5.message : erploraT("ui.errCreate");
     } finally {
       this.saving = false;
     }
@@ -3672,7 +4357,7 @@ var ErpInvoiceList = class extends i4 {
       <h3>${erploraT("ui.rectifyTitle", { number: t5.number })}</h3>
       <p>${erploraT("ui.rectifyNote")}</p>
       <div class="form">
-        <ion-textarea fill="outline" label-placement="floating" label=${erploraT("ui.lblReason")} placeholder=${erploraT("ui.rectifyReasonPlaceholder")} auto-grow .value=${this.rectifyReason} @ionInput=${(e6) => this.rectifyReason = e6.target.value}></ion-textarea>
+        <ion-textarea fill="outline" label-placement="floating" label=${erploraT("ui.lblReason")} placeholder=${erploraT("ui.rectifyReasonPlaceholder")} auto-grow .value=${this.rectifyReason} @ionInput=${(e5) => this.rectifyReason = e5.target.value}></ion-textarea>
       </div>
       <div class="row-actions">
         <ion-button size="small" color="danger" ?disabled=${this.busy || !this.rectifyReason.trim()} @click=${() => this.confirmRectify()}>${this.busy ? erploraT("ui.rectifying") : erploraT("ui.issueRectifying")}</ion-button>
@@ -3733,22 +4418,22 @@ var ErpInvoiceList = class extends i4 {
   renderCreateForm() {
     return b2`<div class="card">
       <h3>${erploraT("ui.createTitle")}</h3>
-      <form @submit=${(e6) => this.create(e6)}>
+      <form @submit=${(e5) => this.create(e5)}>
         <div class="form">
-          <ion-select fill="outline" label-placement="floating" label=${erploraT("ui.fieldSeries")} interface="popover" .value=${this.newSeriesCode} @ionChange=${(e6) => this.newSeriesCode = e6.target.value}>
+          <ion-select fill="outline" label-placement="floating" label=${erploraT("ui.fieldSeries")} interface="popover" .value=${this.newSeriesCode} @ionChange=${(e5) => this.newSeriesCode = e5.target.value}>
             ${this.seriesOptions.length ? this.seriesOptions.map((sr) => b2`<ion-select-option .value=${sr.code}>${sr.code} — ${sr.name || typeLabel(sr.invoice_type)}</ion-select-option>`) : b2`<ion-select-option value="FACT">FACT — ${typeLabel("F1")} (F1)</ion-select-option><ion-select-option value="TICKET">TICKET — ${typeLabel("F2")} (F2)</ion-select-option>`}
           </ion-select>
-          <ion-input fill="outline" label-placement="floating" label=${erploraT("ui.fieldCustomer")} .value=${this.newCustomerName} @ionInput=${(e6) => this.newCustomerName = e6.target.value}></ion-input>
-          <ion-input fill="outline" label-placement="floating" label=${erploraT("ui.fieldCustomerTaxId")} placeholder=${erploraT("ui.placeholderTaxId")} .value=${this.newCustomerTaxId} @ionInput=${(e6) => this.newCustomerTaxId = e6.target.value}></ion-input>
-          <ion-input fill="outline" label-placement="floating" label=${erploraT("ui.fieldAddress")} .value=${this.newCustomerAddress} @ionInput=${(e6) => this.newCustomerAddress = e6.target.value}></ion-input>
-          <ion-input fill="outline" label-placement="floating" label=${erploraT("ui.fieldNotes")} .value=${this.newNotes} @ionInput=${(e6) => this.newNotes = e6.target.value}></ion-input>
+          <ion-input fill="outline" label-placement="floating" label=${erploraT("ui.fieldCustomer")} .value=${this.newCustomerName} @ionInput=${(e5) => this.newCustomerName = e5.target.value}></ion-input>
+          <ion-input fill="outline" label-placement="floating" label=${erploraT("ui.fieldCustomerTaxId")} placeholder=${erploraT("ui.placeholderTaxId")} .value=${this.newCustomerTaxId} @ionInput=${(e5) => this.newCustomerTaxId = e5.target.value}></ion-input>
+          <ion-input fill="outline" label-placement="floating" label=${erploraT("ui.fieldAddress")} .value=${this.newCustomerAddress} @ionInput=${(e5) => this.newCustomerAddress = e5.target.value}></ion-input>
+          <ion-input fill="outline" label-placement="floating" label=${erploraT("ui.fieldNotes")} .value=${this.newNotes} @ionInput=${(e5) => this.newNotes = e5.target.value}></ion-input>
         </div>
-        ${this.newItems.map((it, i8) => b2`<div class="item-row">
-          <ion-input class="desc" fill="outline" label-placement="floating" label=${erploraT("ui.lineDescription")} .value=${it.description} @ionInput=${(e6) => this.setItem(i8, "description", e6.target.value)}></ion-input>
-          <ion-input class="num" fill="outline" label-placement="floating" label=${erploraT("ui.lineQty")} type="number" .value=${it.quantity} @ionInput=${(e6) => this.setItem(i8, "quantity", e6.target.value)}></ion-input>
-          <ion-input class="num" fill="outline" label-placement="floating" label=${erploraT("ui.linePrice")} type="number" .value=${it.unit_price} @ionInput=${(e6) => this.setItem(i8, "unit_price", e6.target.value)}></ion-input>
-          <ion-input class="num" fill="outline" label-placement="floating" label=${erploraT("ui.lineTaxPct")} type="number" .value=${it.tax_rate} @ionInput=${(e6) => this.setItem(i8, "tax_rate", e6.target.value)}></ion-input>
-          ${this.newItems.length > 1 ? b2`<ion-button size="small" fill="clear" color="danger" @click=${() => this.newItems = this.newItems.filter((_2, j2) => j2 !== i8)}>✕</ion-button>` : A}
+        ${this.newItems.map((it, i7) => b2`<div class="item-row">
+          <ion-input class="desc" fill="outline" label-placement="floating" label=${erploraT("ui.lineDescription")} .value=${it.description} @ionInput=${(e5) => this.setItem(i7, "description", e5.target.value)}></ion-input>
+          <ion-input class="num" fill="outline" label-placement="floating" label=${erploraT("ui.lineQty")} type="number" .value=${it.quantity} @ionInput=${(e5) => this.setItem(i7, "quantity", e5.target.value)}></ion-input>
+          <ion-input class="num" fill="outline" label-placement="floating" label=${erploraT("ui.linePrice")} type="number" .value=${it.unit_price} @ionInput=${(e5) => this.setItem(i7, "unit_price", e5.target.value)}></ion-input>
+          <ion-input class="num" fill="outline" label-placement="floating" label=${erploraT("ui.lineTaxPct")} type="number" .value=${it.tax_rate} @ionInput=${(e5) => this.setItem(i7, "tax_rate", e5.target.value)}></ion-input>
+          ${this.newItems.length > 1 ? b2`<ion-button size="small" fill="clear" color="danger" @click=${() => this.newItems = this.newItems.filter((_2, j2) => j2 !== i7)}>✕</ion-button>` : A}
         </div>`)}
         <div class="row-actions">
           <ion-button size="small" fill="outline" @click=${() => this.newItems = [...this.newItems, emptyItem()]}>${erploraT("ui.addLine")}</ion-button>
@@ -3771,7 +4456,7 @@ var ErpInvoiceList = class extends i4 {
         ${this.actionError ? b2`<p class="err">${this.actionError}</p>` : A}
         ${this.detailError ? b2`<p class="err">${this.detailError}</p>` : A}
         ${this.ctrl?.error ? b2`<p class="err">${this.ctrl.error}</p>` : A}
-        <ok-data-table .serverSide=${true} .columns=${this.columns} .rows=${this.ctrl?.rows ?? []} .total=${this.ctrl?.total ?? 0} .page=${this.ctrl?.state.page ?? 0} .pageSize=${this.ctrl?.state.pageSize ?? 50} .sort=${this.ctrl?.state.sort} .sortDir=${this.ctrl?.state.dir ?? "asc"} .searchable=${true} .searchPlaceholder=${erploraT("ui.searchPlaceholder")} .actions=${this.rowActions} .emptyMessage=${this.ctrl?.loading ? erploraT("ui.loading") : erploraT("ui.empty")} @rowAction=${(e6) => this.onRowAction(e6)} @pageChange=${(e6) => this.ctrl.setPage(e6.detail)} @sortChange=${(e6) => this.ctrl.setSort(e6.detail.sort, e6.detail.dir)} @searchChange=${(e6) => this.ctrl.setSearch(e6.detail)} @filterChange=${(e6) => this.ctrl.setFilter(e6.detail.col, e6.detail.value)}></ok-data-table>
+        <ok-data-table .serverSide=${true} .columns=${this.columns} .rows=${this.ctrl?.rows ?? []} .total=${this.ctrl?.total ?? 0} .page=${this.ctrl?.state.page ?? 0} .pageSize=${this.ctrl?.state.pageSize ?? 50} .sort=${this.ctrl?.state.sort} .sortDir=${this.ctrl?.state.dir ?? "asc"} .searchable=${true} .searchPlaceholder=${erploraT("ui.searchPlaceholder")} .actions=${this.rowActions} .emptyMessage=${this.ctrl?.loading ? erploraT("ui.loading") : erploraT("ui.empty")} @rowAction=${(e5) => this.onRowAction(e5)} @pageChange=${(e5) => this.ctrl.setPage(e5.detail)} @sortChange=${(e5) => this.ctrl.setSort(e5.detail.sort, e5.detail.dir)} @searchChange=${(e5) => this.ctrl.setSearch(e5.detail)} @filterChange=${(e5) => this.ctrl.setFilter(e5.detail.col, e5.detail.value)}></ok-data-table>
       </div>`;
   }
 };
@@ -3834,7 +4519,7 @@ __decorateClass([
 ], ErpInvoiceList.prototype, "busy", 2);
 define("erp-invoice-list", ErpInvoiceList);
 
-// ../modules-workspace/modules/invoice/ui/components/erp-invoice-settings/erp-invoice-settings.ts
+// modules/invoice/ui/components/erp-invoice-settings/erp-invoice-settings.ts
 var CATALOG2 = { es: es_default, en: en_default };
 function erplora2() {
   const c5 = globalThis.erplora;
@@ -3868,7 +4553,7 @@ var blankForm = () => ({
   is_active: true,
   is_default: false
 });
-var ErpInvoiceSettings = class extends i4 {
+var ErpInvoiceSettings = class extends i3 {
   constructor() {
     super(...arguments);
     this.rows = [];
@@ -3954,8 +4639,8 @@ var ErpInvoiceSettings = class extends i4 {
     try {
       const rows = await erplora2().query("invoice.series.list", {});
       this.rows = Array.isArray(rows) ? rows : [];
-    } catch (e6) {
-      this.listError = e6 instanceof Error ? e6.message : erploraT2("ui.errSeriesLoad");
+    } catch (e5) {
+      this.listError = e5 instanceof Error ? e5.message : erploraT2("ui.errSeriesLoad");
     } finally {
       this.loading = false;
     }
@@ -4021,8 +4706,8 @@ var ErpInvoiceSettings = class extends i4 {
       }
       this.form = null;
       await this.load();
-    } catch (e6) {
-      this.formError = e6 instanceof Error ? e6.message : erploraT2(this.isEdit ? "ui.errSeriesUpdate" : "ui.errSeriesCreate");
+    } catch (e5) {
+      this.formError = e5 instanceof Error ? e5.message : erploraT2(this.isEdit ? "ui.errSeriesUpdate" : "ui.errSeriesCreate");
     } finally {
       this.saving = false;
     }
@@ -4036,42 +4721,42 @@ var ErpInvoiceSettings = class extends i4 {
     const title = this.isEdit ? erploraT2("ui.seriesEditTitle", { code: f3.code }) : erploraT2("ui.seriesCreateTitle");
     return b2`<div class="card">
       <h3>${title}</h3>
-      <form @submit=${(e6) => this.submit(e6)}>
+      <form @submit=${(e5) => this.submit(e5)}>
         <div class="form">
           <ion-input
             fill="outline" label-placement="floating" label=${erploraT2("ui.fieldCode")}
             ?disabled=${this.isEdit}
             .value=${f3.code}
-            @ionInput=${(e6) => this.setField("code", e6.target.value)}></ion-input>
+            @ionInput=${(e5) => this.setField("code", e5.target.value)}></ion-input>
           <ion-input
             fill="outline" label-placement="floating" label=${erploraT2("ui.fieldName")}
             .value=${f3.name}
-            @ionInput=${(e6) => this.setField("name", e6.target.value)}></ion-input>
+            @ionInput=${(e5) => this.setField("name", e5.target.value)}></ion-input>
           <ion-select
             fill="outline" label-placement="floating" label=${erploraT2("ui.fieldInvoiceType")}
             interface="popover" ?disabled=${this.isEdit}
             .value=${f3.invoice_type}
-            @ionChange=${(e6) => this.setField("invoice_type", e6.target.value)}>
+            @ionChange=${(e5) => this.setField("invoice_type", e5.target.value)}>
             ${TYPE_CODES2.map((c5) => b2`<ion-select-option .value=${c5}>${typeLabel2(c5)} (${c5})</ion-select-option>`)}
           </ion-select>
           <ion-input
             fill="outline" label-placement="floating" label=${erploraT2("ui.fieldYear")}
             type="number" ?disabled=${this.isEdit}
             .value=${f3.year}
-            @ionInput=${(e6) => this.setField("year", e6.target.value)}></ion-input>
+            @ionInput=${(e5) => this.setField("year", e5.target.value)}></ion-input>
           <ion-input
             fill="outline" label-placement="floating" label=${erploraT2("ui.fieldPrefix")}
             .value=${f3.prefix}
-            @ionInput=${(e6) => this.setField("prefix", e6.target.value)}></ion-input>
+            @ionInput=${(e5) => this.setField("prefix", e5.target.value)}></ion-input>
         </div>
         ${this.isEdit ? A : b2`<span class="hint">${erploraT2("ui.codeHint")}</span>`}
         <span class="hint">${erploraT2("ui.prefixHint")}</span>
         <div class="toggles">
           <ion-item lines="none">
-            <ion-toggle .checked=${f3.is_active} @ionChange=${(e6) => this.setField("is_active", e6.target.checked)}>${erploraT2("ui.fieldActive")}</ion-toggle>
+            <ion-toggle .checked=${f3.is_active} @ionChange=${(e5) => this.setField("is_active", e5.target.checked)}>${erploraT2("ui.fieldActive")}</ion-toggle>
           </ion-item>
           <ion-item lines="none">
-            <ion-toggle .checked=${f3.is_default} @ionChange=${(e6) => this.setField("is_default", e6.target.checked)}>${erploraT2("ui.fieldDefault")}</ion-toggle>
+            <ion-toggle .checked=${f3.is_default} @ionChange=${(e5) => this.setField("is_default", e5.target.checked)}>${erploraT2("ui.fieldDefault")}</ion-toggle>
           </ion-item>
         </div>
         <div class="row-actions">
@@ -4102,7 +4787,7 @@ var ErpInvoiceSettings = class extends i4 {
         .searchPlaceholder=${erploraT2("ui.seriesSearchPlaceholder")}
         .actions=${this.rowActions}
         .emptyMessage=${this.loading ? erploraT2("ui.seriesLoading") : erploraT2("ui.seriesEmpty")}
-        @rowAction=${(e6) => this.onRowAction(e6)}></ok-data-table>
+        @rowAction=${(e5) => this.onRowAction(e5)}></ok-data-table>
     </div>`;
   }
 };
