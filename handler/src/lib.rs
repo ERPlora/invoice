@@ -173,6 +173,8 @@ fn build_invoice(
         p.insert("quantity".into(), json!(qty));
         p.insert("unit_price".into(), json!(unit_price)); // céntimos
         p.insert("tax_rate".into(), json!(rate));         // tasa % (REAL)
+        // Categoría fiscal congelada de la línea (ADR-0085); NULL en factura manual sin categoría.
+        p.insert("tax_category_key".into(), item.get("tax_category_key").cloned().unwrap_or(Value::Null));
         p.insert("base_amount".into(), json!(base));      // céntimos
         p.insert("tax_amount".into(), json!(tax));        // céntimos
         p.insert("total_amount".into(), json!(total));    // céntimos
@@ -251,6 +253,8 @@ pub fn create_from_sale_pure(input: Value) -> Output {
         m.insert("quantity".into(), it.get("quantity").cloned().unwrap_or(json!(1)));
         m.insert("unit_price".into(), it.get("unit_price").cloned().unwrap_or(json!(0)));
         m.insert("tax_rate".into(), it.get("tax_rate").cloned().unwrap_or(json!(0)));
+        // Categoría fiscal congelada (ADR-0085): traza la categoría en la línea de factura.
+        m.insert("tax_category_key".into(), it.get("tax_category_key").cloned().unwrap_or(Value::Null));
         m.insert("product_id".into(), it.get("product_id").cloned().unwrap_or(Value::Null));
         if let (Some(net), Some(tax)) = (it.get("net_amount"), it.get("tax_amount")) {
             m.insert("base_amount".into(), net.clone());

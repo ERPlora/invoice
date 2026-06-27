@@ -5,10 +5,10 @@
 -- emisión el padre existe en la MISMA transacción → la línea se inserta normal.
 -- INSERT...SELECT con WHERE EXISTS es portable SQLite+Postgres.
 INSERT INTO invoice_invoiceitem
-  (id, hub_id, invoice_id, line_number, description, quantity, unit_price, tax_rate,
+  (id, hub_id, invoice_id, line_number, description, quantity, unit_price, tax_rate, tax_category_key,
    base_amount, tax_amount, total_amount, product_id, created_at)
 SELECT
-   :line_id, :hub_id, :invoice_id, :line_number, :description, :quantity, :unit_price, :tax_rate,
+   :line_id, :hub_id, :invoice_id, :line_number, :description, :quantity, :unit_price, :tax_rate, :tax_category_key,
    :base_amount, :tax_amount, :total_amount, :product_id, :now
 WHERE EXISTS (
     SELECT 1 FROM invoice_invoice WHERE id = :invoice_id AND hub_id = :hub_id
