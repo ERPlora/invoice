@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "module": "invoice",
+  "consumes": {
+    "queries": [
+      "invoice.get",
+      "invoice.lines",
+      "invoice.list",
+      "invoice.series.list"
+    ],
+    "optional_queries": [
+      "verifactu.records.by_invoice"
+    ],
+    "commands": [
+      "invoice.create",
+      "invoice.mark_paid",
+      "invoice.rectify",
+      "invoice.series.create",
+      "invoice.series.update"
+    ],
+    "events": [
+      "invoice.created",
+      "invoice.rectified"
+    ],
+    "slots": []
+  }
+}

@@ -15,6 +15,9 @@ const CATALOG: Record<string, unknown> = { es: esLocale, en: enLocale };
 
 interface ErploraClientLike extends ListClient {
   query<T = unknown>(name: string, params?: Record<string, unknown>): Promise<T>;
+  /** Integración OPCIONAL (ADR-0127): undefined SOLO si el módulo dueño no está instalado;
+   *  un contrato roto contra un módulo presente EXPLOTA (no es un catch silencioso). */
+  queryOptional<T = unknown>(name: string, params?: Record<string, unknown>): Promise<T | undefined>;
   queryPage<R = unknown>(name: string, params: ListParams): Promise<ListPage<R>>;
   command<T = unknown>(name: string, payload?: Record<string, unknown>): Promise<T>;
   on(event: string, cb: (payload: unknown) => void): () => void;
@@ -291,7 +294,10 @@ export class ErpInvoiceList extends LitElement {
   /** Carga el registro VeriFactu de la factura (qr_url + CSV + estado). Tolerante a fallos. */
   private async loadAeat(invoiceId: string) {
     try {
-      const rows = await erplora().query<Record<string, unknown> | Record<string, unknown>[]>(
+      // `queryOptional` (ADR-0127): verifactu puede NO estar instalado (factura sin cadena fiscal
+      // AEAT) — eso devuelve undefined y aquí no pasa nada. Un contrato ROTO (query renombrada,
+      // permiso) sí explota: eso lo atrapa el catch de este método, que ya era tolerante.
+      const rows = await erplora().queryOptional<Record<string, unknown> | Record<string, unknown>[]>(
         'verifactu.records.by_invoice', { invoice_id: invoiceId });
       const rec = (Array.isArray(rows) ? rows[0] : rows) as Record<string, unknown> | undefined;
       if (!rec) return null;

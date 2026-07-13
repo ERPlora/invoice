@@ -4316,7 +4316,7 @@ var ErpInvoiceList = class extends i3 {
   /** Carga el registro VeriFactu de la factura (qr_url + CSV + estado). Tolerante a fallos. */
   async loadAeat(invoiceId) {
     try {
-      const rows = await erplora().query(
+      const rows = await erplora().queryOptional(
         "verifactu.records.by_invoice",
         { invoice_id: invoiceId }
       );
