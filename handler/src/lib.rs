@@ -15,6 +15,9 @@
 //! necesita iterar arrays. La inmutabilidad fiscal la imponen los commands (no hay
 //! update/delete de factura emitida; solo rectify).
 
+use erplora_guest_sdk::money;
+use rust_decimal::prelude::FromPrimitive;
+use rust_decimal::Decimal;
 use erplora_guest_sdk::{Event, Operation, Output};
 use serde_json::{json, Map, Value};
 
@@ -33,30 +36,8 @@ pub fn create_from_sale(input: Json<erplora_guest_sdk::Input>) -> FnResult<Json<
     Ok(Json(create_from_sale_pure(input.into_inner().into_value())))
 }
 
-/// Redondea céntimos fraccionarios a céntimos enteros half-even (ADR-0007). `x` está
-/// ya en el espacio de céntimos.
-fn round_cents(x: f64) -> i64 {
-    let floor = x.floor();
-    let diff = x - floor;
-    let r = if (diff - 0.5).abs() < 1e-9 {
-        if (floor as i64) % 2 == 0 { floor } else { floor + 1.0 }
-    } else {
-        x.round()
-    };
-    r as i64
-}
-/// Lee un importe de dinero **en céntimos** (`i64`): entero JSON, string de entero, o
-/// (robustez) decimal interpretado como céntimos ya escalados. El contrato es céntimos.
-fn cents(v: &Value, d: i64) -> i64 {
-    match v {
-        Value::Number(num) => num.as_i64().or_else(|| num.as_f64().map(round_cents)).unwrap_or(d),
-        Value::String(st) => {
-            let st = st.trim();
-            st.parse::<i64>().ok().or_else(|| st.parse::<f64>().ok().map(round_cents)).unwrap_or(d)
-        }
-        _ => d,
-    }
-}
+// El DINERO lo calcula `erplora_guest_sdk::money` (ADR-0123): una sola implementación, un solo
+// modo de redondeo (HALF_UP). Este módulo tenía su propio `round_cents` (half-even sobre `f64`).
 fn f(v: &Value, d: f64) -> f64 {
     match v {
         Value::Number(n) => n.as_f64().unwrap_or(d),
@@ -138,7 +119,7 @@ fn build_invoice(
     // 3) líneas (ids new_ids[2..]).
     for (i, item) in items.iter().enumerate() {
         let qty = item.get("quantity").map(|v| f(v, 1.0)).unwrap_or(1.0); // cantidad fraccionable
-        let unit_price = cents(item.get("unit_price").unwrap_or(&Value::Null), 0); // céntimos
+        let unit_price = money::from_json(item.get("unit_price").unwrap_or(&Value::Null), 0);
         let rate = item.get("tax_rate").map(|v| f(v, 0.0)).unwrap_or(0.0); // tasa %
         // Base/IVA por línea (céntimos). Si el origen ya extrajo la base y el IVA
         // (p.ej. `sale.completed` con precios IVA-INCLUIDO: net_amount/tax_amount ya
@@ -146,10 +127,19 @@ fn build_invoice(
         // sobre el bruto (bug D1). Solo cuando NO vienen (factura manual,
         // precios IVA-EXCLUIDO) se calcula base = qty*unit_price y tax = base*rate.
         let (base, tax) = match (item.get("base_amount"), item.get("tax_amount")) {
-            (Some(b), Some(t)) => (cents(b, 0), cents(t, 0)),
+            (Some(b), Some(t)) => (money::from_json(b, 0), money::from_json(t, 0)),
             _ => {
-                let base = round_cents(qty * unit_price as f64);   // céntimos
-                let tax = round_cents(base as f64 * rate / 100.0); // céntimos
+                // Factura MANUAL (IVA no incluido): base = precio × cantidad, IVA encima.
+                //
+                // OJO: aquí la cuota se sigue redondeando POR LÍNEA, no por tipo — y es DELIBERADO.
+                // Cuando la factura viene de una venta, `base`/`tax` llegan YA calculados por
+                // `sales` y este handler los RESPETA (contrato explícito, bug D1). Unificar esto al
+                // desglose por tipo exige garantizar que NO diverja de lo que la venta ya declaró a
+                // la AEAT → es un paso aparte, con su propio test (ADR-0123, seguimiento).
+                let qd = Decimal::from_f64(qty).unwrap_or(Decimal::ZERO);
+                let rd = Decimal::from_f64(rate).unwrap_or(Decimal::ZERO);
+                let base = money::mul_qty(unit_price, qd);
+                let tax = money::percent_of(base, rd);
                 (base, tax)
             }
         };
