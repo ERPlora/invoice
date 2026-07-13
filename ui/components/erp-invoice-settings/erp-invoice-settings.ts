@@ -75,17 +75,17 @@ const blankForm = (): SeriesForm => ({
 
 export class ErpInvoiceSettings extends LitElement {
   static styles = css`
-    :host { display:block; font-family: system-ui, sans-serif; color: var(--ion-text-color,#1c1b18); }
-    header { display:flex; gap:.5rem; align-items:center; margin-bottom:.5rem; }
-    h2 { margin:0; font-size:1.15rem; flex:1; }
+    :host { display:flex; flex-direction:column; height:100%; min-height:0; font-family: system-ui, sans-serif; color: var(--ion-text-color,#1c1b18); }
+    /* La vista llena el alto: el data-table ocupa todo (scroll interno, pie fijo). */
+    .page { display:flex; flex-direction:column; min-height:0; flex:1 1 auto; }
+    .page > ok-data-table { flex:1 1 auto; min-height:0; }
     h3 { margin:0 0 .5rem; font-size:1rem; }
     .err { color:#d9480f; font-weight:600; }
-    .intro { color: var(--ion-color-medium,#8a8577); font-size:.85rem; margin:0 0 1rem; max-width:60ch; line-height:1.45; }
-    .card { border:1px solid var(--ion-border-color,#e7e2d6); border-radius:10px; padding:1rem; margin-bottom:1rem; background:var(--ion-card-background,#fffdf7); }
-    .form { display:flex; gap:.75rem; flex-wrap:wrap; align-items:end; margin:.5rem 0; }
-    .form ion-input, .form ion-select { flex:1 1 11rem; min-width:9rem; }
-    .toggles { display:flex; gap:1.5rem; flex-wrap:wrap; margin:.5rem 0; }
-    .toggles ion-item { --background:transparent; --padding-start:0; --inner-padding-end:0; flex:1 1 12rem; }
+    .intro { color: var(--ion-color-medium,#8a8577); font-size:.85rem; margin:0 0 .75rem; max-width:60ch; line-height:1.45; }
+    /* El alta/edición vive en el panel lateral de la tabla (estrecho): los campos van APILADOS. */
+    .form { display:flex; flex-direction:column; gap:.7rem; margin:.5rem 0; }
+    .toggles { display:flex; flex-direction:column; margin:.5rem 0; }
+    .toggles ion-item { --background:transparent; --padding-start:0; --inner-padding-end:0; }
     .hint { display:block; font-size:.72rem; color:var(--ion-color-medium,#8a8577); margin:-.25rem 0 .25rem; }
     .row-actions { display:flex; gap:.5rem; margin-top:.6rem; }
   `;
@@ -98,7 +98,10 @@ export class ErpInvoiceSettings extends LitElement {
   @state() listError = '';
 
   // ── formulario de alta/edición ──
-  @state() form: SeriesForm | null = null;
+  // NUNCA es null: el panel `create` de la tabla lo proyecta SIEMPRE (el «+» lo abre la propia
+  // tabla, sin avisar al módulo; si el form solo existiera "al abrir", el «+» saldría vacío).
+  // `series_id` vacío = alta; con id = edición de esa serie.
+  @state() form: SeriesForm = blankForm();
 
   @state() saving = false;
 
@@ -127,14 +130,27 @@ export class ErpInvoiceSettings extends LitElement {
       { key: 'year', header: t('ui.seriesColYear'), align: 'right', sortable: true },
       { key: 'prefix', header: t('ui.seriesColPrefix'), format: (r) => (r.prefix as string) || '—' },
       { key: 'current_number', header: t('ui.seriesColNumber'), align: 'right', sortable: true },
+      // Sí/no = dominio cerrado: se filtra eligiendo, no tecleando 1 ó 0.
       {
         key: 'is_active',
         header: t('ui.seriesColActive'),
+        filterable: true,
+        filterType: 'select',
+        options: [
+          { value: '1', label: t('ui.yes') },
+          { value: '0', label: t('ui.no') },
+        ],
         render: (r) => html`<ion-badge color=${r.is_active ? 'success' : 'medium'}>${r.is_active ? t('ui.yes') : t('ui.no')}</ion-badge>`,
       },
       {
         key: 'is_default',
         header: t('ui.seriesColDefault'),
+        filterable: true,
+        filterType: 'select',
+        options: [
+          { value: '1', label: t('ui.yes') },
+          { value: '0', label: t('ui.no') },
+        ],
         render: (r) => (r.is_default ? html`<ion-badge color="primary">${t('ui.yes')}</ion-badge>` : html`<span>—</span>`),
       },
     ];
@@ -143,6 +159,13 @@ export class ErpInvoiceSettings extends LitElement {
   private get rowActions(): DataTableAction[] {
     if (!this.canManage) return [];
     return [{ id: 'edit', label: erploraT('ui.seriesActionEdit'), icon: 'create-outline' }];
+  }
+
+  // Referencia al ok-data-table para abrir/cerrar su panel lateral (alta y edición comparten panel).
+  private dataTable(): { open(p?: 'filters' | 'create'): void; close(): void } | null {
+    return this.renderRoot.querySelector('ok-data-table') as
+      | { open(p?: 'filters' | 'create'): void; close(): void }
+      | null;
   }
 
   // Re-render al cambiar el idioma del shell (ADR-0055): los getters `columns`/`rowActions` y el
@@ -185,6 +208,7 @@ export class ErpInvoiceSettings extends LitElement {
     this.form = blankForm();
   }
 
+  // «Editar» reabre EL MISMO panel `create`, ya relleno: no hay una segunda pantalla de edición.
   private startEdit(row: SeriesRow) {
     this.formError = '';
     this.form = {
@@ -197,21 +221,23 @@ export class ErpInvoiceSettings extends LitElement {
       is_active: !!row.is_active,
       is_default: !!row.is_default,
     };
+    this.dataTable()?.open('create');
   }
 
-  private cancelForm() { this.form = null; this.formError = ''; }
+  private cancelForm() {
+    this.startCreate(); // deja el panel listo para un alta: si no, el «+» reabriría la última edición
+    this.dataTable()?.close();
+  }
 
   private setField<K extends keyof SeriesForm>(key: K, value: SeriesForm[K]) {
-    if (!this.form) return;
     this.form = { ...this.form, [key]: value };
   }
 
-  private get isEdit(): boolean { return !!this.form?.series_id; }
+  private get isEdit(): boolean { return !!this.form.series_id; }
 
   private async submit(ev: Event) {
     ev.preventDefault();
     const f = this.form;
-    if (!f) return;
     if (!this.isEdit && !f.code.trim()) { this.formError = erploraT('ui.errSeriesCodeRequired'); return; }
     this.saving = true;
     this.formError = '';
@@ -237,7 +263,8 @@ export class ErpInvoiceSettings extends LitElement {
           is_default: f.is_default,
         });
       }
-      this.form = null;
+      this.startCreate(); // vacía el formulario (el panel es el mismo para alta y edición)
+      this.dataTable()?.close(); // el panel se cierra solo tras guardar
       await this.load();
     } catch (e) {
       this.formError = e instanceof Error
@@ -254,12 +281,13 @@ export class ErpInvoiceSettings extends LitElement {
 
   // ── render ───────────────────────────────────────────────────────────────
 
+  // Alta Y edición: se proyecta SIEMPRE en el panel `create` de la tabla (aunque esté cerrado); si
+  // solo se pintara al abrir, el «+» de la barra —que lo despliega la propia tabla— saldría vacío.
   private renderForm() {
-    const f = this.form!;
+    const f = this.form;
     const title = this.isEdit ? erploraT('ui.seriesEditTitle', { code: f.code }) : erploraT('ui.seriesCreateTitle');
-    return html`<div class="card">
+    return html`<form slot="create" @submit=${(e: Event) => this.submit(e)}>
       <h3>${title}</h3>
-      <form @submit=${(e: Event) => this.submit(e)}>
         <div class="form">
           <ion-input
             fill="outline" label-placement="floating" label=${erploraT('ui.fieldCode')}
@@ -306,31 +334,27 @@ export class ErpInvoiceSettings extends LitElement {
           <ion-button size="small" fill="clear" color="medium" @click=${() => this.cancelForm()}>${erploraT('ui.cancel')}</ion-button>
         </div>
         ${this.formError ? html`<p class="err">${this.formError}</p>` : nothing}
-      </form>
-    </div>`;
+      </form>`;
   }
 
+  // El título de la vista lo pinta el topbar del shell: repetirlo aquí lo duplicaba en pantalla.
+  // El alta ya no tiene botón propio: es el «+» de la barra de la tabla (`addable`), con permiso.
   render() {
-    return html`<div>
-      <header>
-        <h2>${erploraT('ui.seriesTitle')}</h2>
-        ${this.canManage && !this.form
-          ? html`<ion-button size="small" @click=${() => this.startCreate()}>
-              <ion-icon slot="start" name="add-outline"></ion-icon>${erploraT('ui.newSeries')}
-            </ion-button>`
-          : nothing}
-      </header>
+    return html`<div class="page">
       <p class="intro">${erploraT('ui.seriesIntro')}</p>
-      ${this.form ? this.renderForm() : nothing}
       ${this.listError ? html`<p class="err">${this.listError}</p>` : nothing}
       <ok-data-table
+        .fill=${true}
+        .addable=${this.canManage}
         .columns=${this.columns}
         .rows=${this.rows}
         .searchable=${true}
         .searchPlaceholder=${erploraT('ui.seriesSearchPlaceholder')}
         .actions=${this.rowActions}
         .emptyMessage=${this.loading ? erploraT('ui.seriesLoading') : erploraT('ui.seriesEmpty')}
-        @rowAction=${(e: CustomEvent<{ actionId: string; row: Record<string, unknown> }>) => this.onRowAction(e)}></ok-data-table>
+        @rowAction=${(e: CustomEvent<{ actionId: string; row: Record<string, unknown> }>) => this.onRowAction(e)}>
+        ${this.canManage ? this.renderForm() : nothing}
+      </ok-data-table>
     </div>`;
   }
 }
