@@ -102,7 +102,7 @@
             "op": "range"
           },
           "customer_name": {
-            "op": "eq"
+            "op": "like"
           },
           "customer_tax_id": {
             "op": "range"
@@ -181,7 +181,7 @@
             "op": "eq"
           },
           "name": {
-            "op": "eq"
+            "op": "like"
           },
           "invoice_type": {
             "op": "eq"
