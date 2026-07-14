@@ -347,6 +347,9 @@ export class ErpInvoiceSettings extends LitElement {
         .fill=${true}
         .addable=${this.canManage}
         .columns=${this.columns}
+        .views=${true}
+        .cardTitle=${(r: Record<string, unknown>) => String(r.name || r.code || '—')}
+        .cardIcon=${() => 'bookmark-outline'}
         .rows=${this.rows}
         .searchable=${true}
         .searchPlaceholder=${erploraT('ui.seriesSearchPlaceholder')}
