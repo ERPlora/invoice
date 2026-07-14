@@ -254,6 +254,10 @@ pub fn create_from_sale_pure(input: Value) -> Output {
     }).collect();
     let mut header = Map::new();
     header.insert("customer_name".into(), payload.get("customer_name").cloned().unwrap_or(json!("")));
+    // Snapshot fiscal del cliente asignado en el TPV (ADR-0132). Es una COPIA, no una
+    // referencia: editar la ficha del cliente no puede reescribir una factura ya emitida.
+    header.insert("customer_tax_id".into(), payload.get("customer_tax_id").cloned().unwrap_or(json!("")));
+    header.insert("customer_address".into(), payload.get("customer_address").cloned().unwrap_or(json!("")));
     header.insert("source_type".into(), json!("sale"));
     header.insert("source_id".into(), payload.get("sale_id").cloned().unwrap_or(Value::Null));
     build_invoice(&new_ids, &now, "TICKET", Some("F2"), &Value::Object(header), &items)
@@ -335,5 +339,41 @@ mod tests {
         assert_eq!(inv["base_amount"], json!(100));
         assert_eq!(inv["tax_amount"], json!(21));
         assert_eq!(inv["total_amount"], json!(121)); // = bruto cobrado, sin inflar
+    }
+
+    #[test]
+    fn from_sale_carries_customer_fiscal_snapshot() {
+        // ADR-0132: una factura emitida desde el TPV con cliente asignado DEBE salir con su
+        // NIF y su dirección. Antes se perdían: sale.completed los traía y from_sale solo
+        // copiaba customer_name → factura sin NIF (inválida para el cliente que la pide).
+        let payload = json!({
+            "sale_id": "sale3",
+            "customer_name": "Ana García",
+            "customer_tax_id": "12345678Z",
+            "customer_address": "Calle Mayor 1, 28013 Madrid, ES",
+            "items": [
+                { "product_name": "Corte", "quantity": 1, "unit_price": 1500, "tax_rate": 21.0 }
+            ]
+        });
+        let out = create_from_sale_pure(inp(payload, 6));
+        let inv = &out.operations[2].params;
+        assert_eq!(inv["customer_name"], json!("Ana García"));
+        assert_eq!(inv["customer_tax_id"], json!("12345678Z"));
+        assert_eq!(inv["customer_address"], json!("Calle Mayor 1, 28013 Madrid, ES"));
+    }
+
+    #[test]
+    fn from_sale_without_customer_stays_empty() {
+        // Venta anónima (el caso normal en barra): sin cliente asignado, los campos fiscales
+        // van vacíos — NO se inventan ni se heredan de otra venta.
+        let payload = json!({
+            "sale_id": "sale4",
+            "items": [{ "product_name": "Café", "quantity": 1, "unit_price": 100, "tax_rate": 21.0 }]
+        });
+        let out = create_from_sale_pure(inp(payload, 6));
+        let inv = &out.operations[2].params;
+        assert_eq!(inv["customer_name"], json!(""));
+        assert_eq!(inv["customer_tax_id"], json!(""));
+        assert_eq!(inv["customer_address"], json!(""));
     }
 }
