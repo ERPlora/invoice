@@ -58,6 +58,7 @@
       "migrations/sqlite/002_tax_category_key.sql"
     ],
     "postgres": [
+      "migrations/postgres/001_init.sql",
       "migrations/postgres/002_tax_category_key.sql"
     ]
   },
