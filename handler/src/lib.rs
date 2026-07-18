@@ -36,6 +36,12 @@ pub fn create_from_sale(input: Json<erplora_guest_sdk::Input>) -> FnResult<Json<
     Ok(Json(create_from_sale_pure(input.into_inner().into_value())))
 }
 
+#[cfg(feature = "guest")]
+#[plugin_fn]
+pub fn substitute_from_invoice(input: Json<erplora_guest_sdk::Input>) -> FnResult<Json<Output>> {
+    Ok(Json(substitute_from_invoice_pure(input.into_inner().into_value())))
+}
+
 // El DINERO lo calcula `erplora_guest_sdk::money` (ADR-0123): una sola implementación, un solo
 // modo de redondeo (HALF_UP). Este módulo tenía su propio `round_cents` (half-even sobre `f64`).
 fn f(v: &Value, d: f64) -> f64 {
@@ -197,6 +203,9 @@ fn build_invoice(
     h.insert("tax_breakdown".into(), json!(Value::Object(tb).to_string()));
     h.insert("source_type".into(), json!(sor(header, "source_type", "manual")));
     h.insert("source_id".into(), header.get("source_id").cloned().unwrap_or(Value::Null));
+    // ADR-0140: enlace F3→F2 en las sustituciones (vacío en emisiones normales → NULL vía NULLIF
+    // en _insert_invoice.sql). El SQL lo referencia siempre, así que TODA factura lo pasa.
+    h.insert("substitutes_invoice_id".into(), json!(sor(header, "substitutes_invoice_id", "")));
     h.insert("notes".into(), json!(sor(header, "notes", "")));
     ops[header_idx] = Operation::sql("invoice._insert_invoice", h);
 
@@ -270,6 +279,37 @@ pub fn create_from_sale_pure(input: Value) -> Output {
         ("TICKET", "F2")
     };
     build_invoice(&new_ids, &now, series_code, Some(inv_type), &Value::Object(header), &items)
+}
+
+/// substitute_from_invoice: "el cliente pide factura de un tiquet" (ADR-0140). Emite una F3
+/// (factura COMPLETA en SUSTITUCIÓN de la simplificada F2 ya emitida), NUEVA e inmutable, en la
+/// serie de facturas completas (FACT), enlazada a la F2 vía `substitutes_invoice_id` y con los
+/// datos fiscales del cliente que la pide. La F2 original NO se toca (su estado "sustituida" se
+/// deriva de que exista una F3 apuntándola). NO es rectificación: el tiquet era correcto. Los
+/// importes son los del tiquet (misma operación) — las líneas llegan del F2 en el payload.
+pub fn substitute_from_invoice_pure(input: Value) -> Output {
+    let payload = input.get("payload").cloned().unwrap_or(Value::Null);
+    let (new_ids, now) = ctx_ids(&input);
+    let empty: Vec<Value> = Vec::new();
+    // Las líneas llegan YA como líneas de factura del F2 original (description/base_amount/
+    // tax_amount/tax_rate/…): build_invoice las RESPETA (D1) y no re-suma IVA sobre el bruto, así
+    // los importes de la F3 son IDÉNTICOS a los del tiquet (misma operación, sin inflar la base).
+    let items: Vec<Value> = payload.get("items").and_then(|v| v.as_array()).unwrap_or(&empty).clone();
+    let original_id = s(payload.get("original_invoice_id").unwrap_or(&Value::Null));
+
+    let mut header = Map::new();
+    // Datos fiscales del cliente que PIDE la factura (la F2 simplificada no los llevaba).
+    header.insert("customer_name".into(), payload.get("customer_name").cloned().unwrap_or(json!("")));
+    header.insert("customer_tax_id".into(), payload.get("customer_tax_id").cloned().unwrap_or(json!("")));
+    header.insert("customer_address".into(), payload.get("customer_address").cloned().unwrap_or(json!("")));
+    header.insert("description".into(), payload.get("description").cloned().unwrap_or(json!("")));
+    // source = substitution del original → idempotencia D2 (1 F3 por F2, sin huecos) + by_source.
+    header.insert("source_type".into(), json!("substitution"));
+    header.insert("source_id".into(), json!(original_id));
+    // Enlace fiscal explícito F3→F2 (ADR-0140): lo lee verifactu para el bloque FacturasSustituidas.
+    header.insert("substitutes_invoice_id".into(), json!(original_id));
+    // F3 en la serie de facturas COMPLETAS (FACT); comparte numeración con las F1 (legal en ES).
+    build_invoice(&new_ids, &now, "FACT", Some("F3"), &Value::Object(header), &items)
 }
 
 #[cfg(test)]
@@ -415,5 +455,47 @@ mod tests {
         let out = create_from_sale_pure(inp(payload, 6));
         assert_eq!(out.operations[2].params["invoice_type"], json!("F2"));
         assert_eq!(out.operations[2].params["series"], json!("TICKET"));
+    }
+
+    #[test]
+    fn substitute_builds_f3_linked_to_original_ticket() {
+        // ADR-0140: "el cliente pide factura de un tiquet". Se emite una F3 (factura completa en
+        // SUSTITUCIÓN de la F2 simplificada), NUEVA e inmutable, enlazada a la F2 original vía
+        // substitutes_invoice_id, con los datos fiscales del cliente. La F2 NO se toca. Los importes
+        // son los del tiquet (misma operación); las líneas llegan del F2 en el payload.
+        let payload = json!({
+            "original_invoice_id": "inv-f2-1",
+            "customer_name": "ACME SL",
+            "customer_tax_id": "B12345678",
+            "customer_address": "Calle Mayor 1, Madrid",
+            "items": [
+                { "description": "Menú", "quantity": 1, "unit_price": 121, "tax_rate": 21.0,
+                  "base_amount": 100, "tax_amount": 21 }
+            ]
+        });
+        let out = substitute_from_invoice_pure(inp(payload, 6));
+        let inv = &out.operations[2].params;
+        assert_eq!(inv["invoice_type"], json!("F3"), "sustitución de simplificada → F3");
+        assert_eq!(inv["series"], json!("FACT"), "F3 va en la serie de facturas completas");
+        assert_eq!(inv["substitutes_invoice_id"], json!("inv-f2-1"), "enlaza a la F2 sustituida");
+        assert_eq!(inv["source_type"], json!("substitution"));
+        assert_eq!(inv["source_id"], json!("inv-f2-1"), "idempotencia D2: 1 F3 por F2 original");
+        assert_eq!(inv["customer_tax_id"], json!("B12345678"), "lleva el NIF de quien pide factura");
+        // importes IDÉNTICOS al tiquet (misma operación; net/tax ya extraídos, no se re-suma IVA).
+        assert_eq!(inv["base_amount"], json!(100));
+        assert_eq!(inv["tax_amount"], json!(21));
+        assert_eq!(inv["total_amount"], json!(121));
+        assert_eq!(out.events[0].name, "invoice.created");
+    }
+
+    #[test]
+    fn normal_invoice_has_empty_substitution_link() {
+        // Guardarraíl: una emisión normal (no sustitución) no lleva enlace (queda "" → NULL en BD).
+        let payload = json!({
+            "sale_id": "sale7",
+            "items": [{ "product_name": "Café", "quantity": 1, "unit_price": 100, "tax_rate": 21.0 }]
+        });
+        let out = create_from_sale_pure(inp(payload, 6));
+        assert_eq!(out.operations[2].params["substitutes_invoice_id"], json!(""));
     }
 }

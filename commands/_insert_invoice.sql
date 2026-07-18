@@ -11,7 +11,7 @@ INSERT INTO invoice_invoice (
     id, hub_id, invoice_type, series, number, issue_date,
     issuer_nif, issuer_name, customer_tax_id, customer_name, customer_address, description,
     base_amount, tax_amount, total_amount, tax_breakdown, currency,
-    source_type, source_id, status, notes,
+    source_type, source_id, substitutes_invoice_id, status, notes,
     is_deleted, created_by, updated_by, created_at, updated_at
 )
 SELECT
@@ -28,7 +28,9 @@ SELECT
     COALESCE(NULLIF(:issuer_name, ''), :business_legal_name),
     :customer_tax_id, :customer_name, :customer_address, :description,
     :base_amount, :tax_amount, :total_amount, :tax_breakdown, 'EUR',
-    :source_type, :source_id, 'issued', :notes,
+    -- substitutes_invoice_id: ADR-0140, enlace F3→F2 (NULL en emisiones normales, la F2 que
+    -- sustituye en un F3). NULLIF('' → NULL) para que el default vacío del guest no rompa el FK lógico.
+    :source_type, :source_id, NULLIF(:substitutes_invoice_id, ''), 'issued', :notes,
     0, :current_user_id, :current_user_id, :now, :now
 WHERE NOT EXISTS (
     SELECT 1 FROM invoice_invoice

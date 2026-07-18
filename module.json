@@ -55,10 +55,12 @@
   "migrations": {
     "sqlite": [
       "migrations/sqlite/001_init.sql",
-      "migrations/sqlite/002_tax_category_key.sql"
+      "migrations/sqlite/002_tax_category_key.sql",
+      "migrations/sqlite/003_substitution.sql"
     ],
     "postgres": [
-      "migrations/postgres/002_tax_category_key.sql"
+      "migrations/postgres/002_tax_category_key.sql",
+      "migrations/postgres/003_substitution.sql"
     ]
   },
   "queries": {
@@ -231,6 +233,18 @@
       },
       "ai": {
         "description": "Automatically generates an invoice from a completed sale."
+      }
+    },
+    "invoice.substitute": {
+      "permission": "invoice.add_invoice",
+      "handler": {
+        "type": "wasm",
+        "file": "dist/handler.wasm",
+        "function": "substitute_from_invoice"
+      },
+      "schema": "schemas/substitute.json",
+      "ai": {
+        "description": "Issues a complete invoice (F3) that substitutes a previously issued simplified invoice/ticket (F2) — the 'customer asks for an invoice for their ticket' case. The original ticket stays immutable; the new F3 links to it and carries the customer's tax details. Not a rectification (the ticket was correct)."
       }
     },
     "invoice.rectify": {
