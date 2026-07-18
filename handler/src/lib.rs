@@ -260,7 +260,16 @@ pub fn create_from_sale_pure(input: Value) -> Output {
     header.insert("customer_address".into(), payload.get("customer_address").cloned().unwrap_or(json!("")));
     header.insert("source_type".into(), json!("sale"));
     header.insert("source_id".into(), payload.get("sale_id").cloned().unwrap_or(Value::Null));
-    build_invoice(&new_ids, &now, "TICKET", Some("F2"), &Value::Object(header), &items)
+    // ADR-0140: el tipo de documento VIAJA en sale.completed. 'invoice' → factura completa F1
+    // (serie FACT); 'ticket'/ausente → simplificada F2 (serie TICKET). Antes se hardcodeaba F2, así
+    // que una venta cobrada como factura salía como simplificada. La validación "F1 exige NIF" es
+    // aguas abajo (verifactu/AEAT); aquí se respeta la elección del operario (ADR-0140 opción A).
+    let (series_code, inv_type) = if sor(&payload, "document_type", "ticket") == "invoice" {
+        ("FACT", "F1")
+    } else {
+        ("TICKET", "F2")
+    };
+    build_invoice(&new_ids, &now, series_code, Some(inv_type), &Value::Object(header), &items)
 }
 
 #[cfg(test)]
@@ -375,5 +384,36 @@ mod tests {
         assert_eq!(inv["customer_name"], json!(""));
         assert_eq!(inv["customer_tax_id"], json!(""));
         assert_eq!(inv["customer_address"], json!(""));
+    }
+
+    #[test]
+    fn from_sale_builds_f1_when_document_type_invoice() {
+        // ADR-0140: si la venta se cobró como factura completa (`document_type='invoice'`, que
+        // ahora VIAJA en sale.completed), invoice emite F1 en la serie FACT — no la F2/TICKET
+        // que antes estaba hardcodeada. El NIF del cliente viaja en el snapshot fiscal (ADR-0132).
+        let payload = json!({
+            "sale_id": "sale5", "document_type": "invoice",
+            "customer_name": "ACME SL", "customer_tax_id": "B12345678",
+            "items": [{ "product_name": "Servicio", "quantity": 1, "unit_price": 12100, "tax_rate": 21.0,
+                        "net_amount": 10000, "tax_amount": 2100 }]
+        });
+        let out = create_from_sale_pure(inp(payload, 6));
+        let inv = &out.operations[2].params;
+        assert_eq!(inv["invoice_type"], json!("F1"), "cobrada como factura → F1");
+        assert_eq!(inv["series"], json!("FACT"), "F1 va en la serie FACT, no TICKET");
+        assert_eq!(inv["customer_tax_id"], json!("B12345678"));
+    }
+
+    #[test]
+    fn from_sale_defaults_to_f2_ticket_with_document_type_ticket() {
+        // Guardarraíl: con `document_type='ticket'` (o ausente) → simplificada F2/TICKET, el caso
+        // mayoritario del TPV. ADR-0140 no cambia el default.
+        let payload = json!({
+            "sale_id": "sale6", "document_type": "ticket",
+            "items": [{ "product_name": "Café", "quantity": 1, "unit_price": 100, "tax_rate": 21.0 }]
+        });
+        let out = create_from_sale_pure(inp(payload, 6));
+        assert_eq!(out.operations[2].params["invoice_type"], json!("F2"));
+        assert_eq!(out.operations[2].params["series"], json!("TICKET"));
     }
 }
