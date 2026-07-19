@@ -5,8 +5,10 @@ import '@erplora/outfitkit/ok-data-table';
 import '@erplora/outfitkit/ok-invoice';
 import '@erplora/outfitkit/ok-qr';
 import type { DataTableColumn, DataTableAction, InvoiceData } from '@erplora/outfitkit';
-import { createListController } from '@erplora/module-sdk';
+import { createListController, eurosToCents } from '@erplora/module-sdk';
 import type { ListController, ListClient, ListParams, ListPage } from '@erplora/module-sdk';
+// Aduana de la escala de cantidades (ADR-0147): la UI habla lógico (0,5), el cable habla µ (500000).
+import { QUANTITY_SCALE, parseQuantity, formatQuantity, fromMicro } from '../../lib/quantity';
 // Catálogo i18n del módulo (ADR-0055): esbuild inlinea estos JSON en el `dist` del WC. Los textos
 // internos se resuelven con `erplora.t(CATALOG, 'ui.clave')` (idioma activo, fallback locale→en→clave).
 import esLocale from '../../../locales/es.json';
@@ -25,8 +27,11 @@ interface ErploraClientLike extends ListClient {
   /** i18n del módulo (ADR-0055): idioma activo + traducción del catálogo `ui`. */
   locale: string;
   t(catalog: Record<string, unknown>, key: string, params?: Record<string, unknown>): string;
-  /** Moneda del hub + formateo de dinero (ADR-0059). `opts.currency` sobreescribe (factura en otra divisa). */
+  /** Moneda del hub + formateo de dinero (ADR-0059). `opts.currency` sobreescribe (factura en otra divisa).
+   *  `formatMoney` recibe CÉNTIMOS y divide; `formatAmount` recibe unidades mayores y NO divide.
+   *  Los importes de factura son céntimos (ADR-0123) → SIEMPRE `formatMoney`. */
   currency: string;
+  formatMoney(cents: number, opts?: { currency?: string; locale?: string }): string;
   formatAmount(units: number, opts?: { currency?: string; locale?: string }): string;
 }
 
@@ -89,11 +94,13 @@ const STATUS_COLOR: Record<string, string> = {
   draft: 'medium', issued: 'primary', paid: 'success', cancelled: 'danger',
 };
 
-// Importes en UNIDADES mayores (la factura guarda decimales, no céntimos). Dinero → formateado con
-// la moneda del HUB por defecto (ADR-0059) o la propia de la factura (`fmtDoc`, que pasa `d.currency`);
-// `num` es para valores NO monetarios (cantidades, % de impuesto) que solo quieren 2 decimales.
-const fmtMoney = (v: unknown) => erplora().formatAmount(Number(v || 0));
-const fmtDoc = (v: unknown, currency: string) => erplora().formatAmount(Number(v || 0), { currency });
+// Los importes de factura son CÉNTIMOS enteros en BD y JSON (ADR-0123; migración 001: «-- céntimos»)
+// → SIEMPRE `formatMoney`, que divide según la moneda. El comentario anterior («la factura guarda
+// decimales») era falso y justificaba `formatAmount` (que NO divide): 23100 céntimos se pintaban
+// como «23100,00 €» (bug ×100, el mismo que inventory ya corrigió). `fmtDoc` usa la moneda propia
+// de la factura; `num` es para valores NO monetarios (% de impuesto) que solo quieren 2 decimales.
+const fmtMoney = (v: unknown) => erplora().formatMoney(Number(v || 0));
+const fmtDoc = (v: unknown, currency: string) => erplora().formatMoney(Number(v || 0), { currency });
 const num = (v: unknown) => Number(v || 0).toFixed(2);
 const emptyItem = (): DraftItem => ({ description: '', quantity: '1', unit_price: '', tax_rate: '21' });
 
@@ -376,8 +383,9 @@ export class ErpInvoiceList extends LitElement {
   }
 
   private get itemsValid(): boolean {
+    // La cantidad se valida con la aduana (ADR-0147): rechaza >6 decimales y basura, admite coma.
     return this.newItems.length > 0 && this.newItems.every(
-      (it) => it.description.trim() && Number(it.quantity) > 0 && it.unit_price !== '' && !Number.isNaN(Number(it.unit_price)),
+      (it) => it.description.trim() && (parseQuantity(it.quantity) ?? 0) > 0 && it.unit_price !== '' && !Number.isNaN(Number(it.unit_price)),
     );
   }
 
@@ -394,10 +402,13 @@ export class ErpInvoiceList extends LitElement {
         customer_address: this.newCustomerAddress.trim(),
         notes: this.newNotes.trim(),
         source_type: 'manual',
+        // Frontera de contrato: el humano teclea EUROS y cantidades LÓGICAS; el cable lleva
+        // CÉNTIMOS (ADR-0123) y punto fijo 10⁶ (ADR-0147). Antes se mandaba lo tecleado tal
+        // cual: «50 €» llegaba como 50 CÉNTIMOS al schema `unit_price: integer`.
         items: this.newItems.map((it) => ({
           description: it.description.trim(),
-          quantity: Number(it.quantity) || 1,
-          unit_price: Number(it.unit_price) || 0,
+          quantity: parseQuantity(it.quantity) ?? QUANTITY_SCALE,
+          unit_price: eurosToCents(it.unit_price),
           tax_rate: Number(it.tax_rate) || 0,
           product_id: null,
         })),
@@ -455,7 +466,7 @@ export class ErpInvoiceList extends LitElement {
       customer: { name: d.customer_name || '—', tax_id: d.customer_tax_id || undefined, address: d.customer_address || undefined },
       number: d.number,
       issue_date: d.issue_date,
-      lines: this.detailLines.map((l) => ({ description: l.description, qty: l.quantity, unit_price: l.unit_price, tax_rate: l.tax_rate, total: l.total_amount })),
+      lines: this.detailLines.map((l) => ({ description: l.description, qty: fromMicro(Number(l.quantity) || 0), unit_price: l.unit_price, tax_rate: l.tax_rate, total: l.total_amount })),
       subtotal: d.base_amount,
       taxes: this.parseTaxes(d),
       tax_total: d.tax_amount,
@@ -533,7 +544,7 @@ export class ErpInvoiceList extends LitElement {
         ${this.detailLines.length ? html`<table class="lines">
           <thead><tr><th>#</th><th>${erploraT('ui.lineDescription')}</th><th>${erploraT('ui.lineQty')}</th><th>${erploraT('ui.linePrice')}</th><th>${erploraT('ui.lineTaxPct')}</th><th>${erploraT('ui.lineBase')}</th><th>${erploraT('ui.lineTax')}</th><th>${erploraT('ui.lineTotal')}</th></tr></thead>
           <tbody>${this.detailLines.map((l) => html`<tr>
-            <td>${l.line_number}</td><td>${l.description}</td><td>${l.quantity}</td>
+            <td>${l.line_number}</td><td>${l.description}</td><td>${formatQuantity(Number(l.quantity) || 0)}</td>
             <td>${fmtDoc(l.unit_price, d.currency)}</td><td>${num(l.tax_rate)}%</td>
             <td>${fmtDoc(l.base_amount, d.currency)}</td><td>${fmtDoc(l.tax_amount, d.currency)}</td><td>${fmtDoc(l.total_amount, d.currency)}</td>
           </tr>`)}</tbody>
