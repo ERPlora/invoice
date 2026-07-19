@@ -16,6 +16,7 @@
 //! update/delete de factura emitida; solo rectify).
 
 use erplora_guest_sdk::money;
+use erplora_guest_sdk::units::QUANTITY_SCALE;
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use erplora_guest_sdk::{Event, Operation, Output};
@@ -56,6 +57,16 @@ fn s(v: &Value) -> String {
         Value::String(x) => x.clone(),
         Value::Number(n) => n.to_string(),
         _ => String::new(),
+    }
+}
+/// Cantidad en punto fijo entero escala 10⁶ (ADR-0147): en el JSON viaja el ENTERO (`500000`
+/// = 0,5). Un float ya no es una cantidad válida: cae al default (el schema lo rechaza en la
+/// puerta; aquí solo cubre eventos antiguos re-entregados, igual que hace `sales::as_qty`).
+fn as_qty(v: &Value, d: i64) -> i64 {
+    match v {
+        Value::Number(n) => n.as_i64().unwrap_or(d),
+        Value::String(s) => s.trim().parse::<i64>().unwrap_or(d),
+        _ => d,
     }
 }
 fn sor(p: &Value, k: &str, d: &str) -> String {
@@ -124,7 +135,8 @@ fn build_invoice(
 
     // 3) líneas (ids new_ids[2..]).
     for (i, item) in items.iter().enumerate() {
-        let qty = item.get("quantity").map(|v| f(v, 1.0)).unwrap_or(1.0); // cantidad fraccionable
+        // Punto fijo entero escala 10⁶ (ADR-0147): `500000` = 0,5. Ausente → 1 unidad.
+        let qty = item.get("quantity").map(|v| as_qty(v, QUANTITY_SCALE)).unwrap_or(QUANTITY_SCALE);
         let unit_price = money::from_json(item.get("unit_price").unwrap_or(&Value::Null), 0);
         let rate = item.get("tax_rate").map(|v| f(v, 0.0)).unwrap_or(0.0); // tasa %
         // Base/IVA por línea (céntimos). Si el origen ya extrajo la base y el IVA
@@ -142,7 +154,9 @@ fn build_invoice(
                 // `sales` y este handler los RESPETA (contrato explícito, bug D1). Unificar esto al
                 // desglose por tipo exige garantizar que NO diverja de lo que la venta ya declaró a
                 // la AEAT → es un paso aparte, con su propio test (ADR-0123, seguimiento).
-                let qd = Decimal::from_f64(qty).unwrap_or(Decimal::ZERO);
+                // El dinero se calcula con la cantidad LÓGICA exacta (raw/10⁶) — división de
+                // enteros en Decimal, sin pasar por f64 (ADR-0123 §2 + ADR-0147 §2.3).
+                let qd = Decimal::from(qty) / Decimal::from(QUANTITY_SCALE);
                 let rd = Decimal::from_f64(rate).unwrap_or(Decimal::ZERO);
                 let base = money::mul_qty(unit_price, qd);
                 let tax = money::percent_of(base, rd);
@@ -166,7 +180,7 @@ fn build_invoice(
         p.insert("invoice_id".into(), json!(invoice_id));
         p.insert("line_number".into(), json!(i as i64 + 1));
         p.insert("description".into(), json!(s(item.get("description").unwrap_or(&Value::Null))));
-        p.insert("quantity".into(), json!(qty));
+        p.insert("quantity".into(), json!(qty)); // punto fijo 10⁶ (INTEGER, ADR-0147)
         p.insert("unit_price".into(), json!(unit_price)); // céntimos
         p.insert("tax_rate".into(), json!(rate));         // tasa % (REAL)
         // Categoría fiscal congelada de la línea (ADR-0085); NULL en factura manual sin categoría.
@@ -249,7 +263,8 @@ pub fn create_from_sale_pure(input: Value) -> Output {
     let items: Vec<Value> = raw.iter().map(|it| {
         let mut m = Map::new();
         m.insert("description".into(), json!(s(it.get("product_name").unwrap_or(&Value::Null))));
-        m.insert("quantity".into(), it.get("quantity").cloned().unwrap_or(json!(1)));
+        // sale.completed trae la cantidad YA en punto fijo 10⁶ (sales, ADR-0147); ausente = 1 ud.
+        m.insert("quantity".into(), it.get("quantity").cloned().unwrap_or(json!(QUANTITY_SCALE)));
         m.insert("unit_price".into(), it.get("unit_price").cloned().unwrap_or(json!(0)));
         m.insert("tax_rate".into(), it.get("tax_rate").cloned().unwrap_or(json!(0)));
         // Categoría fiscal congelada (ADR-0085): traza la categoría en la línea de factura.
@@ -321,13 +336,16 @@ mod tests {
         json!({ "payload": payload, "context": { "new_ids": new_ids, "now": "2026-05-31T10:00:00+00:00" } })
     }
 
+    // NOTA (ADR-0147, 2026-07-19): las cantidades de estos tests pasaron de lógicas (1, 2) a
+    // punto fijo escala 10⁶ (1_000_000, 2_000_000) porque el ADR cambió el contrato del cable
+    // y `sales` ya emite escalado. Los importes esperados NO cambian: misma cantidad lógica.
     #[test]
     fn create_invoice_totals_and_ops() {
         let payload = json!({
             "series_code": "FACT", "issuer_nif": "B1", "customer_name": "ACME",
             "items": [
-                { "description": "Servicio", "quantity": 1, "unit_price": 10000, "tax_rate": 21.0 },
-                { "description": "Otro", "quantity": 2, "unit_price": 5000, "tax_rate": 10.0 }
+                { "description": "Servicio", "quantity": 1_000_000, "unit_price": 10000, "tax_rate": 21.0 },
+                { "description": "Otro", "quantity": 2_000_000, "unit_price": 5000, "tax_rate": 10.0 }
             ]
         });
         let out = create_invoice_pure(inp(payload, 8));
@@ -351,7 +369,7 @@ mod tests {
         let payload = json!({
             "sale_id": "sale1", "customer_name": "Bar Manolo",
             "items": [
-                { "product_name": "Café", "quantity": 2, "unit_price": 100, "tax_rate": 21.0, "product_id": "p1" }
+                { "product_name": "Café", "quantity": 2_000_000, "unit_price": 100, "tax_rate": 21.0, "product_id": "p1" }
             ]
         });
         let out = create_from_sale_pure(inp(payload, 6));
@@ -375,7 +393,7 @@ mod tests {
         let payload = json!({
             "sale_id": "sale2", "customer_name": "Bar Manolo",
             "items": [
-                { "product_name": "Café", "quantity": 1, "unit_price": 121, "tax_rate": 21.0,
+                { "product_name": "Café", "quantity": 1_000_000, "unit_price": 121, "tax_rate": 21.0,
                   "net_amount": 100, "tax_amount": 21, "product_id": "p1" }
             ]
         });
@@ -401,7 +419,7 @@ mod tests {
             "customer_tax_id": "12345678Z",
             "customer_address": "Calle Mayor 1, 28013 Madrid, ES",
             "items": [
-                { "product_name": "Corte", "quantity": 1, "unit_price": 1500, "tax_rate": 21.0 }
+                { "product_name": "Corte", "quantity": 1_000_000, "unit_price": 1500, "tax_rate": 21.0 }
             ]
         });
         let out = create_from_sale_pure(inp(payload, 6));
@@ -417,7 +435,7 @@ mod tests {
         // van vacíos — NO se inventan ni se heredan de otra venta.
         let payload = json!({
             "sale_id": "sale4",
-            "items": [{ "product_name": "Café", "quantity": 1, "unit_price": 100, "tax_rate": 21.0 }]
+            "items": [{ "product_name": "Café", "quantity": 1_000_000, "unit_price": 100, "tax_rate": 21.0 }]
         });
         let out = create_from_sale_pure(inp(payload, 6));
         let inv = &out.operations[2].params;
@@ -434,7 +452,7 @@ mod tests {
         let payload = json!({
             "sale_id": "sale5", "document_type": "invoice",
             "customer_name": "ACME SL", "customer_tax_id": "B12345678",
-            "items": [{ "product_name": "Servicio", "quantity": 1, "unit_price": 12100, "tax_rate": 21.0,
+            "items": [{ "product_name": "Servicio", "quantity": 1_000_000, "unit_price": 12100, "tax_rate": 21.0,
                         "net_amount": 10000, "tax_amount": 2100 }]
         });
         let out = create_from_sale_pure(inp(payload, 6));
@@ -450,7 +468,7 @@ mod tests {
         // mayoritario del TPV. ADR-0140 no cambia el default.
         let payload = json!({
             "sale_id": "sale6", "document_type": "ticket",
-            "items": [{ "product_name": "Café", "quantity": 1, "unit_price": 100, "tax_rate": 21.0 }]
+            "items": [{ "product_name": "Café", "quantity": 1_000_000, "unit_price": 100, "tax_rate": 21.0 }]
         });
         let out = create_from_sale_pure(inp(payload, 6));
         assert_eq!(out.operations[2].params["invoice_type"], json!("F2"));
@@ -469,7 +487,7 @@ mod tests {
             "customer_tax_id": "B12345678",
             "customer_address": "Calle Mayor 1, Madrid",
             "items": [
-                { "description": "Menú", "quantity": 1, "unit_price": 121, "tax_rate": 21.0,
+                { "description": "Menú", "quantity": 1_000_000, "unit_price": 121, "tax_rate": 21.0,
                   "base_amount": 100, "tax_amount": 21 }
             ]
         });
@@ -489,11 +507,49 @@ mod tests {
     }
 
     #[test]
+    fn quantities_travel_and_persist_fixed_point_10e6() {
+        // ADR-0147: la cantidad viaja y se PERSISTE como punto fijo entero escala 10⁶.
+        // sales ya emite `quantity: 2000000` (= 2 uds) en sale.completed; leerla como «2
+        // millones de unidades lógicas» infla la base ×10⁶. El dinero se calcula con la
+        // cantidad LÓGICA (raw/10⁶) y la línea guarda el raw ENTERO (nunca el lógico f64).
+        let payload = json!({
+            "series_code": "FACT",
+            "items": [
+                { "description": "Vino a granel", "quantity": 500_000, "unit_price": 1200, "tax_rate": 21.0 },
+                { "description": "Menú", "quantity": 2_000_000, "unit_price": 5000, "tax_rate": 10.0 }
+            ]
+        });
+        let out = create_invoice_pure(inp(payload, 8));
+        // 0,5 × 12,00 € = 6,00 € → 600 céntimos; 2 × 50,00 € = 100,00 € → 10000.
+        let l1 = &out.operations[3].params;
+        assert_eq!(l1["quantity"], json!(500_000), "la línea persiste el punto fijo, no el lógico");
+        assert_eq!(l1["base_amount"], json!(600));
+        assert_eq!(l1["tax_amount"], json!(126)); // 21 % de 6,00 €
+        let l2 = &out.operations[4].params;
+        assert_eq!(l2["quantity"], json!(2_000_000));
+        assert_eq!(l2["base_amount"], json!(10000));
+        assert_eq!(out.operations[2].params["base_amount"], json!(10600));
+    }
+
+    #[test]
+    fn from_sale_missing_quantity_defaults_to_one_unit_in_scale() {
+        // Compat: un evento sin `quantity` significa «1 unidad» — en escala, 1_000_000, no 1.
+        let payload = json!({
+            "sale_id": "sale8",
+            "items": [{ "product_name": "Café", "unit_price": 100, "tax_rate": 21.0 }]
+        });
+        let out = create_from_sale_pure(inp(payload, 6));
+        let line = &out.operations[3].params;
+        assert_eq!(line["quantity"], json!(1_000_000));
+        assert_eq!(line["base_amount"], json!(100), "1 ud × 1,00 €");
+    }
+
+    #[test]
     fn normal_invoice_has_empty_substitution_link() {
         // Guardarraíl: una emisión normal (no sustitución) no lleva enlace (queda "" → NULL en BD).
         let payload = json!({
             "sale_id": "sale7",
-            "items": [{ "product_name": "Café", "quantity": 1, "unit_price": 100, "tax_rate": 21.0 }]
+            "items": [{ "product_name": "Café", "quantity": 1_000_000, "unit_price": 100, "tax_rate": 21.0 }]
         });
         let out = create_from_sale_pure(inp(payload, 6));
         assert_eq!(out.operations[2].params["substitutes_invoice_id"], json!(""));
