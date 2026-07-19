@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "invoice.substitute payload",
+  "description": "Emite una F3 (factura completa en sustitución de una simplificada F2, ADR-0140). La F2 original queda inmutable; la F3 la enlaza y lleva los datos fiscales del cliente. Los `items` son las líneas del F2 original (ya con base_amount/tax_amount en céntimos) para que los importes de la F3 sean idénticos. Una factura completa exige destinatario identificado → `customer_tax_id` y `customer_name` son obligatorios.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "original_invoice_id",
+    "customer_tax_id",
+    "customer_name",
+    "items"
+  ],
+  "properties": {
+    "original_invoice_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Id de la factura simplificada (F2) que se sustituye."
+    },
+    "customer_tax_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "NIF/CIF del cliente que pide la factura completa."
+    },
+    "customer_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "customer_address": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "unit_price": {
+            "type": "integer"
+          },
+          "tax_rate": {
+            "type": "number"
+          },
+          "base_amount": {
+            "type": "integer"
+          },
+          "tax_amount": {
+            "type": "integer"
+          },
+          "tax_category_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "product_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

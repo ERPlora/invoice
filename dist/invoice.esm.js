@@ -1552,6 +1552,16 @@ function okIcon(value) {
 }
 
 // node_modules/.pnpm/@erplora+outfitkit@file+..+outfitkit/node_modules/@erplora/outfitkit/dist/ok-data-table.js
+var CSV_BOM = "\uFEFF";
+function decodeCsvBuffer(buf) {
+  let text;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(buf);
+  } catch {
+    text = new TextDecoder("windows-1252").decode(buf);
+  }
+  return text.charCodeAt(0) === 65279 ? text.slice(1) : text;
+}
 var __defProp2 = Object.defineProperty;
 var __decorateClass2 = (decorators, target, key, kind) => {
   var result = void 0;
@@ -1956,7 +1966,7 @@ var OkDataTable = class extends i3 {
     const head = cols.map((c5) => this.csvEscape(c5.key)).join(",");
     const lines = this.rows.map((r6) => cols.map((c5) => this.csvEscape(r6[c5.key])).join(","));
     const csv = [head, ...lines].join("\r\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob([CSV_BOM + csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a3 = document.createElement("a");
     a3.href = url;
@@ -2004,7 +2014,7 @@ var OkDataTable = class extends i3 {
     const input = ev.target;
     const file = input.files?.[0];
     if (!file) return;
-    const text = await file.text();
+    const text = decodeCsvBuffer(await file.arrayBuffer());
     const { headers, rows } = this.parseCsv(text);
     this.emit("csvImport", { headers, rows });
     this.emit("import", { headers, rows });
@@ -3847,6 +3857,28 @@ function createListController(client, queryName, onChange = () => {
 }, opts = {}) {
   return new ListController(client, queryName, onChange, opts);
 }
+function majorToMinor(amount, decimals) {
+  const n6 = Number(amount);
+  return Number.isFinite(n6) ? Math.round(n6 * 10 ** decimals) : 0;
+}
+function eurosToCents(euros) {
+  return majorToMinor(euros, 2);
+}
+
+// modules/invoice/ui/lib/quantity.ts
+var QUANTITY_SCALE = 1e6;
+function fromMicro(raw) {
+  return raw / QUANTITY_SCALE;
+}
+function parseQuantity(text) {
+  const t5 = text.trim().replace(",", ".");
+  if (!/^\d+(\.\d{1,6})?$/.test(t5)) return null;
+  const raw = Math.round(parseFloat(t5) * QUANTITY_SCALE);
+  return Number.isSafeInteger(raw) && raw >= 0 ? raw : null;
+}
+function formatQuantity(raw) {
+  return String(fromMicro(raw));
+}
 
 // modules/invoice/locales/es.json
 var es_default = {
@@ -4144,8 +4176,8 @@ var STATUS_COLOR = {
   paid: "success",
   cancelled: "danger"
 };
-var fmtMoney = (v3) => erplora().formatAmount(Number(v3 || 0));
-var fmtDoc = (v3, currency) => erplora().formatAmount(Number(v3 || 0), { currency });
+var fmtMoney = (v3) => erplora().formatMoney(Number(v3 || 0));
+var fmtDoc = (v3, currency) => erplora().formatMoney(Number(v3 || 0), { currency });
 var num = (v3) => Number(v3 || 0).toFixed(2);
 var emptyItem = () => ({ description: "", quantity: "1", unit_price: "", tax_rate: "21" });
 var ErpInvoiceList = class extends i3 {
@@ -4404,7 +4436,7 @@ var ErpInvoiceList = class extends i3 {
   }
   get itemsValid() {
     return this.newItems.length > 0 && this.newItems.every(
-      (it) => it.description.trim() && Number(it.quantity) > 0 && it.unit_price !== "" && !Number.isNaN(Number(it.unit_price))
+      (it) => it.description.trim() && (parseQuantity(it.quantity) ?? 0) > 0 && it.unit_price !== "" && !Number.isNaN(Number(it.unit_price))
     );
   }
   async create(ev) {
@@ -4420,10 +4452,13 @@ var ErpInvoiceList = class extends i3 {
         customer_address: this.newCustomerAddress.trim(),
         notes: this.newNotes.trim(),
         source_type: "manual",
+        // Frontera de contrato: el humano teclea EUROS y cantidades LÓGICAS; el cable lleva
+        // CÉNTIMOS (ADR-0123) y punto fijo 10⁶ (ADR-0147). Antes se mandaba lo tecleado tal
+        // cual: «50 €» llegaba como 50 CÉNTIMOS al schema `unit_price: integer`.
         items: this.newItems.map((it) => ({
           description: it.description.trim(),
-          quantity: Number(it.quantity) || 1,
-          unit_price: Number(it.unit_price) || 0,
+          quantity: parseQuantity(it.quantity) ?? QUANTITY_SCALE,
+          unit_price: eurosToCents(it.unit_price),
           tax_rate: Number(it.tax_rate) || 0,
           product_id: null
         }))
@@ -4483,7 +4518,7 @@ var ErpInvoiceList = class extends i3 {
       customer: { name: d3.customer_name || "\u2014", tax_id: d3.customer_tax_id || void 0, address: d3.customer_address || void 0 },
       number: d3.number,
       issue_date: d3.issue_date,
-      lines: this.detailLines.map((l3) => ({ description: l3.description, qty: l3.quantity, unit_price: l3.unit_price, tax_rate: l3.tax_rate, total: l3.total_amount })),
+      lines: this.detailLines.map((l3) => ({ description: l3.description, qty: fromMicro(Number(l3.quantity) || 0), unit_price: l3.unit_price, tax_rate: l3.tax_rate, total: l3.total_amount })),
       subtotal: d3.base_amount,
       taxes: this.parseTaxes(d3),
       tax_total: d3.tax_amount,
@@ -4556,7 +4591,7 @@ var ErpInvoiceList = class extends i3 {
         ${this.detailLines.length ? b2`<table class="lines">
           <thead><tr><th>#</th><th>${erploraT("ui.lineDescription")}</th><th>${erploraT("ui.lineQty")}</th><th>${erploraT("ui.linePrice")}</th><th>${erploraT("ui.lineTaxPct")}</th><th>${erploraT("ui.lineBase")}</th><th>${erploraT("ui.lineTax")}</th><th>${erploraT("ui.lineTotal")}</th></tr></thead>
           <tbody>${this.detailLines.map((l3) => b2`<tr>
-            <td>${l3.line_number}</td><td>${l3.description}</td><td>${l3.quantity}</td>
+            <td>${l3.line_number}</td><td>${l3.description}</td><td>${formatQuantity(Number(l3.quantity) || 0)}</td>
             <td>${fmtDoc(l3.unit_price, d3.currency)}</td><td>${num(l3.tax_rate)}%</td>
             <td>${fmtDoc(l3.base_amount, d3.currency)}</td><td>${fmtDoc(l3.tax_amount, d3.currency)}</td><td>${fmtDoc(l3.total_amount, d3.currency)}</td>
           </tr>`)}</tbody>
@@ -4612,7 +4647,7 @@ var ErpInvoiceList = class extends i3 {
         ${this.actionError ? b2`<p class="err">${this.actionError}</p>` : A}
         ${this.detailError ? b2`<p class="err">${this.detailError}</p>` : A}
         ${this.ctrl?.error ? b2`<p class="err">${this.ctrl.error}</p>` : A}
-        <ok-data-table .serverSide=${true} .fill=${true} .addable=${this.canAdd} .columns=${this.columns} .rows=${this.ctrl?.rows ?? []} .total=${this.ctrl?.total ?? 0} .page=${this.ctrl?.state.page ?? 0} .pageSize=${this.ctrl?.state.pageSize ?? 50} .sort=${this.ctrl?.state.sort} .sortDir=${this.ctrl?.state.dir ?? "asc"} .searchable=${true} .searchPlaceholder=${erploraT("ui.searchPlaceholder")} .actions=${this.rowActions} .emptyMessage=${this.ctrl?.loading ? erploraT("ui.loading") : erploraT("ui.empty")} @rowAction=${(e5) => this.onRowAction(e5)} @pageChange=${(e5) => this.ctrl.setPage(e5.detail)} @pageSizeChange=${(e5) => this.ctrl.setPageSize(e5.detail)} @sortChange=${(e5) => this.ctrl.setSort(e5.detail.sort, e5.detail.dir)} @searchChange=${(e5) => this.ctrl.setSearch(e5.detail)} @filterChange=${(e5) => this.ctrl.setFilter(e5.detail.col, e5.detail.value)}>
+        <ok-data-table .serverSide=${true} .fill=${true} .addable=${this.canAdd} .columns=${this.columns} .views=${true} .cardTitle=${(r6) => String(r6.number ?? "\u2014")} .cardIcon=${() => "document-text-outline"} .rows=${this.ctrl?.rows ?? []} .total=${this.ctrl?.total ?? 0} .page=${this.ctrl?.state.page ?? 0} .pageSize=${this.ctrl?.state.pageSize ?? 50} .sort=${this.ctrl?.state.sort} .sortDir=${this.ctrl?.state.dir ?? "asc"} .searchable=${true} .searchPlaceholder=${erploraT("ui.searchPlaceholder")} .actions=${this.rowActions} .emptyMessage=${this.ctrl?.loading ? erploraT("ui.loading") : erploraT("ui.empty")} @rowAction=${(e5) => this.onRowAction(e5)} @pageChange=${(e5) => this.ctrl.setPage(e5.detail)} @pageSizeChange=${(e5) => this.ctrl.setPageSize(e5.detail)} @sortChange=${(e5) => this.ctrl.setSort(e5.detail.sort, e5.detail.dir)} @searchChange=${(e5) => this.ctrl.setSearch(e5.detail)} @filterChange=${(e5) => this.ctrl.setFilter(e5.detail.col, e5.detail.value)}>
           ${this.canAdd ? this.renderCreateForm() : A}
         </ok-data-table>
       </div>`;
@@ -4952,6 +4987,9 @@ var ErpInvoiceSettings = class extends i3 {
         .fill=${true}
         .addable=${this.canManage}
         .columns=${this.columns}
+        .views=${true}
+        .cardTitle=${(r6) => String(r6.name || r6.code || "\u2014")}
+        .cardIcon=${() => "bookmark-outline"}
         .rows=${this.rows}
         .searchable=${true}
         .searchPlaceholder=${erploraT2("ui.seriesSearchPlaceholder")}

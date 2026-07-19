@@ -89,8 +89,12 @@ describe('el alta manual vive DENTRO de la tabla (paridad con /employees e inven
   });
 });
 
-describe('la cadena fiscal NO cambia: mismo comando, mismo payload', () => {
-  it('emitir manda invoice.create con serie, cliente y líneas, y cierra el panel', async () => {
+// CAMBIO DE CONTRATO (ADR-0123 + ADR-0147, 2026-07-19): el payload anterior mandaba lo tecleado
+// TAL CUAL (`unit_price: 50` por «50 €», `quantity: 2` lógica). El schema y la BD siempre fueron
+// céntimos enteros, y la cantidad ahora es punto fijo 10⁶ — la conversión ocurre en la frontera
+// de la UI (eurosToCents / toMicro), como en inventory y sales.
+describe('la cadena fiscal habla el contrato: céntimos y punto fijo 10⁶', () => {
+  it('emitir manda invoice.create con precios en CÉNTIMOS y cantidades en µ, y cierra el panel', async () => {
     const el = await montar();
     const t = tabla(el)!;
     let cerrado = false;
@@ -113,9 +117,35 @@ describe('la cadena fiscal NO cambia: mismo comando, mismo payload', () => {
     expect(alta!.payload.customer_name).toBe('ACME');
     expect(alta!.payload.source_type, 'la factura manual debe seguir marcándose como manual').toBe('manual');
     expect(alta!.payload.items).toEqual([
-      { description: 'Servicio', quantity: 2, unit_price: 50, tax_rate: 21, product_id: null },
+      { description: 'Servicio', quantity: 2_000_000, unit_price: 5000, tax_rate: 21, product_id: null },
     ]);
     expect(cerrado, 'el panel de alta no se cerró tras emitir').toBe(true);
+  });
+
+  it('media unidad se puede facturar: 0,5 → 500000 µ (coma o punto)', async () => {
+    const el = await montar();
+    const wc = el as unknown as {
+      newSeriesCode: string;
+      newItems: { description: string; quantity: string; unit_price: string; tax_rate: string }[];
+      create: (ev: Event) => Promise<void>;
+    };
+    wc.newSeriesCode = 'FACT';
+    wc.newItems = [{ description: 'Vino a granel', quantity: '0,5', unit_price: '12', tax_rate: '21' }];
+    await wc.create(new Event('submit'));
+    const alta = comandos.find((c) => c.name === 'invoice.create');
+    expect((alta!.payload.items as Array<{ quantity: number; unit_price: number }>)[0]).toMatchObject({
+      quantity: 500_000, unit_price: 1200,
+    });
+  });
+});
+
+describe('el dinero se pinta con formatMoney (céntimos → euros), no crudo (bug ×100)', () => {
+  it('la columna total divide: 12100 céntimos son 121.00 €, no 12100.00 €', async () => {
+    const el = await montar();
+    const cols = (el as unknown as { columns: { key: string; format?: (r: unknown) => string }[] }).columns;
+    const total = cols.find((c) => c.key === 'total_amount');
+    expect(total?.format, 'la columna total no tiene formato de dinero').toBeTruthy();
+    expect(total!.format!(FACTURA)).toBe('121.00 €');
   });
 });
 
