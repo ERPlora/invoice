@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { state } from 'lit/decorators.js';
 import { define } from '@erplora/outfitkit/define';
+import '@erplora/outfitkit/ok-inline-feedback';
 import '@erplora/outfitkit/ok-data-table';
 import type { DataTableColumn, DataTableAction } from '@erplora/outfitkit';
 // Catálogo i18n del módulo (ADR-0055): esbuild inlinea estos JSON en el `dist` del WC. Los textos
@@ -333,7 +334,7 @@ export class ErpInvoiceSettings extends LitElement {
           </ion-button>
           <ion-button size="small" fill="clear" color="medium" @click=${() => this.cancelForm()}>${erploraT('ui.cancel')}</ion-button>
         </div>
-        ${this.formError ? html`<p class="err">${this.formError}</p>` : nothing}
+        ${this.formError ? html`<ok-inline-feedback tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : nothing}
       </form>`;
   }
 
@@ -342,7 +343,7 @@ export class ErpInvoiceSettings extends LitElement {
   render() {
     return html`<div class="page">
       <p class="intro">${erploraT('ui.seriesIntro')}</p>
-      ${this.listError ? html`<p class="err">${this.listError}</p>` : nothing}
+      ${this.listError ? html`<ok-inline-feedback tone="danger" icon="alert-circle-outline">${this.listError}</ok-inline-feedback>` : nothing}
       <ok-data-table
         .fill=${true}
         .addable=${this.canManage}
