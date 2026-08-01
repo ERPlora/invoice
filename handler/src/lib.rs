@@ -25,6 +25,18 @@ use serde_json::{json, Map, Value};
 #[cfg(feature = "guest")]
 use extism_pdk::*;
 
+/// Convierte un `Result<Output, String>` del núcleo puro en un `FnResult` del host: `Ok` → JSON,
+/// `Err(msg)` → trap WASM con código 1 (el runtime lo traduce a HTTP 400, mensaje `msg`). Patrón
+/// idéntico al de appointments/cart_checkout (invoice#108: antes `_pure` devolvía `Output` sin
+/// canal de error, así que no podía rechazar una venta inexistente).
+#[cfg(feature = "guest")]
+fn guest_result(out: Result<Output, String>) -> FnResult<Json<Output>> {
+    match out {
+        Ok(o) => Ok(Json(o)),
+        Err(e) => Err(WithReturnCode::new(Error::msg(e), 1)),
+    }
+}
+
 #[cfg(feature = "guest")]
 #[plugin_fn]
 pub fn create_invoice(input: Json<erplora_guest_sdk::Input>) -> FnResult<Json<Output>> {
@@ -34,7 +46,7 @@ pub fn create_invoice(input: Json<erplora_guest_sdk::Input>) -> FnResult<Json<Ou
 #[cfg(feature = "guest")]
 #[plugin_fn]
 pub fn create_from_sale(input: Json<erplora_guest_sdk::Input>) -> FnResult<Json<Output>> {
-    Ok(Json(create_from_sale_pure(input.into_inner().into_value())))
+    guest_result(create_from_sale_pure(input.into_inner().into_value()))
 }
 
 #[cfg(feature = "guest")]
@@ -249,9 +261,35 @@ pub fn create_invoice_pure(input: Value) -> Output {
 }
 
 /// create_from_sale: adapta el evento sale.completed (líneas) a una F2 serie TICKET.
-pub fn create_from_sale_pure(input: Value) -> Output {
+pub fn create_from_sale_pure(input: Value) -> Result<Output, String> {
     let payload = input.get("payload").cloned().unwrap_or(Value::Null);
     let (new_ids, now) = ctx_ids(&input);
+
+    // invoice#108: la factura debe referenciar una venta REAL. El manifest declara `reads` sobre
+    // `sales.get` con `payload.sale_id`, así que el runtime precarga la venta en
+    // `context.reads["sales.get"]`. Si la read está ausente/vacía, la venta no existe o no es
+    // facturable → rechazo (antes se generaba una factura cero con origen inexistente, que
+    // contaminaba numeración, totales y trazabilidad fiscal).
+    //
+    // Regla 3 del runtime (graceful): un read que falla se OMITE (no error); por eso se comprueba
+    // aquí y no se confía en que el propio read falle. Esto cubre el caso directo (API externa con
+    // un sale_id inexistente). El camino listener (sale.completed) entrega el payload completo y la
+    // read encontrará la fila — salvo que la venta se haya borrado, en cuyo caso el rechazo es lo
+    // correcto.
+    let sale_id = s(payload.get("sale_id").unwrap_or(&Value::Null));
+    let sale_found = input
+        .get("context")
+        .and_then(|c| c.get("reads"))
+        .and_then(|r| r.get("sales.get"))
+        .and_then(|v| v.as_array())
+        .map(|rows| !rows.is_empty())
+        .unwrap_or(false);
+    if !sale_id.is_empty() && !sale_found {
+        return Err(format!(
+            "sale_not_found: la venta `{sale_id}` no existe o no es facturable; no se puede generar la factura"
+        ));
+    }
+
     let empty: Vec<Value> = Vec::new();
     let raw = payload.get("items").and_then(|v| v.as_array()).unwrap_or(&empty);
     // map líneas de venta → líneas de factura (description ← product_name).
@@ -293,7 +331,7 @@ pub fn create_from_sale_pure(input: Value) -> Output {
     } else {
         ("TICKET", "F2")
     };
-    build_invoice(&new_ids, &now, series_code, Some(inv_type), &Value::Object(header), &items)
+    Ok(build_invoice(&new_ids, &now, series_code, Some(inv_type), &Value::Object(header), &items))
 }
 
 /// substitute_from_invoice: "el cliente pide factura de un tiquet" (ADR-0140). Emite una F3
@@ -333,7 +371,25 @@ mod tests {
 
     fn inp(payload: Value, ids: usize) -> Value {
         let new_ids: Vec<Value> = (0..ids).map(|i| json!(format!("id-{i}"))).collect();
-        json!({ "payload": payload, "context": { "new_ids": new_ids, "now": "2026-05-31T10:00:00+00:00" } })
+        // Simula el `reads` que el runtime precarga: si el payload trae `sale_id`, inyecta una fila
+        // de `sales.get` (el sale existe). Así los tests de build de from_sale no tropiezan con la
+        // validación de existencia (invoice#108). Los tests que necesitan un sale AUSENTE usan
+        // `inp_no_sale` o construyen el input sin `sale_id`.
+        let mut ctx = json!({ "new_ids": new_ids, "now": "2026-05-31T10:00:00+00:00" });
+        if payload.get("sale_id").map(|v| !v.is_null()).unwrap_or(false) {
+            ctx["reads"] = json!({ "sales.get": [{ "id": payload["sale_id"] }] });
+        }
+        json!({ "payload": payload, "context": ctx })
+    }
+
+    /// Igual que `inp` pero con `sales.get` VACÍA (sale inexistente) — para el test de rechazo.
+    fn inp_no_sale(payload: Value, ids: usize) -> Value {
+        let new_ids: Vec<Value> = (0..ids).map(|i| json!(format!("id-{i}"))).collect();
+        json!({
+            "payload": payload,
+            "context": { "new_ids": new_ids, "now": "2026-05-31T10:00:00+00:00",
+                         "reads": { "sales.get": [] } }
+        })
     }
 
     // NOTA (ADR-0147, 2026-07-19): las cantidades de estos tests pasaron de lógicas (1, 2) a
@@ -372,7 +428,7 @@ mod tests {
                 { "product_name": "Café", "quantity": 2_000_000, "unit_price": 100, "tax_rate": 21.0, "product_id": "p1" }
             ]
         });
-        let out = create_from_sale_pure(inp(payload, 6));
+        let out = create_from_sale_pure(inp(payload, 6)).unwrap();
         let inv = &out.operations[2].params;
         assert_eq!(inv["invoice_type"], json!("F2"));
         assert_eq!(inv["series"], json!("TICKET"));
@@ -397,7 +453,7 @@ mod tests {
                   "net_amount": 100, "tax_amount": 21, "product_id": "p1" }
             ]
         });
-        let out = create_from_sale_pure(inp(payload, 6));
+        let out = create_from_sale_pure(inp(payload, 6)).unwrap();
         let line = &out.operations[3].params;
         assert_eq!(line["base_amount"], json!(100)); // base extraída, NO 121
         assert_eq!(line["tax_amount"], json!(21));   // IVA NO re-sumado sobre bruto
@@ -422,7 +478,7 @@ mod tests {
                 { "product_name": "Corte", "quantity": 1_000_000, "unit_price": 1500, "tax_rate": 21.0 }
             ]
         });
-        let out = create_from_sale_pure(inp(payload, 6));
+        let out = create_from_sale_pure(inp(payload, 6)).unwrap();
         let inv = &out.operations[2].params;
         assert_eq!(inv["customer_name"], json!("Ana García"));
         assert_eq!(inv["customer_tax_id"], json!("12345678Z"));
@@ -437,7 +493,7 @@ mod tests {
             "sale_id": "sale4",
             "items": [{ "product_name": "Café", "quantity": 1_000_000, "unit_price": 100, "tax_rate": 21.0 }]
         });
-        let out = create_from_sale_pure(inp(payload, 6));
+        let out = create_from_sale_pure(inp(payload, 6)).unwrap();
         let inv = &out.operations[2].params;
         assert_eq!(inv["customer_name"], json!(""));
         assert_eq!(inv["customer_tax_id"], json!(""));
@@ -455,7 +511,7 @@ mod tests {
             "items": [{ "product_name": "Servicio", "quantity": 1_000_000, "unit_price": 12100, "tax_rate": 21.0,
                         "net_amount": 10000, "tax_amount": 2100 }]
         });
-        let out = create_from_sale_pure(inp(payload, 6));
+        let out = create_from_sale_pure(inp(payload, 6)).unwrap();
         let inv = &out.operations[2].params;
         assert_eq!(inv["invoice_type"], json!("F1"), "cobrada como factura → F1");
         assert_eq!(inv["series"], json!("FACT"), "F1 va en la serie FACT, no TICKET");
@@ -470,7 +526,7 @@ mod tests {
             "sale_id": "sale6", "document_type": "ticket",
             "items": [{ "product_name": "Café", "quantity": 1_000_000, "unit_price": 100, "tax_rate": 21.0 }]
         });
-        let out = create_from_sale_pure(inp(payload, 6));
+        let out = create_from_sale_pure(inp(payload, 6)).unwrap();
         assert_eq!(out.operations[2].params["invoice_type"], json!("F2"));
         assert_eq!(out.operations[2].params["series"], json!("TICKET"));
     }
@@ -538,7 +594,7 @@ mod tests {
             "sale_id": "sale8",
             "items": [{ "product_name": "Café", "unit_price": 100, "tax_rate": 21.0 }]
         });
-        let out = create_from_sale_pure(inp(payload, 6));
+        let out = create_from_sale_pure(inp(payload, 6)).unwrap();
         let line = &out.operations[3].params;
         assert_eq!(line["quantity"], json!(1_000_000));
         assert_eq!(line["base_amount"], json!(100), "1 ud × 1,00 €");
@@ -551,7 +607,22 @@ mod tests {
             "sale_id": "sale7",
             "items": [{ "product_name": "Café", "quantity": 1_000_000, "unit_price": 100, "tax_rate": 21.0 }]
         });
-        let out = create_from_sale_pure(inp(payload, 6));
+        let out = create_from_sale_pure(inp(payload, 6)).unwrap();
         assert_eq!(out.operations[2].params["substitutes_invoice_id"], json!(""));
+    }
+
+    /// invoice#108: una venta inexistente (read vacía) debe RECHAZAR, no generar factura cero.
+    #[test]
+    fn from_sale_rejects_nonexistent_sale_id() {
+        let payload = json!({ "sale_id": "__missing_sale__", "customer_name": "X", "items": [] });
+        let err = create_from_sale_pure(inp_no_sale(payload, 6)).unwrap_err();
+        assert!(err.starts_with("sale_not_found:"), "esperaba rechazo, llegó: {err}");
+    }
+
+    /// invoice#108: sin `sale_id` no se valida (orígenes manuales/otros no lo exigen).
+    #[test]
+    fn from_sale_without_sale_id_does_not_reject() {
+        let payload = json!({ "customer_name": "X", "items": [] });
+        assert!(create_from_sale_pure(inp(payload, 6)).is_ok());
     }
 }
