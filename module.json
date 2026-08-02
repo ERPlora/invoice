@@ -1,7 +1,7 @@
 {
   "id": "invoice",
   "name": "Invoicing",
-  "version": "1.1.6",
+  "version": "1.2.0",
   "description": "Issue invoices from sales, mark them as paid, and issue rectifying invoices.",
   "agent": {
     "description": "Manages invoicing: create invoices from sales, issue rectifying invoices, mark invoices as paid, and manage invoice series.",
@@ -15,7 +15,9 @@
       "tax"
     ]
   },
-  "depends_on": [],
+  "depends_on": [
+    "taxes"
+  ],
   "permissions": [
     "invoice.view_invoice",
     "invoice.add_invoice",
@@ -220,7 +222,10 @@
       "schema": "schemas/create_invoice.json",
       "ai": {
         "description": "Creates a new invoice with its detail lines."
-      }
+      },
+      "reads": [
+        "taxes.rules.list"
+      ]
     },
     "invoice.create_from_sale": {
       "permission": "invoice.add_invoice",
@@ -231,7 +236,10 @@
       },
       "ai": {
         "description": "Automatically generates an invoice from a completed sale."
-      }
+      },
+      "reads": [
+        "taxes.rules.list"
+      ]
     },
     "invoice.substitute": {
       "permission": "invoice.add_invoice",
@@ -243,7 +251,10 @@
       "schema": "schemas/substitute.json",
       "ai": {
         "description": "Issues a complete invoice (F3) that substitutes a previously issued simplified invoice/ticket (F2) — the 'customer asks for an invoice for their ticket' case. The original ticket stays immutable; the new F3 links to it and carries the customer's tax details. Not a rectification (the ticket was correct)."
-      }
+      },
+      "reads": [
+        "taxes.rules.list"
+      ]
     },
     "invoice.rectify": {
       "permission": "invoice.rectify_invoice",

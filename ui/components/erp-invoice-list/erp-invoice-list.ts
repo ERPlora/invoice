@@ -442,19 +442,64 @@ export class ErpInvoiceList extends LitElement {
     return (s && map[s]) || 'medium';
   }
 
-  /** tax_breakdown JSON {"21.00":{base,tax}} → líneas de impuesto de ok-invoice. */
+  /**
+   * `tax_breakdown` → líneas de impuesto de `ok-invoice`. Entiende las DOS generaciones del
+   * contrato (hub#292):
+   *
+   * - **array** — una entrada por clave fiscal completa (`tax`/`class`/`rate`/`base`/`quota`,
+   *   más el recargo cuando lo hay). Es lo que se emite desde que la calificación dejó de ser
+   *   literal, y permite que la factura impresa diga «Exento (art. 20)» en vez de «IVA 0 %»,
+   *   que es lo que el cliente tiene que leer.
+   * - **objeto** — clave = tipo, `{base, tax}`. Las facturas ya emitidas están encadenadas en la
+   *   huella fiscal y se siguen imprimiendo como se imprimían.
+   */
   private parseTaxes(d: InvoiceDetail): Array<{ label: string; rate?: number; base: number; amount: number }> {
-    let obj: Record<string, { base?: number; tax?: number }> = {};
-    try { obj = d.tax_breakdown ? JSON.parse(d.tax_breakdown) : {}; } catch { obj = {}; }
-    const entries = Object.entries(obj);
-    if (!entries.length) {
-      // Sin desglose (p.ej. rectificativa): una línea con base/impuesto de cabecera.
-      return [{ label: 'IVA', base: d.base_amount, amount: d.tax_amount }];
+    let parsed: unknown = null;
+    try { parsed = d.tax_breakdown ? JSON.parse(d.tax_breakdown) : null; } catch { parsed = null; }
+
+    const pct = (n: number) => (Number.isInteger(n) ? n.toFixed(0) : String(n));
+    const out: Array<{ label: string; rate?: number; base: number; amount: number }> = [];
+
+    if (Array.isArray(parsed)) {
+      for (const e of parsed as Array<Record<string, unknown>>) {
+        const rate = Number(e.rate ?? 0);
+        const base = Number(e.base ?? 0);
+        const kind = String(e.tax ?? 'vat').toUpperCase();
+        const name = kind === 'VAT' ? 'IVA' : kind;
+        const cls = String(e.class ?? 'subject');
+        let label: string;
+        if (cls === 'exempt') {
+          const cause = String(e.exempt_reason ?? '');
+          label = cause ? `Exento (${cause})` : 'Exento';
+        } else if (cls === 'not_subject' || cls === 'not_subject_location') {
+          label = 'No sujeto';
+        } else if (cls === 'subject_reverse') {
+          label = 'Inversión del sujeto pasivo';
+        } else {
+          label = `${name} ${pct(rate)}%`;
+        }
+        out.push({ label, rate: Number.isFinite(rate) ? rate : undefined, base, amount: Number(e.quota ?? 0) });
+        // El recargo de equivalencia comparte base con el IVA: es su propia línea en el documento
+        // (el cliente tiene que ver los dos importes) aunque en el registro fiscal vaya dentro.
+        if (e.surcharge_rate != null) {
+          const sr = Number(e.surcharge_rate);
+          out.push({ label: `Recargo de equivalencia ${pct(sr)}%`, rate: sr, base, amount: Number(e.surcharge_quota ?? 0) });
+        }
+      }
+    } else if (parsed && typeof parsed === 'object') {
+      for (const [rate, v] of Object.entries(parsed as Record<string, { base?: number; tax?: number }>)) {
+        const r = Number(rate);
+        out.push({
+          label: `IVA ${Number.isFinite(r) ? r.toFixed(0) : rate}%`,
+          rate: Number.isFinite(r) ? r : undefined,
+          base: Number(v?.base ?? 0),
+          amount: Number(v?.tax ?? 0),
+        });
+      }
     }
-    return entries.map(([rate, v]) => {
-      const r = Number(rate);
-      return { label: `IVA ${Number.isFinite(r) ? r.toFixed(0) : rate}%`, rate: Number.isFinite(r) ? r : undefined, base: Number(v?.base ?? 0), amount: Number(v?.tax ?? 0) };
-    });
+
+    // Sin desglose (p.ej. rectificativa): una línea con base/impuesto de cabecera.
+    return out.length ? out : [{ label: 'IVA', base: d.base_amount, amount: d.tax_amount }];
   }
 
   /** Factura → contrato ok-invoice (layout PDF/print) con el QR de VeriFactu. */
