@@ -159,3 +159,53 @@ describe('los filtros de dominio cerrado son `select` (y el servidor los soporta
     expect(cols.find((c) => c.key === 'issue_date')?.filterType).toBe('daterange');
   });
 });
+
+// invoice#22 (ADR-0196, single print gate): printing must go through the `sdk.print` cascade —
+// the shell routes to a Bridge printer when one exists and falls back to the browser dialog
+// otherwise. A direct `window.print()` bypasses the shell and ignores any physical printer.
+// `window.print()` stays ONLY as the last resort when the SDK is not initialized (dev preview).
+describe('printing goes through the sdk.print cascade, never window.print() directly', () => {
+  const DETAIL = {
+    ...FACTURA, issuer_nif: 'B00000000', issuer_name: 'Emisora SL', customer_address: '',
+    description: '', tax_breakdown: '', currency: 'EUR', source_id: null,
+    rectifies_invoice_id: null, paid_at: null, notes: '',
+  };
+
+  async function mountDetail() {
+    const el = await montar();
+    const wc = el as unknown as { detail: unknown; detailLines: unknown[]; updateComplete: Promise<unknown> };
+    wc.detail = DETAIL;
+    wc.detailLines = [];
+    await wc.updateComplete;
+    return el;
+  }
+
+  it('the detail print button calls sdk.print with the a4 invoice document and a traceable jobId', async () => {
+    const printed: Record<string, unknown>[] = [];
+    (globalThis.erplora as unknown as Record<string, unknown>).print =
+      async (req: Record<string, unknown>) => { printed.push(req); return { via: 'bridge' }; };
+    let browserPrints = 0;
+    (window as { print: () => void }).print = () => { browserPrints += 1; };
+
+    const el = await mountDetail();
+    const btn = el.shadowRoot.querySelector('header ion-button.print') as HTMLElement | null;
+    expect(btn, 'the detail header has no print button routed through the gate').toBeTruthy();
+    btn!.click();
+
+    expect(printed.length, 'the print button did not go through sdk.print').toBe(1);
+    expect(printed[0]).toMatchObject({ role: 'receipt', documentType: 'invoice', format: 'a4', jobId: 'invoice-i1' });
+    expect(printed[0].data, 'sdk.print got no document data for the Bridge/PDF path').toBeTruthy();
+    expect(browserPrints, 'window.print() must not fire when sdk.print exists').toBe(0);
+  });
+
+  it('falls back to window.print() only when the shell SDK does not expose print (dev preview)', async () => {
+    // The default mock in beforeEach has no `print` — that IS the dev-preview scenario.
+    let browserPrints = 0;
+    (window as { print: () => void }).print = () => { browserPrints += 1; };
+
+    const el = await mountDetail();
+    (el.shadowRoot.querySelector('header ion-button.print') as HTMLElement).click();
+
+    expect(browserPrints, 'without sdk.print the browser dialog is the last resort').toBe(1);
+  });
+});
