@@ -9,7 +9,7 @@ var __decorateClass = (decorators, target, key, kind) => {
   return result;
 };
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/module-toolkit/node_modules/@lit-labs/ssr-dom-shim/lib/element-internals.js
+// ../module-toolkit/node_modules/@lit-labs/ssr-dom-shim/lib/element-internals.js
 var ElementInternalsShim = class ElementInternals {
   get shadowRoot() {
     return this.__host.__shadowRoot;
@@ -88,7 +88,7 @@ var ElementInternalsShim = class ElementInternals {
   }
 };
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/module-toolkit/node_modules/@lit-labs/ssr-dom-shim/lib/events.js
+// ../module-toolkit/node_modules/@lit-labs/ssr-dom-shim/lib/events.js
 var __classPrivateFieldSet = function(receiver, state, value, kind, f3) {
   if (kind === "m") throw new TypeError("Private method is not writable");
   if (kind === "a" && !f3) throw new TypeError("Private accessor was defined without a setter");
@@ -246,7 +246,7 @@ Object.defineProperties(CustomEventShim.prototype, {
 var EventShimWithRealType = EventShim;
 var CustomEventShimWithRealType = CustomEventShim;
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/module-toolkit/node_modules/@lit-labs/ssr-dom-shim/lib/css.js
+// ../module-toolkit/node_modules/@lit-labs/ssr-dom-shim/lib/css.js
 var _a2;
 var CSSRuleShim = (_a2 = class CSSRule {
   constructor() {
@@ -277,7 +277,7 @@ var CSSRuleShim = (_a2 = class CSSRule {
   }
 }, _a2.STYLE_RULE = 1, _a2.CHARSET_RULE = 2, _a2.IMPORT_RULE = 3, _a2.MEDIA_RULE = 4, _a2.FONT_FACE_RULE = 5, _a2.PAGE_RULE = 6, _a2.NAMESPACE_RULE = 10, _a2.KEYFRAMES_RULE = 7, _a2.KEYFRAME_RULE = 8, _a2.SUPPORTS_RULE = 12, _a2.COUNTER_STYLE_RULE = 11, _a2.FONT_FEATURE_VALUES_RULE = 14, _a2.MARGIN_RULE = 9, _a2);
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/module-toolkit/node_modules/@lit-labs/ssr-dom-shim/index.js
+// ../module-toolkit/node_modules/@lit-labs/ssr-dom-shim/index.js
 globalThis.Event ??= EventShimWithRealType;
 globalThis.CustomEvent ??= CustomEventShimWithRealType;
 var constructionToken = Symbol();
@@ -674,7 +674,7 @@ var CustomElementRegistryShimWithRealType = CustomElementRegistry;
 var customElements2 = new CustomElementRegistryShimWithRealType();
 var windowShim = new WindowShim(constructionToken);
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/module-toolkit/node_modules/@lit/reactive-element/node/css-tag.js
+// ../module-toolkit/node_modules/@lit/reactive-element/node/css-tag.js
 var t = globalThis;
 var e = t.ShadowRoot && (void 0 === t.ShadyCSS || t.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype;
 var s = Symbol();
@@ -719,7 +719,7 @@ var c = e || void 0 === t.CSSStyleSheet ? (t5) => t5 : (t5) => t5 instanceof CSS
   return r(e5);
 })(t5) : t5;
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/module-toolkit/node_modules/@lit/reactive-element/node/reactive-element.js
+// ../module-toolkit/node_modules/@lit/reactive-element/node/reactive-element.js
 var { is: h, defineProperty: r2, getOwnPropertyDescriptor: o2, getOwnPropertyNames: n2, getOwnPropertySymbols: a, getPrototypeOf: c2 } = Object;
 var l = globalThis;
 l.customElements ??= customElements2;
@@ -942,7 +942,7 @@ var g = class extends (globalThis.HTMLElement ?? HTMLElementShimWithRealType) {
 };
 g.elementStyles = [], g.shadowRootOptions = { mode: "open" }, g[f("elementProperties")] = /* @__PURE__ */ new Map(), g[f("finalized")] = /* @__PURE__ */ new Map(), u?.({ ReactiveElement: g }), (l.reactiveElementVersions ??= []).push("2.1.2");
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/module-toolkit/node_modules/lit-html/lit-html.js
+// ../module-toolkit/node_modules/lit-html/lit-html.js
 var t2 = globalThis;
 var i2 = (t5) => t5;
 var s2 = t2.trustedTypes;
@@ -1197,7 +1197,7 @@ var D = (t5, i7, s5) => {
   return h4._$AI(t5), h4;
 };
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/module-toolkit/node_modules/lit-element/lit-element.js
+// ../module-toolkit/node_modules/lit-element/lit-element.js
 var s3 = globalThis;
 var i3 = class extends g {
   constructor() {
@@ -1226,7 +1226,7 @@ var o4 = s3.litElementPolyfillSupport;
 o4?.({ LitElement: i3 });
 (s3.litElementVersions ??= []).push("4.2.2");
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/module-toolkit/node_modules/@lit/reactive-element/node/decorators/property.js
+// ../module-toolkit/node_modules/@lit/reactive-element/node/decorators/property.js
 var o5 = { attribute: true, type: String, converter: b, reflect: false, hasChanged: m };
 var r4 = (t5 = o5, e5, r6) => {
   const { kind: n6, metadata: i7 } = r6;
@@ -1256,19 +1256,19 @@ function n4(t5) {
   })(t5, e5, o7);
 }
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/module-toolkit/node_modules/@lit/reactive-element/node/decorators/state.js
+// ../module-toolkit/node_modules/@lit/reactive-element/node/decorators/state.js
 function r5(r6) {
   return n4({ ...r6, state: true, attribute: false });
 }
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/outfitkit/dist/define.js
+// ../outfitkit/dist/define.js
 function define(tag, ctor) {
   if (typeof customElements !== "undefined" && !customElements.get(tag)) {
     customElements.define(tag, ctor);
   }
 }
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/outfitkit/dist/shared/icons.js
+// ../outfitkit/dist/shared/icons.js
 var rawAdd = '<svg viewBox="0 0 512 512" width="1.2em" height="1.2em" ><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32" d="M256 112v288m144-144H112"/></svg>';
 var rawAlertCircle = '<svg viewBox="0 0 512 512" width="1.2em" height="1.2em" ><path fill="currentColor" d="M256 48C141.31 48 48 141.31 48 256s93.31 208 208 208s208-93.31 208-208S370.69 48 256 48m0 319.91a20 20 0 1 1 20-20a20 20 0 0 1-20 20m21.72-201.15l-5.74 122a16 16 0 0 1-32 0l-5.74-121.94v-.05a21.74 21.74 0 1 1 43.44 0Z"/></svg>';
 var rawAlertCircleOutline = '<svg viewBox="0 0 512 512" width="1.2em" height="1.2em" ><path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="32" d="M448 256c0-106-86-192-192-192S64 150 64 256s86 192 192 192s192-86 192-192Z"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32" d="M250.26 166.05L256 288l5.73-121.95a5.74 5.74 0 0 0-5.79-6h0a5.74 5.74 0 0 0-5.68 6"/><path fill="currentColor" d="M256 367.91a20 20 0 1 1 20-20a20 20 0 0 1-20 20"/></svg>';
@@ -1416,7 +1416,7 @@ function okIcon(value) {
   return BY_NAME[value] ?? value;
 }
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/outfitkit/dist/ok-inline-feedback.js
+// ../outfitkit/dist/ok-inline-feedback.js
 var __defProp2 = Object.defineProperty;
 var __decorateClass2 = (decorators, target, key, kind) => {
   var result = void 0;
@@ -1633,7 +1633,7 @@ __decorateClass2([
 ], OkInlineFeedback.prototype, "hasActions");
 define("ok-inline-feedback", OkInlineFeedback);
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/module-toolkit/node_modules/lit-html/directive.js
+// ../module-toolkit/node_modules/lit-html/directive.js
 var t3 = { ATTRIBUTE: 1, CHILD: 2, PROPERTY: 3, BOOLEAN_ATTRIBUTE: 4, EVENT: 5, ELEMENT: 6 };
 var e4 = (t5) => (...e5) => ({ _$litDirective$: t5, values: e5 });
 var i4 = class {
@@ -1653,7 +1653,7 @@ var i4 = class {
   }
 };
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/module-toolkit/node_modules/lit-html/directive-helpers.js
+// ../module-toolkit/node_modules/lit-html/directive-helpers.js
 var { I: t4 } = j;
 var i5 = (o7) => o7;
 var s4 = () => document.createComment("");
@@ -1686,7 +1686,7 @@ var h3 = (o7) => {
   o7._$AR(), o7._$AA.remove();
 };
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/module-toolkit/node_modules/lit-html/directives/repeat.js
+// ../module-toolkit/node_modules/lit-html/directives/repeat.js
 var u4 = (e5, s5, t5) => {
   const r6 = /* @__PURE__ */ new Map();
   for (let l3 = s5; l3 <= t5; l3++) r6.set(e5[l3], l3);
@@ -1739,7 +1739,7 @@ var c4 = e4(class extends i4 {
   }
 });
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/module-toolkit/node_modules/lit-html/directives/style-map.js
+// ../module-toolkit/node_modules/lit-html/directives/style-map.js
 var n5 = "important";
 var i6 = " !" + n5;
 var o6 = e4(class extends i4 {
@@ -1768,7 +1768,7 @@ var o6 = e4(class extends i4 {
   }
 });
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/outfitkit/dist/ok-data-table.js
+// ../outfitkit/dist/ok-data-table.js
 var CSV_BOM = "\uFEFF";
 function decodeCsvBuffer(buf) {
   let text;
@@ -3175,7 +3175,7 @@ __decorateClass3([
 var OkDataTable = _OkDataTable;
 define("ok-data-table", OkDataTable);
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/outfitkit/dist/ok-qr.js
+// ../outfitkit/dist/ok-qr.js
 var __defProp4 = Object.defineProperty;
 var __decorateClass4 = (decorators, target, key, kind) => {
   var result = void 0;
@@ -3823,7 +3823,7 @@ __decorateClass4([
 ], OkQr.prototype, "margin");
 define("ok-qr", OkQr);
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/outfitkit/dist/ok-invoice.js
+// ../outfitkit/dist/ok-invoice.js
 var __defProp5 = Object.defineProperty;
 var __decorateClass5 = (decorators, target, key, kind) => {
   var result = void 0;
@@ -4047,7 +4047,7 @@ __decorateClass5([
 ], OkInvoice.prototype, "labels");
 define("ok-invoice", OkInvoice);
 
-// ../../../../../../Users/ioan.beilic/workspace/code/ERPlora/hub/packages/module-sdk/src/index.ts
+// ../hub/packages/module-sdk/src/index.ts
 function isEmpty(v3) {
   return v3 === null || v3 === void 0 || v3 === "";
 }
@@ -4172,22 +4172,22 @@ function eurosToCents(euros) {
   return majorToMinor(euros, 2);
 }
 
-// ui/lib/quantity.ts
-var QUANTITY_SCALE = 1e6;
-function fromMicro(raw) {
-  return raw / QUANTITY_SCALE;
+// modules/invoice/ui/lib/quantity.ts
+var QUANTITY_SCALE2 = 1e6;
+function fromMicro2(raw) {
+  return raw / QUANTITY_SCALE2;
 }
-function parseQuantity(text) {
+function parseQuantity2(text) {
   const t5 = text.trim().replace(",", ".");
   if (!/^\d+(\.\d{1,6})?$/.test(t5)) return null;
-  const raw = Math.round(parseFloat(t5) * QUANTITY_SCALE);
+  const raw = Math.round(parseFloat(t5) * QUANTITY_SCALE2);
   return Number.isSafeInteger(raw) && raw >= 0 ? raw : null;
 }
-function formatQuantity(raw) {
-  return String(fromMicro(raw));
+function formatQuantity2(raw) {
+  return String(fromMicro2(raw));
 }
 
-// locales/es.json
+// modules/invoice/locales/es.json
 var es_default = {
   name: "Facturaci\xF3n",
   navigation: {
@@ -4315,7 +4315,7 @@ var es_default = {
   }
 };
 
-// locales/en.json
+// modules/invoice/locales/en.json
 var en_default = {
   name: "Invoicing",
   navigation: {
@@ -4443,7 +4443,7 @@ var en_default = {
   }
 };
 
-// ui/components/erp-invoice-list/erp-invoice-list.ts
+// modules/invoice/ui/components/erp-invoice-list/erp-invoice-list.ts
 var CATALOG = { es: es_default, en: en_default };
 function erplora() {
   const c5 = globalThis.erplora;
@@ -4743,7 +4743,7 @@ var ErpInvoiceList = class extends i3 {
   }
   get itemsValid() {
     return this.newItems.length > 0 && this.newItems.every(
-      (it) => it.description.trim() && (parseQuantity(it.quantity) ?? 0) > 0 && it.unit_price !== "" && !Number.isNaN(Number(it.unit_price))
+      (it) => it.description.trim() && (parseQuantity2(it.quantity) ?? 0) > 0 && it.unit_price !== "" && !Number.isNaN(Number(it.unit_price))
     );
   }
   async create(ev) {
@@ -4764,7 +4764,7 @@ var ErpInvoiceList = class extends i3 {
         // cual: «50 €» llegaba como 50 CÉNTIMOS al schema `unit_price: integer`.
         items: this.newItems.map((it) => ({
           description: it.description.trim(),
-          quantity: parseQuantity(it.quantity) ?? QUANTITY_SCALE,
+          quantity: parseQuantity2(it.quantity) ?? QUANTITY_SCALE2,
           unit_price: eurosToCents(it.unit_price),
           tax_rate: Number(it.tax_rate) || 0,
           product_id: null
@@ -4865,7 +4865,7 @@ var ErpInvoiceList = class extends i3 {
       customer: { name: d3.customer_name || "\u2014", tax_id: d3.customer_tax_id || void 0, address: d3.customer_address || void 0 },
       number: d3.number,
       issue_date: d3.issue_date,
-      lines: this.detailLines.map((l3) => ({ description: l3.description, qty: fromMicro(Number(l3.quantity) || 0), unit_price: l3.unit_price, tax_rate: l3.tax_rate, total: l3.total_amount })),
+      lines: this.detailLines.map((l3) => ({ description: l3.description, qty: fromMicro2(Number(l3.quantity) || 0), unit_price: l3.unit_price, tax_rate: l3.tax_rate, total: l3.total_amount })),
       subtotal: d3.base_amount,
       taxes: this.parseTaxes(d3),
       tax_total: d3.tax_amount,
@@ -4907,13 +4907,38 @@ var ErpInvoiceList = class extends i3 {
       </div>
     </div>`;
   }
+  /**
+   * Prints through the shell's single print gate (`sdk.print`, ADR-0196): the shell routes to a
+   * Bridge printer with the `receipt` role when one exists and falls back to the browser dialog
+   * otherwise — a direct `window.print()` ignored the shell (and any physical printer).
+   * `window.print()` stays only as the last resort when the SDK is not initialized (dev preview);
+   * there the `.print-only` block still makes the browser print just the document. This module has
+   * no standalone-HTML builder for its document (it is the live `<ok-invoice>`), so the isolated
+   * iframe rung of the sales cascade does not apply here.
+   */
+  printDetail() {
+    const d3 = this.detail;
+    if (!d3) return;
+    const sdk = globalThis.erplora;
+    if (sdk?.print) {
+      void sdk.print({
+        role: "receipt",
+        documentType: "invoice",
+        format: "a4",
+        data: this.invoiceDocData(),
+        jobId: `invoice-${d3.id}`
+      });
+    } else {
+      window.print();
+    }
+  }
   renderDetail() {
     const d3 = this.detail;
     return b2`<div>
       <header class="screen-only">
         <h2>${erploraT("ui.detailTitle", { number: d3.number })}</h2>
         <ion-badge color=${STATUS_COLOR[d3.status] ?? "medium"}>${statusLabel(d3.status)}</ion-badge>
-        <ion-button size="small" @click=${() => window.print()}>
+        <ion-button class="print" size="small" @click=${() => this.printDetail()}>
           <ion-icon slot="start" name="print-outline"></ion-icon> ${erploraT("ui.actionPrint")}
         </ion-button>
         <ion-button size="small" fill="outline" color="medium" @click=${() => this.closeDetail()}>← ${erploraT("ui.back")}</ion-button>
@@ -4938,7 +4963,7 @@ var ErpInvoiceList = class extends i3 {
         ${this.detailLines.length ? b2`<table class="lines">
           <thead><tr><th>#</th><th>${erploraT("ui.lineDescription")}</th><th>${erploraT("ui.lineQty")}</th><th>${erploraT("ui.linePrice")}</th><th>${erploraT("ui.lineTaxPct")}</th><th>${erploraT("ui.lineBase")}</th><th>${erploraT("ui.lineTax")}</th><th>${erploraT("ui.lineTotal")}</th></tr></thead>
           <tbody>${this.detailLines.map((l3) => b2`<tr>
-            <td>${l3.line_number}</td><td>${l3.description}</td><td>${formatQuantity(Number(l3.quantity) || 0)}</td>
+            <td>${l3.line_number}</td><td>${l3.description}</td><td>${formatQuantity2(Number(l3.quantity) || 0)}</td>
             <td>${fmtDoc(l3.unit_price, d3.currency)}</td><td>${num(l3.tax_rate)}%</td>
             <td>${fmtDoc(l3.base_amount, d3.currency)}</td><td>${fmtDoc(l3.tax_amount, d3.currency)}</td><td>${fmtDoc(l3.total_amount, d3.currency)}</td>
           </tr>`)}</tbody>
@@ -5056,7 +5081,7 @@ __decorateClass([
 ], ErpInvoiceList.prototype, "busy", 2);
 define("erp-invoice-list", ErpInvoiceList);
 
-// ui/components/erp-invoice-settings/erp-invoice-settings.ts
+// modules/invoice/ui/components/erp-invoice-settings/erp-invoice-settings.ts
 var CATALOG2 = { es: es_default, en: en_default };
 function erplora2() {
   const c5 = globalThis.erplora;

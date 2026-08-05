@@ -559,13 +559,39 @@ export class ErpInvoiceList extends LitElement {
     </div>`;
   }
 
+  /**
+   * Prints through the shell's single print gate (`sdk.print`, ADR-0196): the shell routes to a
+   * Bridge printer with the `receipt` role when one exists and falls back to the browser dialog
+   * otherwise — a direct `window.print()` ignored the shell (and any physical printer).
+   * `window.print()` stays only as the last resort when the SDK is not initialized (dev preview);
+   * there the `.print-only` block still makes the browser print just the document. This module has
+   * no standalone-HTML builder for its document (it is the live `<ok-invoice>`), so the isolated
+   * iframe rung of the sales cascade does not apply here.
+   */
+  private printDetail(): void {
+    const d = this.detail;
+    if (!d) return;
+    const sdk = (globalThis as { erplora?: { print?: (r: Record<string, unknown>) => Promise<unknown> } }).erplora;
+    if (sdk?.print) {
+      void sdk.print({
+        role: 'receipt',
+        documentType: 'invoice',
+        format: 'a4',
+        data: this.invoiceDocData() as unknown as Record<string, unknown>,
+        jobId: `invoice-${d.id}`,
+      });
+    } else {
+      window.print();
+    }
+  }
+
   private renderDetail() {
     const d = this.detail!;
     return html`<div>
       <header class="screen-only">
         <h2>${erploraT('ui.detailTitle', { number: d.number })}</h2>
         <ion-badge color=${STATUS_COLOR[d.status] ?? 'medium'}>${statusLabel(d.status)}</ion-badge>
-        <ion-button size="small" @click=${() => window.print()}>
+        <ion-button class="print" size="small" @click=${() => this.printDetail()}>
           <ion-icon slot="start" name="print-outline"></ion-icon> ${erploraT('ui.actionPrint')}
         </ion-button>
         <ion-button size="small" fill="outline" color="medium" @click=${() => this.closeDetail()}>← ${erploraT('ui.back')}</ion-button>
