@@ -25,10 +25,16 @@ use serde_json::{json, Map, Value};
 #[cfg(feature = "guest")]
 use extism_pdk::*;
 
-/// Convierte un `Result<Output, String>` del núcleo puro en un `FnResult` del host: `Ok` → JSON,
-/// `Err(msg)` → trap WASM con código 1 (el runtime lo traduce a HTTP 400, mensaje `msg`). Patrón
-/// idéntico al de appointments/cart_checkout (invoice#108: antes `_pure` devolvía `Output` sin
-/// canal de error, así que no podía rechazar una venta inexistente).
+/// Turns the pure core's `Result<Output, String>` into the host's `FnResult`: `Ok` -> JSON,
+/// `Err(msg)` -> WASM trap with return code 1, which the runtime maps to `RuntimeError::Wasm` and
+/// an HTTP 400 carrying `msg`. Same pattern as appointments/cart_checkout. Before invoice#8
+/// (hub#108) `create_from_sale_pure` returned a bare `Output`, i.e. it had NO error channel at all
+/// and therefore could not refuse a nonexistent sale.
+///
+/// The trap is deliberately the whole rejection: `persist_handler_output` never runs, so no
+/// operation, no event and no series bump are written. It is a hard refusal, not a silent no-op.
+/// Once ADR-0205 reaches the hub's `main` (today it lives on `develop`), this should move to the
+/// guest `Output.error` channel so the UI gets a translatable `invoice.*` code and HTTP 409.
 #[cfg(feature = "guest")]
 fn guest_result(out: Result<Output, String>) -> FnResult<Json<Output>> {
     match out {
@@ -86,6 +92,204 @@ fn sor(p: &Value, k: &str, d: &str) -> String {
     if x.is_empty() { d.to_string() } else { x }
 }
 
+// ── La CLAVE FISCAL de una línea (hub#292) ───────────────────────────────────
+//
+// El `tax_breakdown` de la cabecera es el contrato con el módulo de compliance: de ahí sale,
+// verbatim, el `<Desglose>` del registro que se manda a Hacienda. Mientras la clave fue el TIPO,
+// ese registro solo sabía decir una cosa —venta nacional sujeta y no exenta— porque no había
+// dónde poner nada más. Ahora la clave es la clave fiscal COMPLETA.
+//
+// **La forma cambia de objeto a ARRAY** y es deliberado, por dos razones:
+//   1. distingue las dos generaciones sin ambigüedad, y las facturas ya emitidas —encadenadas en
+//      la huella fiscal— siguen generando su XML tal cual;
+//   2. deja de COLISIONAR: con el objeto, una prestación exenta y un artículo al 0 % compartían
+//      la clave `"0.00"` y se fundían en una línea que declaraba mal las dos.
+//
+// La calificación se resuelve del catálogo de reglas que el runtime pre-carga en
+// `context.reads["taxes.rules.list"]` (mismo keystone de ADR-0085 que usa `sales` para el %),
+// usando el país/región del HUB (`context.country_code`/`region_code`), no los del cliente. El
+// TIPO no se recalcula: llega ya congelado en la línea (contrato D1) y se respeta.
+//
+// Sin catálogo, sin categoría o sin regla → venta nacional sujeta y no exenta, que es lo que
+// significaban las facturas de antes. Nunca se rompe una emisión por no poder calificar.
+
+/// Régimen por defecto: el general.
+const DEFAULT_REGIME: &str = "01";
+
+/// La calificación fiscal de una línea, ya resuelta. `regime`/`exempt_reason` son códigos de la
+/// jurisdicción y viajan OPACOS: este módulo no los interpreta, los copia.
+#[derive(Clone, PartialEq)]
+struct FiscalKey {
+    /// Familia del impuesto: `vat` | `igic` | `ipsi` | … (la del `tax_type` de la regla raíz).
+    kind: String,
+    regime: String,
+    /// `subject` | `subject_reverse` | `exempt` | `not_subject` | `not_subject_location`.
+    class: String,
+    exempt_reason: String,
+    /// Tipo del impuesto PRINCIPAL, en tanto por ciento. Con recargo de equivalencia es el del
+    /// IVA (21), no el combinado (26,2): 26,2 no es un tipo que exista.
+    rate: f64,
+    /// Tipo del recargo de equivalencia, si la regla lo lleva como componente.
+    surcharge_rate: f64,
+    has_surcharge: bool,
+}
+
+impl FiscalKey {
+    /// La clave de una línea sin catálogo: venta nacional, régimen general, sujeta y no exenta.
+    fn nacional(rate: f64) -> Self {
+        FiscalKey {
+            kind: "vat".to_string(),
+            regime: DEFAULT_REGIME.to_string(),
+            class: "subject".to_string(),
+            exempt_reason: String::new(),
+            rate,
+            surcharge_rate: 0.0,
+            has_surcharge: false,
+        }
+    }
+}
+
+/// Una línea del desglose: su clave fiscal y los importes acumulados (céntimos).
+struct DesgloseLine {
+    key: FiscalKey,
+    base: i64,
+    quota: i64,
+    surcharge_quota: i64,
+}
+
+/// Filas del catálogo de reglas fiscales pre-cargado por el runtime. Desenvuelve tanto el array
+/// directo como la forma paginada `{"rows":[…]}` — misma tolerancia que `sales`.
+fn rule_catalog(context: &Value) -> Vec<&Value> {
+    let Some(node) = context.get("reads").and_then(|r| r.get("taxes.rules.list")) else {
+        return Vec::new();
+    };
+    match node {
+        Value::Array(a) => a.iter().collect(),
+        Value::Object(_) => node
+            .get("rows")
+            .and_then(|v| v.as_array())
+            .map(|a| a.iter().collect())
+            .unwrap_or_default(),
+        _ => Vec::new(),
+    }
+}
+
+fn rule_field(rule: &Value, k: &str) -> String {
+    s(rule.get(k).unwrap_or(&Value::Null))
+}
+
+fn rule_active(rule: &Value) -> bool {
+    match rule.get("is_active") {
+        None | Some(Value::Null) => true,
+        Some(Value::Bool(b)) => *b,
+        Some(Value::Number(n)) => n.as_i64().unwrap_or(0) != 0,
+        Some(Value::String(x)) => matches!(x.as_str(), "1" | "true" | "True" | "yes"),
+        _ => false,
+    }
+}
+
+fn rule_valid_on(rule: &Value, date: &str) -> bool {
+    if date.is_empty() {
+        return true;
+    }
+    let from = rule_field(rule, "valid_from");
+    let until = rule_field(rule, "valid_to");
+    (from.is_empty() || from.as_str() <= date) && (until.is_empty() || until.as_str() >= date)
+}
+
+/// Resuelve la regla RAÍZ aplicable a `(cc, rc, cat, date)`. Precedencia: región exacta → regla de
+/// país (región vacía/NULL). Dentro de un nivel, la `valid_from` más reciente, luego `id`.
+///
+/// Réplica de `taxes::resolve_root` / `sales::resolve_root` — los guests WASM no pueden llamarse
+/// entre sí, así que la regla de precedencia vive escrita tres veces. Si diverge, divergen el
+/// precio cobrado y el impuesto declarado, así que los tres tienen el mismo test de región.
+fn resolve_root<'a>(rules: &[&'a Value], cc: &str, rc: &str, cat: &str, date: &str) -> Option<&'a Value> {
+    let eligible: Vec<&Value> = rules
+        .iter()
+        .copied()
+        .filter(|r| {
+            rule_field(r, "parent_id").is_empty()
+                && rule_active(r)
+                && rule_valid_on(r, date)
+                && rule_field(r, "country_code").eq_ignore_ascii_case(cc)
+                && rule_field(r, "tax_category_key") == cat
+        })
+        .collect();
+    let pick = |mut rows: Vec<&'a Value>| -> Option<&'a Value> {
+        rows.sort_by(|a, b| {
+            rule_field(b, "valid_from")
+                .cmp(&rule_field(a, "valid_from"))
+                .then_with(|| rule_field(a, "id").cmp(&rule_field(b, "id")))
+        });
+        rows.first().copied()
+    };
+    if !rc.is_empty() {
+        if let Some(r) = pick(
+            eligible.iter().copied()
+                .filter(|r| rule_field(r, "region_code").eq_ignore_ascii_case(rc))
+                .collect(),
+        ) {
+            return Some(r);
+        }
+    }
+    pick(eligible.iter().copied().filter(|r| rule_field(r, "region_code").is_empty()).collect())
+        .or_else(|| pick(eligible.clone()))
+}
+
+/// Clave fiscal de una línea. `rate_hint` es el tipo congelado en la línea (el que se respeta
+/// cuando no hay regla que resolver).
+fn fiscal_key(item: &Value, rules: &[&Value], cc: &str, rc: &str, date: &str, rate_hint: f64) -> FiscalKey {
+    let cat = s(item.get("tax_category_key").unwrap_or(&Value::Null));
+    let Some(root) = (if cat.is_empty() { None } else { resolve_root(rules, cc, rc, &cat, date) })
+    else {
+        return FiscalKey::nacional(rate_hint);
+    };
+
+    // El recargo de equivalencia es un COMPONENTE de la regla del IVA (`parent_id` = raíz): aporta
+    // cuota sobre la misma base, pero no es otra operación ni otro tipo. Va DENTRO de la línea.
+    let root_id = rule_field(root, "id");
+    let surcharge: f64 = rules
+        .iter()
+        .copied()
+        .filter(|r| {
+            !rule_field(r, "id").is_empty()
+                && rule_field(r, "parent_id") == root_id
+                && rule_active(r)
+                && rule_valid_on(r, date)
+        })
+        .map(|r| f(r.get("rate_pct").unwrap_or(&Value::Null), 0.0))
+        .sum();
+
+    let class = {
+        let c = rule_field(root, "operation_class").trim().to_ascii_lowercase();
+        if c.is_empty() { "subject".to_string() } else { c }
+    };
+    let exempt_reason = if class == "exempt" {
+        rule_field(root, "exempt_reason").trim().to_ascii_uppercase()
+    } else {
+        String::new()
+    };
+    let kind = {
+        let k = rule_field(root, "tax_type").trim().to_ascii_lowercase();
+        if k.is_empty() { "vat".to_string() } else { k }
+    };
+    let regime = {
+        let r = rule_field(root, "regime_key").trim().to_string();
+        if r.is_empty() { DEFAULT_REGIME.to_string() } else { r }
+    };
+    FiscalKey {
+        kind,
+        regime,
+        class,
+        exempt_reason,
+        // El tipo DECLARADO es el de la raíz. La línea trae la tasa combinada (21 + 5,2 = 26,2)
+        // porque es lo que se le cobró al cliente, pero 26,2 no es un tipo que exista.
+        rate: f(root.get("rate_pct").unwrap_or(&Value::Null), rate_hint),
+        surcharge_rate: surcharge,
+        has_surcharge: surcharge > 0.0,
+    }
+}
+
 /// Defaults de serie por code (fiel a on_install: TICKET=F2, FACT=F1, RECT=R1).
 fn series_defaults(code: &str) -> (&'static str, &'static str) {
     match code {
@@ -108,6 +312,7 @@ fn build_invoice(
     invoice_type_override: Option<&str>,
     header: &Value,
     items: &[Value],
+    fiscal: &FiscalContext,
 ) -> Output {
     let invoice_id = new_ids.first().map(s).unwrap_or_default();
     let year = year_from(now);
@@ -117,8 +322,9 @@ fn build_invoice(
 
     let mut base_total: i64 = 0; // céntimos
     let mut tax_total: i64 = 0;  // céntimos
-    let mut breakdown: Vec<(String, i64, i64)> = Vec::new(); // (rate, base_cents, tax_cents)
+    let mut breakdown: Vec<DesgloseLine> = Vec::new(); // una entrada por clave fiscal
     let mut ops: Vec<Operation> = Vec::new();
+    let rules: Vec<&Value> = fiscal.rules.iter().collect();
 
     // 1) asegurar la serie (idempotente) y 2) incrementar su contador.
     let mut ens = Map::new();
@@ -179,11 +385,26 @@ fn build_invoice(
         base_total += base;
         tax_total += tax;
 
-        let key = format!("{:.2}", rate);
-        if let Some(e) = breakdown.iter_mut().find(|(k, _, _)| *k == key) {
-            e.1 += base; e.2 += tax;
+        // Clave fiscal de la línea (hub#292): qué impuesto, régimen y calificación. Se resuelve del
+        // catálogo por la categoría fiscal congelada en la línea; sin catálogo/categoría/regla cae
+        // a venta nacional sujeta y no exenta, que es lo que declaraban las facturas de antes.
+        let key = fiscal_key(item, &rules, &fiscal.country, &fiscal.region, &fiscal.date, rate);
+        // El recargo se separa de la cuota SIN recalcular el total: la cuota de la línea es la que
+        // se cobró (contrato D1), y de ella sale el recargo por su tipo; el resto es el impuesto
+        // principal. Así 2100 + 520 siguen sumando exactamente los 2620 cobrados.
+        let surcharge_quota = if key.has_surcharge {
+            money::percent_of(base, Decimal::from_f64(key.surcharge_rate).unwrap_or(Decimal::ZERO))
         } else {
-            breakdown.push((key, base, tax));
+            0
+        };
+        let main_quota = tax - surcharge_quota;
+
+        if let Some(e) = breakdown.iter_mut().find(|e| e.key == key) {
+            e.base += base;
+            e.quota += main_quota;
+            e.surcharge_quota += surcharge_quota;
+        } else {
+            breakdown.push(DesgloseLine { key, base, quota: main_quota, surcharge_quota });
         }
 
         let line_id = new_ids.get(i + 2).map(s).unwrap_or_default();
@@ -204,11 +425,37 @@ fn build_invoice(
         ops.push(Operation::sql("invoice._insert_line", p));
     }
 
-    let mut tb = Map::new();
-    for (k, b, t) in &breakdown {
-        // base/tax del desglose en céntimos (INTEGER) — contrato inter-módulo.
-        tb.insert(k.clone(), json!({ "base": *b, "tax": *t }));
-    }
+    // Desglose por CLAVE FISCAL, en orden estable: el XML que sale de aquí no puede depender del
+    // orden de las líneas de la factura. Dentro de la misma clave, tipo descendente.
+    breakdown.sort_by(|a, b| {
+        a.key.kind
+            .cmp(&b.key.kind)
+            .then_with(|| a.key.regime.cmp(&b.key.regime))
+            .then_with(|| a.key.exempt_reason.cmp(&b.key.exempt_reason))
+            .then_with(|| a.key.class.cmp(&b.key.class))
+            .then_with(|| b.key.rate.partial_cmp(&a.key.rate).unwrap_or(std::cmp::Ordering::Equal))
+    });
+    let tb: Vec<Value> = breakdown
+        .iter()
+        .map(|l| {
+            // Importes en céntimos (INTEGER) — contrato inter-módulo, igual que antes.
+            let mut e = Map::new();
+            e.insert("tax".into(), json!(l.key.kind));
+            e.insert("regime".into(), json!(l.key.regime));
+            e.insert("class".into(), json!(l.key.class));
+            if !l.key.exempt_reason.is_empty() {
+                e.insert("exempt_reason".into(), json!(l.key.exempt_reason));
+            }
+            e.insert("rate".into(), json!(l.key.rate));
+            e.insert("base".into(), json!(l.base));
+            e.insert("quota".into(), json!(l.quota));
+            if l.key.has_surcharge {
+                e.insert("surcharge_rate".into(), json!(l.key.surcharge_rate));
+                e.insert("surcharge_quota".into(), json!(l.surcharge_quota));
+            }
+            Value::Object(e)
+        })
+        .collect();
 
     let mut h = Map::new();
     h.insert("invoice_id".into(), json!(invoice_id));
@@ -226,7 +473,7 @@ fn build_invoice(
     h.insert("base_amount".into(), json!(base_total));            // céntimos
     h.insert("tax_amount".into(), json!(tax_total));              // céntimos
     h.insert("total_amount".into(), json!(base_total + tax_total)); // céntimos
-    h.insert("tax_breakdown".into(), json!(Value::Object(tb).to_string()));
+    h.insert("tax_breakdown".into(), json!(Value::Array(tb).to_string()));
     h.insert("source_type".into(), json!(sor(header, "source_type", "manual")));
     h.insert("source_id".into(), header.get("source_id").cloned().unwrap_or(Value::Null));
     // ADR-0140: enlace F3→F2 en las sustituciones (vacío en emisiones normales → NULL vía NULLIF
@@ -242,6 +489,28 @@ fn build_invoice(
     Output { operations: ops, events: vec![event] }
 }
 
+/// Lo que hace falta para CALIFICAR una línea: el catálogo de reglas pre-cargado y la identidad
+/// fiscal del hub (país/región), que el runtime inyecta en el contexto (keystone ADR-0085).
+struct FiscalContext {
+    rules: Vec<Value>,
+    country: String,
+    region: String,
+    /// Día ISO de la emisión, para la vigencia de las reglas.
+    date: String,
+}
+
+impl FiscalContext {
+    fn from_input(input: &Value, now: &str) -> Self {
+        let context = input.get("context").cloned().unwrap_or(Value::Null);
+        FiscalContext {
+            rules: rule_catalog(&context).into_iter().cloned().collect(),
+            country: s(context.get("country_code").unwrap_or(&Value::Null)),
+            region: s(context.get("region_code").unwrap_or(&Value::Null)),
+            date: now.chars().take(10).collect(),
+        }
+    }
+}
+
 fn ctx_ids(input: &Value) -> (Vec<Value>, String) {
     let new_ids = input.get("context").and_then(|c| c.get("new_ids"))
         .and_then(|v| v.as_array()).cloned().unwrap_or_default();
@@ -253,29 +522,38 @@ fn ctx_ids(input: &Value) -> (Vec<Value>, String) {
 pub fn create_invoice_pure(input: Value) -> Output {
     let payload = input.get("payload").cloned().unwrap_or(Value::Null);
     let (new_ids, now) = ctx_ids(&input);
+    let fiscal = FiscalContext::from_input(&input, &now);
     let empty: Vec<Value> = Vec::new();
     let items = payload.get("items").and_then(|v| v.as_array()).unwrap_or(&empty);
     let series_code = sor(&payload, "series_code", "FACT");
     let ty = payload.get("invoice_type").map(s).filter(|x| !x.is_empty());
-    build_invoice(&new_ids, &now, &series_code, ty.as_deref(), &payload, items)
+    build_invoice(&new_ids, &now, &series_code, ty.as_deref(), &payload, items, &fiscal)
 }
 
 /// create_from_sale: adapta el evento sale.completed (líneas) a una F2 serie TICKET.
 pub fn create_from_sale_pure(input: Value) -> Result<Output, String> {
     let payload = input.get("payload").cloned().unwrap_or(Value::Null);
     let (new_ids, now) = ctx_ids(&input);
+    let fiscal = FiscalContext::from_input(&input, &now);
 
-    // invoice#108: la factura debe referenciar una venta REAL. El manifest declara `reads` sobre
-    // `sales.get` con `payload.sale_id`, así que el runtime precarga la venta en
-    // `context.reads["sales.get"]`. Si la read está ausente/vacía, la venta no existe o no es
-    // facturable → rechazo (antes se generaba una factura cero con origen inexistente, que
-    // contaminaba numeración, totales y trazabilidad fiscal).
+    // invoice#8 (hub#108): the invoice must reference a REAL sale. The manifest declares a `reads`
+    // entry on `sales.get` parameterized with `payload.sale_id`, so the runtime preloads the sale
+    // row into `context.reads["sales.get"]` (ADR-0069). An absent/empty read means the sale does
+    // not exist (or is soft-deleted, i.e. not invoiceable) -> reject. Before this, a bogus
+    // `sale_id` produced a zero invoice with a nonexistent origin, consuming a fiscal number and
+    // contaminating numbering, totals and traceability.
     //
-    // Regla 3 del runtime (graceful): un read que falla se OMITE (no error); por eso se comprueba
-    // aquí y no se confía en que el propio read falle. Esto cubre el caso directo (API externa con
-    // un sale_id inexistente). El camino listener (sale.completed) entrega el payload completo y la
-    // read encontrará la fila — salvo que la venta se haya borrado, en cuyo caso el rechazo es lo
-    // correcto.
+    // Runtime rule 3 (graceful reads): a read that fails is SKIPPED, not surfaced as an error, so
+    // the check has to live here — we cannot rely on the read itself failing the command. This
+    // covers the direct call path (public API / assistant with an arbitrary sale_id). On the
+    // listener path (`sale.completed`) the sale row is committed in the same transaction that wrote
+    // the outbox event, so the read finds it; if the sale was deleted meanwhile, rejecting is the
+    // correct outcome.
+    //
+    // Failure channel: an `Err` here becomes a WASM trap -> `RuntimeError::Wasm` -> HTTP 400 with
+    // the message below, and NOTHING is persisted (no invoice row, no number, no event). Once
+    // ADR-0205 lands on the hub's main branch, this should become an `Output.error`
+    // `{code: "invoice.sale_not_found"}` -> HTTP 409 with a translatable namespaced code.
     let sale_id = s(payload.get("sale_id").unwrap_or(&Value::Null));
     let sale_found = input
         .get("context")
@@ -286,7 +564,7 @@ pub fn create_from_sale_pure(input: Value) -> Result<Output, String> {
         .unwrap_or(false);
     if !sale_id.is_empty() && !sale_found {
         return Err(format!(
-            "sale_not_found: la venta `{sale_id}` no existe o no es facturable; no se puede generar la factura"
+            "sale_not_found: sale `{sale_id}` does not exist or is not invoiceable; refusing to issue an invoice for it"
         ));
     }
 
@@ -331,7 +609,7 @@ pub fn create_from_sale_pure(input: Value) -> Result<Output, String> {
     } else {
         ("TICKET", "F2")
     };
-    Ok(build_invoice(&new_ids, &now, series_code, Some(inv_type), &Value::Object(header), &items))
+    Ok(build_invoice(&new_ids, &now, series_code, Some(inv_type), &Value::Object(header), &items, &fiscal))
 }
 
 /// substitute_from_invoice: "el cliente pide factura de un tiquet" (ADR-0140). Emite una F3
@@ -343,6 +621,7 @@ pub fn create_from_sale_pure(input: Value) -> Result<Output, String> {
 pub fn substitute_from_invoice_pure(input: Value) -> Output {
     let payload = input.get("payload").cloned().unwrap_or(Value::Null);
     let (new_ids, now) = ctx_ids(&input);
+    let fiscal = FiscalContext::from_input(&input, &now);
     let empty: Vec<Value> = Vec::new();
     // Las líneas llegan YA como líneas de factura del F2 original (description/base_amount/
     // tax_amount/tax_rate/…): build_invoice las RESPETA (D1) y no re-suma IVA sobre el bruto, así
@@ -362,7 +641,7 @@ pub fn substitute_from_invoice_pure(input: Value) -> Output {
     // Enlace fiscal explícito F3→F2 (ADR-0140): lo lee verifactu para el bloque FacturasSustituidas.
     header.insert("substitutes_invoice_id".into(), json!(original_id));
     // F3 en la serie de facturas COMPLETAS (FACT); comparte numeración con las F1 (legal en ES).
-    build_invoice(&new_ids, &now, "FACT", Some("F3"), &Value::Object(header), &items)
+    build_invoice(&new_ids, &now, "FACT", Some("F3"), &Value::Object(header), &items, &fiscal)
 }
 
 #[cfg(test)]
@@ -371,10 +650,10 @@ mod tests {
 
     fn inp(payload: Value, ids: usize) -> Value {
         let new_ids: Vec<Value> = (0..ids).map(|i| json!(format!("id-{i}"))).collect();
-        // Simula el `reads` que el runtime precarga: si el payload trae `sale_id`, inyecta una fila
-        // de `sales.get` (el sale existe). Así los tests de build de from_sale no tropiezan con la
-        // validación de existencia (invoice#108). Los tests que necesitan un sale AUSENTE usan
-        // `inp_no_sale` o construyen el input sin `sale_id`.
+        // Mimics the `reads` the runtime preloads: when the payload carries a `sale_id`, inject a
+        // `sales.get` row (the sale exists), so the from_sale build tests do not trip over the
+        // existence check (invoice#8). Tests that need a MISSING sale use `inp_no_sale`, or build
+        // the payload without `sale_id`.
         let mut ctx = json!({ "new_ids": new_ids, "now": "2026-05-31T10:00:00+00:00" });
         if payload.get("sale_id").map(|v| !v.is_null()).unwrap_or(false) {
             ctx["reads"] = json!({ "sales.get": [{ "id": payload["sale_id"] }] });
@@ -382,7 +661,9 @@ mod tests {
         json!({ "payload": payload, "context": ctx })
     }
 
-    /// Igual que `inp` pero con `sales.get` VACÍA (sale inexistente) — para el test de rechazo.
+    /// Same as `inp` but with an EMPTY `sales.get` (the sale does not exist) — for the rejection
+    /// tests. An absent key behaves the same way; empty is the shape the runtime actually produces
+    /// when the query runs and matches nothing.
     fn inp_no_sale(payload: Value, ids: usize) -> Value {
         let new_ids: Vec<Value> = (0..ids).map(|i| json!(format!("id-{i}"))).collect();
         json!({
@@ -611,18 +892,283 @@ mod tests {
         assert_eq!(out.operations[2].params["substitutes_invoice_id"], json!(""));
     }
 
-    /// invoice#108: una venta inexistente (read vacía) debe RECHAZAR, no generar factura cero.
+    /// invoice#8 (hub#108): a nonexistent sale (empty read) must be REJECTED, not turned into a
+    /// zero invoice that burns a fiscal number.
     #[test]
     fn from_sale_rejects_nonexistent_sale_id() {
         let payload = json!({ "sale_id": "__missing_sale__", "customer_name": "X", "items": [] });
         let err = create_from_sale_pure(inp_no_sale(payload, 6)).unwrap_err();
-        assert!(err.starts_with("sale_not_found:"), "esperaba rechazo, llegó: {err}");
+        assert!(err.starts_with("sale_not_found:"), "expected a rejection, got: {err}");
     }
 
-    /// invoice#108: sin `sale_id` no se valida (orígenes manuales/otros no lo exigen).
+    /// invoice#8: the rejection is not a silent no-op — it must NOT produce any operation (no
+    /// invoice row, no line, no series bump), which is what makes the whole command roll back.
+    #[test]
+    fn from_sale_rejection_persists_nothing() {
+        let payload = json!({
+            "sale_id": "__missing_sale__",
+            "items": [{ "product_name": "Café", "quantity": 1_000_000, "unit_price": 100, "tax_rate": 21.0 }]
+        });
+        assert!(
+            create_from_sale_pure(inp_no_sale(payload, 6)).is_err(),
+            "a missing sale must not yield an Output with operations"
+        );
+    }
+
+    /// invoice#8: without `sale_id` nothing is validated (manual/other origins do not require it).
     #[test]
     fn from_sale_without_sale_id_does_not_reject() {
         let payload = json!({ "customer_name": "X", "items": [] });
         assert!(create_from_sale_pure(inp(payload, 6)).is_ok());
+    }
+
+    // ── El desglose deja de ser «por tipo» y pasa a ser «por clave fiscal» (hub#292) ──────
+    //
+    // El `tax_breakdown` de la factura es el contrato con el módulo de compliance: de ahí sale,
+    // verbatim, el `<Desglose>` del registro que se manda a Hacienda. Mientras la clave fue el
+    // TIPO, ese registro solo sabía decir una cosa —venta nacional sujeta y no exenta— porque no
+    // había dónde poner nada más. Ahora la clave es la clave fiscal COMPLETA: qué impuesto, bajo
+    // qué régimen, con qué calificación y a qué tipo.
+    //
+    // La forma cambia de objeto a ARRAY, y eso es deliberado: distingue las dos generaciones sin
+    // ambigüedad, y sobre todo deja de colisionar. Con el objeto, una prestación exenta y un
+    // artículo al 0 % compartían la clave `"0.00"` y se fundían en una sola línea que declaraba
+    // mal las dos.
+
+    /// Igual que `inp`, pero con el catálogo de reglas fiscales pre-cargado por el runtime y la
+    /// identidad fiscal del hub en el contexto (lo que hace el keystone de ADR-0085).
+    fn inp_rules(payload: Value, ids: usize, rules: Value, region: &str) -> Value {
+        let mut input = inp(payload, ids);
+        let ctx = input["context"].as_object_mut().unwrap();
+        ctx.insert("country_code".into(), json!("ES"));
+        ctx.insert("region_code".into(), json!(region));
+        // MERGE into the reads map, never replace it: `inp` may already have injected the
+        // `sales.get` row that makes a `create_from_sale` payload valid (invoice#8). Overwriting
+        // the whole map would silently turn every from_sale breakdown test into a `sale_not_found`
+        // rejection.
+        if !ctx.contains_key("reads") {
+            ctx.insert("reads".into(), json!({}));
+        }
+        ctx["reads"]
+            .as_object_mut()
+            .expect("reads is an object")
+            .insert("taxes.rules.list".into(), rules);
+        input
+    }
+
+    /// El `tax_breakdown` de la cabecera, ya parseado como array.
+    fn desglose(out: &Output) -> Vec<Value> {
+        let tb = out.operations[2].params["tax_breakdown"].as_str().expect("string");
+        serde_json::from_str::<Value>(tb)
+            .expect("tax_breakdown es JSON")
+            .as_array()
+            .expect("tax_breakdown es un ARRAY (una entrada por clave fiscal)")
+            .clone()
+    }
+
+    /// Sin catálogo de reglas —factura manual de un hub que no lo tiene, o un caller antiguo— el
+    /// desglose sigue diciendo exactamente lo que decía: venta nacional, régimen general, sujeta y
+    /// no exenta. Cambia la FORMA, no el significado ni los importes.
+    #[test]
+    fn sin_catalogo_el_desglose_sigue_siendo_venta_nacional_sujeta() {
+        let payload = json!({
+            "series_code": "FACT",
+            "items": [{ "description": "Servicio", "quantity": 1_000_000, "unit_price": 10000, "tax_rate": 21.0 }]
+        });
+        let out = create_invoice_pure(inp(payload, 8));
+        let d = desglose(&out);
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0]["tax"], json!("vat"));
+        assert_eq!(d[0]["regime"], json!("01"));
+        assert_eq!(d[0]["class"], json!("subject"));
+        assert_eq!(d[0]["rate"], json!(21.0));
+        assert_eq!(d[0]["base"], json!(10000));
+        assert_eq!(d[0]["quota"], json!(2100));
+        // Los totales de cabecera no se mueven: son los que alimentan la huella fiscal.
+        let inv = &out.operations[2].params;
+        assert_eq!(inv["base_amount"], json!(10000));
+        assert_eq!(inv["tax_amount"], json!(2100));
+    }
+
+    /// El ticket de bar: una caña al 21 % y una tapa al 10 %. Dos claves fiscales, dos entradas.
+    #[test]
+    fn un_ticket_mixto_produce_una_entrada_por_tipo() {
+        let payload = json!({
+            "series_code": "FACT",
+            "items": [
+                { "description": "Caña", "quantity": 1_000_000, "unit_price": 1000, "tax_rate": 21.0 },
+                { "description": "Tapa", "quantity": 1_000_000, "unit_price": 500, "tax_rate": 10.0 }
+            ]
+        });
+        let d = desglose(&create_invoice_pure(inp(payload, 8)));
+        assert_eq!(d.len(), 2);
+        let rates: Vec<f64> = d.iter().map(|e| e["rate"].as_f64().unwrap()).collect();
+        assert!(rates.contains(&21.0) && rates.contains(&10.0), "{d:?}");
+    }
+
+    /// Un servicio EXENTO no es «sujeto al 0 %»: la calificación sale de la regla fiscal, con su
+    /// causa. Es el caso del vertical de estética (tratamiento sanitario, art. 20 de la Ley del IVA).
+    #[test]
+    fn un_servicio_exento_lleva_su_calificacion_y_su_causa() {
+        let rules = json!([
+            { "id": "r-health", "country_code": "ES", "region_code": null,
+              "tax_category_key": "service.health", "rate_pct": 0.0, "tax_type": "vat",
+              "parent_id": null, "is_active": 1,
+              "operation_class": "exempt", "exempt_reason": "E1", "regime_key": "01" }
+        ]);
+        let payload = json!({
+            "series_code": "FACT",
+            "items": [{ "description": "Tratamiento", "quantity": 1_000_000, "unit_price": 5000,
+                        "tax_rate": 0.0, "tax_category_key": "service.health" }]
+        });
+        let d = desglose(&create_invoice_pure(inp_rules(payload, 8, rules, "")));
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0]["class"], json!("exempt"));
+        assert_eq!(d[0]["exempt_reason"], json!("E1"));
+        assert_eq!(d[0]["quota"], json!(0));
+        assert_eq!(d[0]["base"], json!(5000));
+    }
+
+    /// Un hub canario repercute IGIC, no IVA. El impuesto sale de la regla que resuelve por región.
+    #[test]
+    fn un_hub_canario_declara_igic() {
+        let rules = json!([
+            { "id": "r-es", "country_code": "ES", "region_code": null,
+              "tax_category_key": "product.generic", "rate_pct": 21.0, "tax_type": "vat",
+              "parent_id": null, "is_active": 1 },
+            { "id": "r-ic", "country_code": "ES", "region_code": "IC",
+              "tax_category_key": "product.generic", "rate_pct": 7.0, "tax_type": "igic",
+              "parent_id": null, "is_active": 1, "regime_key": "01" }
+        ]);
+        let payload = json!({
+            "series_code": "FACT",
+            "items": [{ "description": "Producto", "quantity": 1_000_000, "unit_price": 10000,
+                        "tax_rate": 7.0, "tax_category_key": "product.generic" }]
+        });
+        let d = desglose(&create_invoice_pure(inp_rules(payload, 8, rules, "IC")));
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0]["tax"], json!("igic"));
+        assert_eq!(d[0]["rate"], json!(7.0));
+        assert_eq!(d[0]["quota"], json!(700));
+    }
+
+    /// El RECARGO DE EQUIVALENCIA es un componente de la regla del IVA: aporta cuota sobre la
+    /// misma base, pero **no es otra línea del desglose**. Antes se le daba su propia clave y
+    /// acababa declarándose como un `TipoImpositivo` del 5,20 %, que no existe en el IVA español.
+    #[test]
+    fn el_recargo_de_equivalencia_va_dentro_de_la_linea_del_iva() {
+        let rules = json!([
+            { "id": "r-21", "country_code": "ES", "region_code": null,
+              "tax_category_key": "product.generic", "rate_pct": 21.0, "tax_type": "vat",
+              "parent_id": null, "is_active": 1, "regime_key": "01" },
+            { "id": "r-21-re", "country_code": "ES", "region_code": null,
+              "tax_category_key": "product.generic", "rate_pct": 5.2, "tax_type": "surcharge",
+              "parent_id": "r-21", "is_active": 1, "component_label": "Recargo de equivalencia" }
+        ]);
+        // La venta llega con la tasa COMBINADA (26,2 %) y la cuota total ya calculada — es lo que
+        // `sales` emite. invoice tiene que volver a separarlas para declararlas.
+        let payload = json!({
+            "series_code": "FACT",
+            "items": [{ "description": "Producto", "quantity": 1_000_000, "unit_price": 10000,
+                        "tax_rate": 26.2, "tax_category_key": "product.generic",
+                        "base_amount": 10000, "tax_amount": 2620 }]
+        });
+        let out = create_invoice_pure(inp_rules(payload, 8, rules, ""));
+        let d = desglose(&out);
+        assert_eq!(d.len(), 1, "una línea, no dos: {d:?}");
+        assert_eq!(d[0]["rate"], json!(21.0), "el tipo declarado es el del IVA, no el combinado");
+        assert_eq!(d[0]["quota"], json!(2100));
+        assert_eq!(d[0]["surcharge_rate"], json!(5.2));
+        assert_eq!(d[0]["surcharge_quota"], json!(520));
+        // Y el total no se mueve ni un céntimo: 2100 + 520 = 2620, lo que cobró la venta.
+        assert_eq!(out.operations[2].params["tax_amount"], json!(2620));
+    }
+
+    /// La colisión que el objeto no sabía evitar: una prestación EXENTA y un artículo al 0 %
+    /// compartían la clave `"0.00"` y se fundían en una línea que declaraba mal las dos.
+    #[test]
+    fn una_exenta_y_un_cero_por_ciento_no_se_funden() {
+        let rules = json!([
+            { "id": "r-health", "country_code": "ES", "region_code": null,
+              "tax_category_key": "service.health", "rate_pct": 0.0, "tax_type": "vat",
+              "parent_id": null, "is_active": 1, "operation_class": "exempt",
+              "exempt_reason": "E1", "regime_key": "01" },
+            { "id": "r-zero", "country_code": "ES", "region_code": null,
+              "tax_category_key": "product.generic", "rate_pct": 0.0, "tax_type": "vat",
+              "parent_id": null, "is_active": 1, "regime_key": "01" }
+        ]);
+        let payload = json!({
+            "series_code": "FACT",
+            "items": [
+                { "description": "Tratamiento", "quantity": 1_000_000, "unit_price": 5000,
+                  "tax_rate": 0.0, "tax_category_key": "service.health" },
+                { "description": "Mascarilla", "quantity": 1_000_000, "unit_price": 1000,
+                  "tax_rate": 0.0, "tax_category_key": "product.generic" }
+            ]
+        });
+        let d = desglose(&create_invoice_pure(inp_rules(payload, 8, rules, "")));
+        assert_eq!(d.len(), 2, "misma tasa, distinta calificación → dos líneas: {d:?}");
+        let exenta = d.iter().find(|e| e["class"] == json!("exempt")).expect("la exenta");
+        let sujeta = d.iter().find(|e| e["class"] == json!("subject")).expect("la sujeta al 0 %");
+        assert_eq!(exenta["base"], json!(5000));
+        assert_eq!(sujeta["base"], json!(1000));
+    }
+
+    /// Dos líneas de la MISMA clave fiscal sí se agregan: el desglose de la AEAT es por clave, no
+    /// por artículo (y está limitado a 12 líneas).
+    #[test]
+    fn dos_lineas_de_la_misma_clave_fiscal_se_agregan() {
+        let payload = json!({
+            "series_code": "FACT",
+            "items": [
+                { "description": "Uno", "quantity": 1_000_000, "unit_price": 1000, "tax_rate": 21.0 },
+                { "description": "Otro", "quantity": 1_000_000, "unit_price": 2000, "tax_rate": 21.0 }
+            ]
+        });
+        let d = desglose(&create_invoice_pure(inp(payload, 8)));
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0]["base"], json!(3000));
+        assert_eq!(d[0]["quota"], json!(630));
+    }
+
+    /// La venta desde el TPV (`create_from_sale`) va por el mismo camino: la categoría fiscal de la
+    /// línea viaja en `sale.completed` y es la que resuelve la calificación.
+    #[test]
+    fn from_sale_tambien_califica_por_categoria() {
+        let rules = json!([
+            { "id": "r-health", "country_code": "ES", "region_code": null,
+              "tax_category_key": "service.health", "rate_pct": 0.0, "tax_type": "vat",
+              "parent_id": null, "is_active": 1, "operation_class": "exempt",
+              "exempt_reason": "E1", "regime_key": "01" }
+        ]);
+        let payload = json!({
+            "sale_id": "sale-h",
+            "items": [{ "product_name": "Tratamiento", "quantity": 1_000_000, "unit_price": 5000,
+                        "tax_rate": 0.0, "tax_category_key": "service.health",
+                        "net_amount": 5000, "tax_amount": 0 }]
+        });
+        let d = desglose(&create_from_sale_pure(inp_rules(payload, 6, rules, "")).unwrap());
+        assert_eq!(d[0]["class"], json!("exempt"));
+        assert_eq!(d[0]["exempt_reason"], json!("E1"));
+    }
+
+    /// El orden del array no puede depender del orden de las líneas de la factura: el XML que sale
+    /// de aquí tiene que ser estable entre ejecuciones.
+    #[test]
+    fn el_orden_del_desglose_es_estable() {
+        let items = |a: f64, b: f64| {
+            json!({
+                "series_code": "FACT",
+                "items": [
+                    { "description": "A", "quantity": 1_000_000, "unit_price": 1000, "tax_rate": a },
+                    { "description": "B", "quantity": 1_000_000, "unit_price": 1000, "tax_rate": b }
+                ]
+            })
+        };
+        let d1 = desglose(&create_invoice_pure(inp(items(10.0, 21.0), 8)));
+        let d2 = desglose(&create_invoice_pure(inp(items(21.0, 10.0), 8)));
+        let rates = |d: &[Value]| d.iter().map(|e| e["rate"].as_f64().unwrap()).collect::<Vec<_>>();
+        assert_eq!(rates(&d1), rates(&d2));
+        assert_eq!(rates(&d1), vec![21.0, 10.0], "tipo descendente");
     }
 }

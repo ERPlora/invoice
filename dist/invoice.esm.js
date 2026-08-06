@@ -9,7 +9,7 @@ var __decorateClass = (decorators, target, key, kind) => {
   return result;
 };
 
-// node_modules/.pnpm/@lit-labs+ssr-dom-shim@1.6.0/node_modules/@lit-labs/ssr-dom-shim/lib/element-internals.js
+// ../module-toolkit/node_modules/@lit-labs/ssr-dom-shim/lib/element-internals.js
 var ElementInternalsShim = class ElementInternals {
   get shadowRoot() {
     return this.__host.__shadowRoot;
@@ -88,7 +88,7 @@ var ElementInternalsShim = class ElementInternals {
   }
 };
 
-// node_modules/.pnpm/@lit-labs+ssr-dom-shim@1.6.0/node_modules/@lit-labs/ssr-dom-shim/lib/events.js
+// ../module-toolkit/node_modules/@lit-labs/ssr-dom-shim/lib/events.js
 var __classPrivateFieldSet = function(receiver, state, value, kind, f3) {
   if (kind === "m") throw new TypeError("Private method is not writable");
   if (kind === "a" && !f3) throw new TypeError("Private accessor was defined without a setter");
@@ -246,7 +246,7 @@ Object.defineProperties(CustomEventShim.prototype, {
 var EventShimWithRealType = EventShim;
 var CustomEventShimWithRealType = CustomEventShim;
 
-// node_modules/.pnpm/@lit-labs+ssr-dom-shim@1.6.0/node_modules/@lit-labs/ssr-dom-shim/lib/css.js
+// ../module-toolkit/node_modules/@lit-labs/ssr-dom-shim/lib/css.js
 var _a2;
 var CSSRuleShim = (_a2 = class CSSRule {
   constructor() {
@@ -277,7 +277,7 @@ var CSSRuleShim = (_a2 = class CSSRule {
   }
 }, _a2.STYLE_RULE = 1, _a2.CHARSET_RULE = 2, _a2.IMPORT_RULE = 3, _a2.MEDIA_RULE = 4, _a2.FONT_FACE_RULE = 5, _a2.PAGE_RULE = 6, _a2.NAMESPACE_RULE = 10, _a2.KEYFRAMES_RULE = 7, _a2.KEYFRAME_RULE = 8, _a2.SUPPORTS_RULE = 12, _a2.COUNTER_STYLE_RULE = 11, _a2.FONT_FEATURE_VALUES_RULE = 14, _a2.MARGIN_RULE = 9, _a2);
 
-// node_modules/.pnpm/@lit-labs+ssr-dom-shim@1.6.0/node_modules/@lit-labs/ssr-dom-shim/index.js
+// ../module-toolkit/node_modules/@lit-labs/ssr-dom-shim/index.js
 globalThis.Event ??= EventShimWithRealType;
 globalThis.CustomEvent ??= CustomEventShimWithRealType;
 var constructionToken = Symbol();
@@ -674,7 +674,7 @@ var CustomElementRegistryShimWithRealType = CustomElementRegistry;
 var customElements2 = new CustomElementRegistryShimWithRealType();
 var windowShim = new WindowShim(constructionToken);
 
-// node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/node/css-tag.js
+// ../module-toolkit/node_modules/@lit/reactive-element/node/css-tag.js
 var t = globalThis;
 var e = t.ShadowRoot && (void 0 === t.ShadyCSS || t.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype;
 var s = Symbol();
@@ -719,7 +719,7 @@ var c = e || void 0 === t.CSSStyleSheet ? (t5) => t5 : (t5) => t5 instanceof CSS
   return r(e5);
 })(t5) : t5;
 
-// node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/node/reactive-element.js
+// ../module-toolkit/node_modules/@lit/reactive-element/node/reactive-element.js
 var { is: h, defineProperty: r2, getOwnPropertyDescriptor: o2, getOwnPropertyNames: n2, getOwnPropertySymbols: a, getPrototypeOf: c2 } = Object;
 var l = globalThis;
 l.customElements ??= customElements2;
@@ -942,7 +942,7 @@ var g = class extends (globalThis.HTMLElement ?? HTMLElementShimWithRealType) {
 };
 g.elementStyles = [], g.shadowRootOptions = { mode: "open" }, g[f("elementProperties")] = /* @__PURE__ */ new Map(), g[f("finalized")] = /* @__PURE__ */ new Map(), u?.({ ReactiveElement: g }), (l.reactiveElementVersions ??= []).push("2.1.2");
 
-// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/lit-html.js
+// ../module-toolkit/node_modules/lit-html/lit-html.js
 var t2 = globalThis;
 var i2 = (t5) => t5;
 var s2 = t2.trustedTypes;
@@ -1197,7 +1197,7 @@ var D = (t5, i7, s5) => {
   return h4._$AI(t5), h4;
 };
 
-// node_modules/.pnpm/lit-element@4.2.2/node_modules/lit-element/lit-element.js
+// ../module-toolkit/node_modules/lit-element/lit-element.js
 var s3 = globalThis;
 var i3 = class extends g {
   constructor() {
@@ -1226,7 +1226,7 @@ var o4 = s3.litElementPolyfillSupport;
 o4?.({ LitElement: i3 });
 (s3.litElementVersions ??= []).push("4.2.2");
 
-// node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/node/decorators/property.js
+// ../module-toolkit/node_modules/@lit/reactive-element/node/decorators/property.js
 var o5 = { attribute: true, type: String, converter: b, reflect: false, hasChanged: m };
 var r4 = (t5 = o5, e5, r6) => {
   const { kind: n6, metadata: i7 } = r6;
@@ -1256,19 +1256,19 @@ function n4(t5) {
   })(t5, e5, o7);
 }
 
-// node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/node/decorators/state.js
+// ../module-toolkit/node_modules/@lit/reactive-element/node/decorators/state.js
 function r5(r6) {
   return n4({ ...r6, state: true, attribute: false });
 }
 
-// node_modules/.pnpm/@erplora+outfitkit@file+..+outfitkit/node_modules/@erplora/outfitkit/dist/define.js
+// ../outfitkit/dist/define.js
 function define(tag, ctor) {
   if (typeof customElements !== "undefined" && !customElements.get(tag)) {
     customElements.define(tag, ctor);
   }
 }
 
-// node_modules/.pnpm/@erplora+outfitkit@file+..+outfitkit/node_modules/@erplora/outfitkit/dist/shared/icons.js
+// ../outfitkit/dist/shared/icons.js
 var rawAdd = '<svg viewBox="0 0 512 512" width="1.2em" height="1.2em" ><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32" d="M256 112v288m144-144H112"/></svg>';
 var rawAlertCircle = '<svg viewBox="0 0 512 512" width="1.2em" height="1.2em" ><path fill="currentColor" d="M256 48C141.31 48 48 141.31 48 256s93.31 208 208 208s208-93.31 208-208S370.69 48 256 48m0 319.91a20 20 0 1 1 20-20a20 20 0 0 1-20 20m21.72-201.15l-5.74 122a16 16 0 0 1-32 0l-5.74-121.94v-.05a21.74 21.74 0 1 1 43.44 0Z"/></svg>';
 var rawAlertCircleOutline = '<svg viewBox="0 0 512 512" width="1.2em" height="1.2em" ><path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="32" d="M448 256c0-106-86-192-192-192S64 150 64 256s86 192 192 192s192-86 192-192Z"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32" d="M250.26 166.05L256 288l5.73-121.95a5.74 5.74 0 0 0-5.79-6h0a5.74 5.74 0 0 0-5.68 6"/><path fill="currentColor" d="M256 367.91a20 20 0 1 1 20-20a20 20 0 0 1-20 20"/></svg>';
@@ -1416,7 +1416,7 @@ function okIcon(value) {
   return BY_NAME[value] ?? value;
 }
 
-// node_modules/.pnpm/@erplora+outfitkit@file+..+outfitkit/node_modules/@erplora/outfitkit/dist/ok-inline-feedback.js
+// ../outfitkit/dist/ok-inline-feedback.js
 var __defProp2 = Object.defineProperty;
 var __decorateClass2 = (decorators, target, key, kind) => {
   var result = void 0;
@@ -1633,7 +1633,7 @@ __decorateClass2([
 ], OkInlineFeedback.prototype, "hasActions");
 define("ok-inline-feedback", OkInlineFeedback);
 
-// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directive.js
+// ../module-toolkit/node_modules/lit-html/directive.js
 var t3 = { ATTRIBUTE: 1, CHILD: 2, PROPERTY: 3, BOOLEAN_ATTRIBUTE: 4, EVENT: 5, ELEMENT: 6 };
 var e4 = (t5) => (...e5) => ({ _$litDirective$: t5, values: e5 });
 var i4 = class {
@@ -1653,7 +1653,7 @@ var i4 = class {
   }
 };
 
-// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directive-helpers.js
+// ../module-toolkit/node_modules/lit-html/directive-helpers.js
 var { I: t4 } = j;
 var i5 = (o7) => o7;
 var s4 = () => document.createComment("");
@@ -1686,7 +1686,7 @@ var h3 = (o7) => {
   o7._$AR(), o7._$AA.remove();
 };
 
-// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/repeat.js
+// ../module-toolkit/node_modules/lit-html/directives/repeat.js
 var u4 = (e5, s5, t5) => {
   const r6 = /* @__PURE__ */ new Map();
   for (let l3 = s5; l3 <= t5; l3++) r6.set(e5[l3], l3);
@@ -1739,7 +1739,7 @@ var c4 = e4(class extends i4 {
   }
 });
 
-// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/style-map.js
+// ../module-toolkit/node_modules/lit-html/directives/style-map.js
 var n5 = "important";
 var i6 = " !" + n5;
 var o6 = e4(class extends i4 {
@@ -1768,7 +1768,7 @@ var o6 = e4(class extends i4 {
   }
 });
 
-// node_modules/.pnpm/@erplora+outfitkit@file+..+outfitkit/node_modules/@erplora/outfitkit/dist/ok-data-table.js
+// ../outfitkit/dist/ok-data-table.js
 var CSV_BOM = "\uFEFF";
 function decodeCsvBuffer(buf) {
   let text;
@@ -1824,7 +1824,43 @@ var DEFAULT_LABELS2 = {
   recordSingular: "record",
   recordPlural: "records"
 };
-var OkDataTable = class extends i3 {
+var ES_LABELS = {
+  search: "Buscar\u2026",
+  empty: "Sin resultados",
+  filters: "Filtros",
+  clear: "Limpiar",
+  apply: "Aplicar",
+  selected: "{n} seleccionados",
+  importCsv: "Importar CSV",
+  exportCsv: "Exportar CSV",
+  add: "A\xF1adir",
+  moreActions: "M\xE1s acciones",
+  rowsPerPage: "Filas por p\xE1gina",
+  perPageShort: "{n} / p\xE1g.",
+  viewList: "Vista lista",
+  viewCards: "Vista tarjetas",
+  columnsVisible: "Columnas visibles",
+  columns: "Columnas",
+  actions: "Acciones",
+  close: "Cerrar",
+  newRecord: "Nuevo",
+  form: "Formulario",
+  filterPlaceholder: "Filtrar\u2026",
+  from: "Desde",
+  to: "Hasta",
+  fromOf: "{label} desde",
+  toOf: "{label} hasta",
+  gte: "\u2265",
+  lte: "\u2264",
+  noValues: "Sin valores",
+  selectAll: "Seleccionar todo",
+  selectRow: "Seleccionar fila",
+  select: "Seleccionar",
+  showing: "Mostrando {from}\u2013{to} de",
+  recordSingular: "registro",
+  recordPlural: "registros"
+};
+var _OkDataTable = class _OkDataTable2 extends i3 {
   constructor() {
     super(...arguments);
     this.columns = [];
@@ -1862,9 +1898,11 @@ var OkDataTable = class extends i3 {
     this.filterDraft = {};
     this.panel = "none";
     this.viewMode = "table";
+    this.isMobile = false;
     this.hiddenKeys = /* @__PURE__ */ new Set();
     this.internalSelection = /* @__PURE__ */ new Set();
     this.menuOpen = false;
+    this.onLocaleChanged = () => this.requestUpdate();
     this.onSearch = (ev) => {
       const value = ev.target.value ?? "";
       if (this.serverSide) {
@@ -2080,6 +2118,13 @@ var OkDataTable = class extends i3 {
     .empty .empty-ic { display: grid; place-items: center; width: 3.25rem; height: 3.25rem; border-radius: 999px; background: var(--header-background); font-size: 26px; }
 
     .actions { display: flex; gap: 0.25rem; justify-content: flex-end; }
+    /* Las acciones de fila son icon-only y de tamaño small en escritorio. En tablet/móvil se
+     * amplía el host completo (no solo el icono) para que el área táctil alcance 44×44 px. */
+    @media (pointer: coarse), (max-width: 834px) {
+      .actions ion-button { min-width: 44px; min-height: 44px; margin: 0; }
+      .toolbtn { width: 44px; height: 44px; }
+      .pager .nav ion-button { min-width: 44px; min-height: 44px; margin: 0; }
+    }
     /* Spinner de acción en curso (loading): contenido dentro del ion-button small (Ionic lo fija
      * a 28px en el :host, por eso width/height y no font-size). Cubre tabla y tarjetas: los
      * botones de fila siempre van dentro de .actions. */
@@ -2100,9 +2145,43 @@ var OkDataTable = class extends i3 {
     ion-button { --box-shadow: none; }
   `;
   }
-  // ── i18n: textos efectivos (default inglés ← overrides de `.labels`) ──────────────────────
+  static {
+    this.MOBILE_BREAKPOINT = 640;
+  }
+  connectedCallback() {
+    super.connectedCallback();
+    if (typeof window !== "undefined") {
+      window.addEventListener("erplora:locale-changed", this.onLocaleChanged);
+    }
+    if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+      this.mq = window.matchMedia(`(max-width: ${_OkDataTable2.MOBILE_BREAKPOINT}px)`);
+      this.isMobile = this.mq.matches;
+      const handler = (e5) => {
+        const matches = "matches" in e5 ? e5.matches : this.mq?.matches ?? false;
+        if (this.isMobile === matches) return;
+        this.isMobile = matches;
+        if (matches && this.cardViewEnabled) this.viewMode = "cards";
+        else if (!matches && this.viewMode === "cards") this.viewMode = "table";
+      };
+      this.mq.addEventListener("change", handler);
+      this._mqHandler = handler;
+    }
+  }
+  disconnectedCallback() {
+    if (typeof window !== "undefined") {
+      window.removeEventListener("erplora:locale-changed", this.onLocaleChanged);
+    }
+    if (this.mq) {
+      const handler = this._mqHandler;
+      if (handler) this.mq.removeEventListener("change", handler);
+      this.mq = void 0;
+    }
+    super.disconnectedCallback();
+  }
+  // ── i18n: idioma del documento ← overrides explícitos de `.labels` ─────────────────────────
   get t() {
-    return { ...DEFAULT_LABELS2, ...this.labels };
+    const lang = typeof document === "undefined" ? "en" : document.documentElement.lang.toLowerCase();
+    return { ...lang.startsWith("es") ? ES_LABELS : DEFAULT_LABELS2, ...this.labels };
   }
   /** Placeholder efectivo del buscador (prop explícita → label i18n → default inglés). */
   get effSearchPlaceholder() {
@@ -2455,8 +2534,13 @@ var OkDataTable = class extends i3 {
   // forma robusta de arrancar en tarjetas sin depender de fijar `viewMode` por referencia (que
   // falla si la tabla monta detrás de un `v-if`/loading y el ref aún es null).
   firstUpdated() {
-    if (this.defaultView === "cards" && this.cardViewEnabled) this.viewMode = "cards";
-    else if (this.defaultView === "table") this.viewMode = "table";
+    if (this.isMobile && this.cardViewEnabled) {
+      this.viewMode = "cards";
+    } else if (this.defaultView === "cards" && this.cardViewEnabled) {
+      this.viewMode = "cards";
+    } else if (this.defaultView === "table") {
+      this.viewMode = "table";
+    }
   }
   setViewMode(mode) {
     if (this.viewMode === mode) return;
@@ -2603,6 +2687,8 @@ var OkDataTable = class extends i3 {
               color=${a3.color ?? "medium"}
               ?disabled=${disabled}
               aria-disabled=${disabled ? "true" : A}
+              aria-label=${a3.label}
+              title=${a3.label}
               @click=${() => this.emit("rowAction", { actionId: a3.id, row })}
             >
               ${loading ? b2`<ion-spinner slot="icon-only" name="dots"></ion-spinner>` : a3.icon ? b2`<ion-icon slot="icon-only" .icon=${okIcon(a3.icon)}></ion-icon>` : a3.label}
@@ -2938,154 +3024,158 @@ var OkDataTable = class extends i3 {
 };
 __decorateClass3([
   n4({ attribute: false })
-], OkDataTable.prototype, "columns");
+], _OkDataTable.prototype, "columns");
 __decorateClass3([
   n4({ attribute: false })
-], OkDataTable.prototype, "rows");
+], _OkDataTable.prototype, "rows");
 __decorateClass3([
   n4({ attribute: false })
-], OkDataTable.prototype, "searchKeys");
+], _OkDataTable.prototype, "searchKeys");
 __decorateClass3([
   n4({ attribute: "row-key-field" })
-], OkDataTable.prototype, "rowKeyField");
+], _OkDataTable.prototype, "rowKeyField");
 __decorateClass3([
   n4({ attribute: false })
-], OkDataTable.prototype, "rowKey");
+], _OkDataTable.prototype, "rowKey");
 __decorateClass3([
   n4({ type: Number, attribute: "page-size" })
-], OkDataTable.prototype, "pageSize");
+], _OkDataTable.prototype, "pageSize");
 __decorateClass3([
   n4({ attribute: "empty-message" })
-], OkDataTable.prototype, "emptyMessage");
+], _OkDataTable.prototype, "emptyMessage");
 __decorateClass3([
   n4({ attribute: "search-placeholder" })
-], OkDataTable.prototype, "searchPlaceholder");
+], _OkDataTable.prototype, "searchPlaceholder");
 __decorateClass3([
   n4({ attribute: false })
-], OkDataTable.prototype, "labels");
+], _OkDataTable.prototype, "labels");
 __decorateClass3([
   n4({ attribute: false })
-], OkDataTable.prototype, "actions");
+], _OkDataTable.prototype, "actions");
 __decorateClass3([
   n4({ type: Boolean })
-], OkDataTable.prototype, "addable");
+], _OkDataTable.prototype, "addable");
 __decorateClass3([
   n4({ attribute: false })
-], OkDataTable.prototype, "pageSizeOptions");
+], _OkDataTable.prototype, "pageSizeOptions");
 __decorateClass3([
   n4({ type: Boolean, reflect: true })
-], OkDataTable.prototype, "fill");
+], _OkDataTable.prototype, "fill");
 __decorateClass3([
   n4({ type: Boolean, attribute: "column-picker" })
-], OkDataTable.prototype, "columnPicker");
+], _OkDataTable.prototype, "columnPicker");
 __decorateClass3([
   n4({ type: Boolean })
-], OkDataTable.prototype, "csv");
+], _OkDataTable.prototype, "csv");
 __decorateClass3([
   n4({ attribute: "csv-name" })
-], OkDataTable.prototype, "csvName");
+], _OkDataTable.prototype, "csvName");
 __decorateClass3([
   n4({ type: Boolean, attribute: "server-side" })
-], OkDataTable.prototype, "serverSide");
+], _OkDataTable.prototype, "serverSide");
 __decorateClass3([
   n4({ type: Number })
-], OkDataTable.prototype, "total");
+], _OkDataTable.prototype, "total");
 __decorateClass3([
   n4({ type: Number })
-], OkDataTable.prototype, "page");
+], _OkDataTable.prototype, "page");
 __decorateClass3([
   n4({ type: Boolean })
-], OkDataTable.prototype, "searchable");
+], _OkDataTable.prototype, "searchable");
 __decorateClass3([
   n4({ type: String })
-], OkDataTable.prototype, "sort");
+], _OkDataTable.prototype, "sort");
 __decorateClass3([
   n4({ attribute: "sort-dir" })
-], OkDataTable.prototype, "sortDir");
+], _OkDataTable.prototype, "sortDir");
 __decorateClass3([
   n4()
-], OkDataTable.prototype, "title");
+], _OkDataTable.prototype, "title");
 __decorateClass3([
   n4({ attribute: false })
-], OkDataTable.prototype, "views");
+], _OkDataTable.prototype, "views");
 __decorateClass3([
   n4({ attribute: "default-view" })
-], OkDataTable.prototype, "defaultView");
+], _OkDataTable.prototype, "defaultView");
 __decorateClass3([
   n4({ type: Boolean })
-], OkDataTable.prototype, "exportable");
+], _OkDataTable.prototype, "exportable");
 __decorateClass3([
   n4({ type: Boolean })
-], OkDataTable.prototype, "importable");
+], _OkDataTable.prototype, "importable");
 __decorateClass3([
   n4({ type: Boolean, attribute: "column-selector" })
-], OkDataTable.prototype, "columnSelector");
+], _OkDataTable.prototype, "columnSelector");
 __decorateClass3([
   n4({ attribute: false })
-], OkDataTable.prototype, "pageSizes");
+], _OkDataTable.prototype, "pageSizes");
 __decorateClass3([
   n4({ type: Boolean })
-], OkDataTable.prototype, "selectable");
+], _OkDataTable.prototype, "selectable");
 __decorateClass3([
   n4({ attribute: false })
-], OkDataTable.prototype, "selectedKeys");
+], _OkDataTable.prototype, "selectedKeys");
 __decorateClass3([
   n4({ attribute: false })
-], OkDataTable.prototype, "primaryAction");
+], _OkDataTable.prototype, "primaryAction");
 __decorateClass3([
   n4({ type: Boolean })
-], OkDataTable.prototype, "inlineFilters");
+], _OkDataTable.prototype, "inlineFilters");
 __decorateClass3([
   n4({ attribute: false })
-], OkDataTable.prototype, "menuActions");
+], _OkDataTable.prototype, "menuActions");
 __decorateClass3([
   n4({ attribute: false })
-], OkDataTable.prototype, "cardTitle");
+], _OkDataTable.prototype, "cardTitle");
 __decorateClass3([
   n4({ attribute: false })
-], OkDataTable.prototype, "cardIcon");
+], _OkDataTable.prototype, "cardIcon");
 __decorateClass3([
   n4({ attribute: false })
-], OkDataTable.prototype, "renderCard");
+], _OkDataTable.prototype, "renderCard");
 __decorateClass3([
   r5()
-], OkDataTable.prototype, "q");
+], _OkDataTable.prototype, "q");
 __decorateClass3([
   r5()
-], OkDataTable.prototype, "clientPage");
+], _OkDataTable.prototype, "clientPage");
 __decorateClass3([
   r5()
-], OkDataTable.prototype, "clientPageSize");
+], _OkDataTable.prototype, "clientPageSize");
 __decorateClass3([
   r5()
-], OkDataTable.prototype, "clientSort");
+], _OkDataTable.prototype, "clientSort");
 __decorateClass3([
   r5()
-], OkDataTable.prototype, "clientSortDir");
+], _OkDataTable.prototype, "clientSortDir");
 __decorateClass3([
   r5()
-], OkDataTable.prototype, "clientFilters");
+], _OkDataTable.prototype, "clientFilters");
 __decorateClass3([
   r5()
-], OkDataTable.prototype, "filterDraft");
+], _OkDataTable.prototype, "filterDraft");
 __decorateClass3([
   r5()
-], OkDataTable.prototype, "panel");
+], _OkDataTable.prototype, "panel");
 __decorateClass3([
   r5()
-], OkDataTable.prototype, "viewMode");
+], _OkDataTable.prototype, "viewMode");
 __decorateClass3([
   r5()
-], OkDataTable.prototype, "hiddenKeys");
+], _OkDataTable.prototype, "isMobile");
 __decorateClass3([
   r5()
-], OkDataTable.prototype, "internalSelection");
+], _OkDataTable.prototype, "hiddenKeys");
 __decorateClass3([
   r5()
-], OkDataTable.prototype, "menuOpen");
+], _OkDataTable.prototype, "internalSelection");
+__decorateClass3([
+  r5()
+], _OkDataTable.prototype, "menuOpen");
+var OkDataTable = _OkDataTable;
 define("ok-data-table", OkDataTable);
 
-// node_modules/.pnpm/@erplora+outfitkit@file+..+outfitkit/node_modules/@erplora/outfitkit/dist/ok-qr.js
+// ../outfitkit/dist/ok-qr.js
 var __defProp4 = Object.defineProperty;
 var __decorateClass4 = (decorators, target, key, kind) => {
   var result = void 0;
@@ -3733,7 +3823,7 @@ __decorateClass4([
 ], OkQr.prototype, "margin");
 define("ok-qr", OkQr);
 
-// node_modules/.pnpm/@erplora+outfitkit@file+..+outfitkit/node_modules/@erplora/outfitkit/dist/ok-invoice.js
+// ../outfitkit/dist/ok-invoice.js
 var __defProp5 = Object.defineProperty;
 var __decorateClass5 = (decorators, target, key, kind) => {
   var result = void 0;
@@ -3957,7 +4047,7 @@ __decorateClass5([
 ], OkInvoice.prototype, "labels");
 define("ok-invoice", OkInvoice);
 
-// node_modules/.pnpm/@erplora+module-sdk@file+..+hub+packages+module-sdk/node_modules/@erplora/module-sdk/src/index.ts
+// ../hub/packages/module-sdk/src/index.ts
 function isEmpty(v3) {
   return v3 === null || v3 === void 0 || v3 === "";
 }
@@ -4083,18 +4173,18 @@ function eurosToCents(euros) {
 }
 
 // modules/invoice/ui/lib/quantity.ts
-var QUANTITY_SCALE = 1e6;
-function fromMicro(raw) {
-  return raw / QUANTITY_SCALE;
+var QUANTITY_SCALE2 = 1e6;
+function fromMicro2(raw) {
+  return raw / QUANTITY_SCALE2;
 }
-function parseQuantity(text) {
+function parseQuantity2(text) {
   const t5 = text.trim().replace(",", ".");
   if (!/^\d+(\.\d{1,6})?$/.test(t5)) return null;
-  const raw = Math.round(parseFloat(t5) * QUANTITY_SCALE);
+  const raw = Math.round(parseFloat(t5) * QUANTITY_SCALE2);
   return Number.isSafeInteger(raw) && raw >= 0 ? raw : null;
 }
-function formatQuantity(raw) {
-  return String(fromMicro(raw));
+function formatQuantity2(raw) {
+  return String(fromMicro2(raw));
 }
 
 // modules/invoice/locales/es.json
@@ -4653,7 +4743,7 @@ var ErpInvoiceList = class extends i3 {
   }
   get itemsValid() {
     return this.newItems.length > 0 && this.newItems.every(
-      (it) => it.description.trim() && (parseQuantity(it.quantity) ?? 0) > 0 && it.unit_price !== "" && !Number.isNaN(Number(it.unit_price))
+      (it) => it.description.trim() && (parseQuantity2(it.quantity) ?? 0) > 0 && it.unit_price !== "" && !Number.isNaN(Number(it.unit_price))
     );
   }
   async create(ev) {
@@ -4674,7 +4764,7 @@ var ErpInvoiceList = class extends i3 {
         // cual: «50 €» llegaba como 50 CÉNTIMOS al schema `unit_price: integer`.
         items: this.newItems.map((it) => ({
           description: it.description.trim(),
-          quantity: parseQuantity(it.quantity) ?? QUANTITY_SCALE,
+          quantity: parseQuantity2(it.quantity) ?? QUANTITY_SCALE2,
           unit_price: eurosToCents(it.unit_price),
           tax_rate: Number(it.tax_rate) || 0,
           product_id: null
@@ -4708,22 +4798,62 @@ var ErpInvoiceList = class extends i3 {
     const map = { accepted: "success", pending: "warning", rejected: "danger", error: "danger" };
     return s5 && map[s5] || "medium";
   }
-  /** tax_breakdown JSON {"21.00":{base,tax}} → líneas de impuesto de ok-invoice. */
+  /**
+   * `tax_breakdown` → líneas de impuesto de `ok-invoice`. Entiende las DOS generaciones del
+   * contrato (hub#292):
+   *
+   * - **array** — una entrada por clave fiscal completa (`tax`/`class`/`rate`/`base`/`quota`,
+   *   más el recargo cuando lo hay). Es lo que se emite desde que la calificación dejó de ser
+   *   literal, y permite que la factura impresa diga «Exento (art. 20)» en vez de «IVA 0 %»,
+   *   que es lo que el cliente tiene que leer.
+   * - **objeto** — clave = tipo, `{base, tax}`. Las facturas ya emitidas están encadenadas en la
+   *   huella fiscal y se siguen imprimiendo como se imprimían.
+   */
   parseTaxes(d3) {
-    let obj = {};
+    let parsed = null;
     try {
-      obj = d3.tax_breakdown ? JSON.parse(d3.tax_breakdown) : {};
+      parsed = d3.tax_breakdown ? JSON.parse(d3.tax_breakdown) : null;
     } catch {
-      obj = {};
+      parsed = null;
     }
-    const entries = Object.entries(obj);
-    if (!entries.length) {
-      return [{ label: "IVA", base: d3.base_amount, amount: d3.tax_amount }];
+    const pct = (n6) => Number.isInteger(n6) ? n6.toFixed(0) : String(n6);
+    const out = [];
+    if (Array.isArray(parsed)) {
+      for (const e5 of parsed) {
+        const rate = Number(e5.rate ?? 0);
+        const base = Number(e5.base ?? 0);
+        const kind = String(e5.tax ?? "vat").toUpperCase();
+        const name = kind === "VAT" ? "IVA" : kind;
+        const cls = String(e5.class ?? "subject");
+        let label;
+        if (cls === "exempt") {
+          const cause = String(e5.exempt_reason ?? "");
+          label = cause ? `Exento (${cause})` : "Exento";
+        } else if (cls === "not_subject" || cls === "not_subject_location") {
+          label = "No sujeto";
+        } else if (cls === "subject_reverse") {
+          label = "Inversi\xF3n del sujeto pasivo";
+        } else {
+          label = `${name} ${pct(rate)}%`;
+        }
+        out.push({ label, rate: Number.isFinite(rate) ? rate : void 0, base, amount: Number(e5.quota ?? 0) });
+        if (e5.surcharge_rate != null) {
+          const sr = Number(e5.surcharge_rate);
+          out.push({ label: `Recargo de equivalencia ${pct(sr)}%`, rate: sr, base, amount: Number(e5.surcharge_quota ?? 0) });
+        }
+      }
+    } else if (parsed && typeof parsed === "object") {
+      for (const [rate, v3] of Object.entries(parsed)) {
+        const r6 = Number(rate);
+        out.push({
+          label: `IVA ${Number.isFinite(r6) ? r6.toFixed(0) : rate}%`,
+          rate: Number.isFinite(r6) ? r6 : void 0,
+          base: Number(v3?.base ?? 0),
+          amount: Number(v3?.tax ?? 0)
+        });
+      }
     }
-    return entries.map(([rate, v3]) => {
-      const r6 = Number(rate);
-      return { label: `IVA ${Number.isFinite(r6) ? r6.toFixed(0) : rate}%`, rate: Number.isFinite(r6) ? r6 : void 0, base: Number(v3?.base ?? 0), amount: Number(v3?.tax ?? 0) };
-    });
+    return out.length ? out : [{ label: "IVA", base: d3.base_amount, amount: d3.tax_amount }];
   }
   /** Factura → contrato ok-invoice (layout PDF/print) con el QR de VeriFactu. */
   invoiceDocData() {
@@ -4735,7 +4865,7 @@ var ErpInvoiceList = class extends i3 {
       customer: { name: d3.customer_name || "\u2014", tax_id: d3.customer_tax_id || void 0, address: d3.customer_address || void 0 },
       number: d3.number,
       issue_date: d3.issue_date,
-      lines: this.detailLines.map((l3) => ({ description: l3.description, qty: fromMicro(Number(l3.quantity) || 0), unit_price: l3.unit_price, tax_rate: l3.tax_rate, total: l3.total_amount })),
+      lines: this.detailLines.map((l3) => ({ description: l3.description, qty: fromMicro2(Number(l3.quantity) || 0), unit_price: l3.unit_price, tax_rate: l3.tax_rate, total: l3.total_amount })),
       subtotal: d3.base_amount,
       taxes: this.parseTaxes(d3),
       tax_total: d3.tax_amount,
@@ -4777,13 +4907,38 @@ var ErpInvoiceList = class extends i3 {
       </div>
     </div>`;
   }
+  /**
+   * Prints through the shell's single print gate (`sdk.print`, ADR-0196): the shell routes to a
+   * Bridge printer with the `receipt` role when one exists and falls back to the browser dialog
+   * otherwise — a direct `window.print()` ignored the shell (and any physical printer).
+   * `window.print()` stays only as the last resort when the SDK is not initialized (dev preview);
+   * there the `.print-only` block still makes the browser print just the document. This module has
+   * no standalone-HTML builder for its document (it is the live `<ok-invoice>`), so the isolated
+   * iframe rung of the sales cascade does not apply here.
+   */
+  printDetail() {
+    const d3 = this.detail;
+    if (!d3) return;
+    const sdk = globalThis.erplora;
+    if (sdk?.print) {
+      void sdk.print({
+        role: "receipt",
+        documentType: "invoice",
+        format: "a4",
+        data: this.invoiceDocData(),
+        jobId: `invoice-${d3.id}`
+      });
+    } else {
+      window.print();
+    }
+  }
   renderDetail() {
     const d3 = this.detail;
     return b2`<div>
       <header class="screen-only">
         <h2>${erploraT("ui.detailTitle", { number: d3.number })}</h2>
         <ion-badge color=${STATUS_COLOR[d3.status] ?? "medium"}>${statusLabel(d3.status)}</ion-badge>
-        <ion-button size="small" @click=${() => window.print()}>
+        <ion-button class="print" size="small" @click=${() => this.printDetail()}>
           <ion-icon slot="start" name="print-outline"></ion-icon> ${erploraT("ui.actionPrint")}
         </ion-button>
         <ion-button size="small" fill="outline" color="medium" @click=${() => this.closeDetail()}>← ${erploraT("ui.back")}</ion-button>
@@ -4808,7 +4963,7 @@ var ErpInvoiceList = class extends i3 {
         ${this.detailLines.length ? b2`<table class="lines">
           <thead><tr><th>#</th><th>${erploraT("ui.lineDescription")}</th><th>${erploraT("ui.lineQty")}</th><th>${erploraT("ui.linePrice")}</th><th>${erploraT("ui.lineTaxPct")}</th><th>${erploraT("ui.lineBase")}</th><th>${erploraT("ui.lineTax")}</th><th>${erploraT("ui.lineTotal")}</th></tr></thead>
           <tbody>${this.detailLines.map((l3) => b2`<tr>
-            <td>${l3.line_number}</td><td>${l3.description}</td><td>${formatQuantity(Number(l3.quantity) || 0)}</td>
+            <td>${l3.line_number}</td><td>${l3.description}</td><td>${formatQuantity2(Number(l3.quantity) || 0)}</td>
             <td>${fmtDoc(l3.unit_price, d3.currency)}</td><td>${num(l3.tax_rate)}%</td>
             <td>${fmtDoc(l3.base_amount, d3.currency)}</td><td>${fmtDoc(l3.tax_amount, d3.currency)}</td><td>${fmtDoc(l3.total_amount, d3.currency)}</td>
           </tr>`)}</tbody>
