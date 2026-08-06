@@ -16,7 +16,8 @@
     ]
   },
   "depends_on": [
-    "taxes"
+    "taxes",
+    "sales"
   ],
   "permissions": [
     "invoice.view_invoice",
@@ -238,7 +239,13 @@
         "description": "Automatically generates an invoice from a completed sale."
       },
       "reads": [
-        "taxes.rules.list"
+        "taxes.rules.list",
+        {
+          "query": "sales.get",
+          "params": {
+            "sale_id": "payload.sale_id"
+          }
+        }
       ]
     },
     "invoice.substitute": {

@@ -25,6 +25,24 @@ use serde_json::{json, Map, Value};
 #[cfg(feature = "guest")]
 use extism_pdk::*;
 
+/// Turns the pure core's `Result<Output, String>` into the host's `FnResult`: `Ok` -> JSON,
+/// `Err(msg)` -> WASM trap with return code 1, which the runtime maps to `RuntimeError::Wasm` and
+/// an HTTP 400 carrying `msg`. Same pattern as appointments/cart_checkout. Before invoice#8
+/// (hub#108) `create_from_sale_pure` returned a bare `Output`, i.e. it had NO error channel at all
+/// and therefore could not refuse a nonexistent sale.
+///
+/// The trap is deliberately the whole rejection: `persist_handler_output` never runs, so no
+/// operation, no event and no series bump are written. It is a hard refusal, not a silent no-op.
+/// Once ADR-0205 reaches the hub's `main` (today it lives on `develop`), this should move to the
+/// guest `Output.error` channel so the UI gets a translatable `invoice.*` code and HTTP 409.
+#[cfg(feature = "guest")]
+fn guest_result(out: Result<Output, String>) -> FnResult<Json<Output>> {
+    match out {
+        Ok(o) => Ok(Json(o)),
+        Err(e) => Err(WithReturnCode::new(Error::msg(e), 1)),
+    }
+}
+
 #[cfg(feature = "guest")]
 #[plugin_fn]
 pub fn create_invoice(input: Json<erplora_guest_sdk::Input>) -> FnResult<Json<Output>> {
@@ -34,7 +52,7 @@ pub fn create_invoice(input: Json<erplora_guest_sdk::Input>) -> FnResult<Json<Ou
 #[cfg(feature = "guest")]
 #[plugin_fn]
 pub fn create_from_sale(input: Json<erplora_guest_sdk::Input>) -> FnResult<Json<Output>> {
-    Ok(Json(create_from_sale_pure(input.into_inner().into_value())))
+    guest_result(create_from_sale_pure(input.into_inner().into_value()))
 }
 
 #[cfg(feature = "guest")]
@@ -513,10 +531,43 @@ pub fn create_invoice_pure(input: Value) -> Output {
 }
 
 /// create_from_sale: adapta el evento sale.completed (líneas) a una F2 serie TICKET.
-pub fn create_from_sale_pure(input: Value) -> Output {
+pub fn create_from_sale_pure(input: Value) -> Result<Output, String> {
     let payload = input.get("payload").cloned().unwrap_or(Value::Null);
     let (new_ids, now) = ctx_ids(&input);
     let fiscal = FiscalContext::from_input(&input, &now);
+
+    // invoice#8 (hub#108): the invoice must reference a REAL sale. The manifest declares a `reads`
+    // entry on `sales.get` parameterized with `payload.sale_id`, so the runtime preloads the sale
+    // row into `context.reads["sales.get"]` (ADR-0069). An absent/empty read means the sale does
+    // not exist (or is soft-deleted, i.e. not invoiceable) -> reject. Before this, a bogus
+    // `sale_id` produced a zero invoice with a nonexistent origin, consuming a fiscal number and
+    // contaminating numbering, totals and traceability.
+    //
+    // Runtime rule 3 (graceful reads): a read that fails is SKIPPED, not surfaced as an error, so
+    // the check has to live here — we cannot rely on the read itself failing the command. This
+    // covers the direct call path (public API / assistant with an arbitrary sale_id). On the
+    // listener path (`sale.completed`) the sale row is committed in the same transaction that wrote
+    // the outbox event, so the read finds it; if the sale was deleted meanwhile, rejecting is the
+    // correct outcome.
+    //
+    // Failure channel: an `Err` here becomes a WASM trap -> `RuntimeError::Wasm` -> HTTP 400 with
+    // the message below, and NOTHING is persisted (no invoice row, no number, no event). Once
+    // ADR-0205 lands on the hub's main branch, this should become an `Output.error`
+    // `{code: "invoice.sale_not_found"}` -> HTTP 409 with a translatable namespaced code.
+    let sale_id = s(payload.get("sale_id").unwrap_or(&Value::Null));
+    let sale_found = input
+        .get("context")
+        .and_then(|c| c.get("reads"))
+        .and_then(|r| r.get("sales.get"))
+        .and_then(|v| v.as_array())
+        .map(|rows| !rows.is_empty())
+        .unwrap_or(false);
+    if !sale_id.is_empty() && !sale_found {
+        return Err(format!(
+            "sale_not_found: sale `{sale_id}` does not exist or is not invoiceable; refusing to issue an invoice for it"
+        ));
+    }
+
     let empty: Vec<Value> = Vec::new();
     let raw = payload.get("items").and_then(|v| v.as_array()).unwrap_or(&empty);
     // map líneas de venta → líneas de factura (description ← product_name).
@@ -558,7 +609,7 @@ pub fn create_from_sale_pure(input: Value) -> Output {
     } else {
         ("TICKET", "F2")
     };
-    build_invoice(&new_ids, &now, series_code, Some(inv_type), &Value::Object(header), &items, &fiscal)
+    Ok(build_invoice(&new_ids, &now, series_code, Some(inv_type), &Value::Object(header), &items, &fiscal))
 }
 
 /// substitute_from_invoice: "el cliente pide factura de un tiquet" (ADR-0140). Emite una F3
@@ -599,7 +650,27 @@ mod tests {
 
     fn inp(payload: Value, ids: usize) -> Value {
         let new_ids: Vec<Value> = (0..ids).map(|i| json!(format!("id-{i}"))).collect();
-        json!({ "payload": payload, "context": { "new_ids": new_ids, "now": "2026-05-31T10:00:00+00:00" } })
+        // Mimics the `reads` the runtime preloads: when the payload carries a `sale_id`, inject a
+        // `sales.get` row (the sale exists), so the from_sale build tests do not trip over the
+        // existence check (invoice#8). Tests that need a MISSING sale use `inp_no_sale`, or build
+        // the payload without `sale_id`.
+        let mut ctx = json!({ "new_ids": new_ids, "now": "2026-05-31T10:00:00+00:00" });
+        if payload.get("sale_id").map(|v| !v.is_null()).unwrap_or(false) {
+            ctx["reads"] = json!({ "sales.get": [{ "id": payload["sale_id"] }] });
+        }
+        json!({ "payload": payload, "context": ctx })
+    }
+
+    /// Same as `inp` but with an EMPTY `sales.get` (the sale does not exist) — for the rejection
+    /// tests. An absent key behaves the same way; empty is the shape the runtime actually produces
+    /// when the query runs and matches nothing.
+    fn inp_no_sale(payload: Value, ids: usize) -> Value {
+        let new_ids: Vec<Value> = (0..ids).map(|i| json!(format!("id-{i}"))).collect();
+        json!({
+            "payload": payload,
+            "context": { "new_ids": new_ids, "now": "2026-05-31T10:00:00+00:00",
+                         "reads": { "sales.get": [] } }
+        })
     }
 
     // NOTA (ADR-0147, 2026-07-19): las cantidades de estos tests pasaron de lógicas (1, 2) a
@@ -638,7 +709,7 @@ mod tests {
                 { "product_name": "Café", "quantity": 2_000_000, "unit_price": 100, "tax_rate": 21.0, "product_id": "p1" }
             ]
         });
-        let out = create_from_sale_pure(inp(payload, 6));
+        let out = create_from_sale_pure(inp(payload, 6)).unwrap();
         let inv = &out.operations[2].params;
         assert_eq!(inv["invoice_type"], json!("F2"));
         assert_eq!(inv["series"], json!("TICKET"));
@@ -663,7 +734,7 @@ mod tests {
                   "net_amount": 100, "tax_amount": 21, "product_id": "p1" }
             ]
         });
-        let out = create_from_sale_pure(inp(payload, 6));
+        let out = create_from_sale_pure(inp(payload, 6)).unwrap();
         let line = &out.operations[3].params;
         assert_eq!(line["base_amount"], json!(100)); // base extraída, NO 121
         assert_eq!(line["tax_amount"], json!(21));   // IVA NO re-sumado sobre bruto
@@ -688,7 +759,7 @@ mod tests {
                 { "product_name": "Corte", "quantity": 1_000_000, "unit_price": 1500, "tax_rate": 21.0 }
             ]
         });
-        let out = create_from_sale_pure(inp(payload, 6));
+        let out = create_from_sale_pure(inp(payload, 6)).unwrap();
         let inv = &out.operations[2].params;
         assert_eq!(inv["customer_name"], json!("Ana García"));
         assert_eq!(inv["customer_tax_id"], json!("12345678Z"));
@@ -703,7 +774,7 @@ mod tests {
             "sale_id": "sale4",
             "items": [{ "product_name": "Café", "quantity": 1_000_000, "unit_price": 100, "tax_rate": 21.0 }]
         });
-        let out = create_from_sale_pure(inp(payload, 6));
+        let out = create_from_sale_pure(inp(payload, 6)).unwrap();
         let inv = &out.operations[2].params;
         assert_eq!(inv["customer_name"], json!(""));
         assert_eq!(inv["customer_tax_id"], json!(""));
@@ -721,7 +792,7 @@ mod tests {
             "items": [{ "product_name": "Servicio", "quantity": 1_000_000, "unit_price": 12100, "tax_rate": 21.0,
                         "net_amount": 10000, "tax_amount": 2100 }]
         });
-        let out = create_from_sale_pure(inp(payload, 6));
+        let out = create_from_sale_pure(inp(payload, 6)).unwrap();
         let inv = &out.operations[2].params;
         assert_eq!(inv["invoice_type"], json!("F1"), "cobrada como factura → F1");
         assert_eq!(inv["series"], json!("FACT"), "F1 va en la serie FACT, no TICKET");
@@ -736,7 +807,7 @@ mod tests {
             "sale_id": "sale6", "document_type": "ticket",
             "items": [{ "product_name": "Café", "quantity": 1_000_000, "unit_price": 100, "tax_rate": 21.0 }]
         });
-        let out = create_from_sale_pure(inp(payload, 6));
+        let out = create_from_sale_pure(inp(payload, 6)).unwrap();
         assert_eq!(out.operations[2].params["invoice_type"], json!("F2"));
         assert_eq!(out.operations[2].params["series"], json!("TICKET"));
     }
@@ -804,7 +875,7 @@ mod tests {
             "sale_id": "sale8",
             "items": [{ "product_name": "Café", "unit_price": 100, "tax_rate": 21.0 }]
         });
-        let out = create_from_sale_pure(inp(payload, 6));
+        let out = create_from_sale_pure(inp(payload, 6)).unwrap();
         let line = &out.operations[3].params;
         assert_eq!(line["quantity"], json!(1_000_000));
         assert_eq!(line["base_amount"], json!(100), "1 ud × 1,00 €");
@@ -817,8 +888,38 @@ mod tests {
             "sale_id": "sale7",
             "items": [{ "product_name": "Café", "quantity": 1_000_000, "unit_price": 100, "tax_rate": 21.0 }]
         });
-        let out = create_from_sale_pure(inp(payload, 6));
+        let out = create_from_sale_pure(inp(payload, 6)).unwrap();
         assert_eq!(out.operations[2].params["substitutes_invoice_id"], json!(""));
+    }
+
+    /// invoice#8 (hub#108): a nonexistent sale (empty read) must be REJECTED, not turned into a
+    /// zero invoice that burns a fiscal number.
+    #[test]
+    fn from_sale_rejects_nonexistent_sale_id() {
+        let payload = json!({ "sale_id": "__missing_sale__", "customer_name": "X", "items": [] });
+        let err = create_from_sale_pure(inp_no_sale(payload, 6)).unwrap_err();
+        assert!(err.starts_with("sale_not_found:"), "expected a rejection, got: {err}");
+    }
+
+    /// invoice#8: the rejection is not a silent no-op — it must NOT produce any operation (no
+    /// invoice row, no line, no series bump), which is what makes the whole command roll back.
+    #[test]
+    fn from_sale_rejection_persists_nothing() {
+        let payload = json!({
+            "sale_id": "__missing_sale__",
+            "items": [{ "product_name": "Café", "quantity": 1_000_000, "unit_price": 100, "tax_rate": 21.0 }]
+        });
+        assert!(
+            create_from_sale_pure(inp_no_sale(payload, 6)).is_err(),
+            "a missing sale must not yield an Output with operations"
+        );
+    }
+
+    /// invoice#8: without `sale_id` nothing is validated (manual/other origins do not require it).
+    #[test]
+    fn from_sale_without_sale_id_does_not_reject() {
+        let payload = json!({ "customer_name": "X", "items": [] });
+        assert!(create_from_sale_pure(inp(payload, 6)).is_ok());
     }
 
     // ── El desglose deja de ser «por tipo» y pasa a ser «por clave fiscal» (hub#292) ──────
@@ -841,7 +942,17 @@ mod tests {
         let ctx = input["context"].as_object_mut().unwrap();
         ctx.insert("country_code".into(), json!("ES"));
         ctx.insert("region_code".into(), json!(region));
-        ctx.insert("reads".into(), json!({ "taxes.rules.list": rules }));
+        // MERGE into the reads map, never replace it: `inp` may already have injected the
+        // `sales.get` row that makes a `create_from_sale` payload valid (invoice#8). Overwriting
+        // the whole map would silently turn every from_sale breakdown test into a `sale_not_found`
+        // rejection.
+        if !ctx.contains_key("reads") {
+            ctx.insert("reads".into(), json!({}));
+        }
+        ctx["reads"]
+            .as_object_mut()
+            .expect("reads is an object")
+            .insert("taxes.rules.list".into(), rules);
         input
     }
 
@@ -1036,7 +1147,7 @@ mod tests {
                         "tax_rate": 0.0, "tax_category_key": "service.health",
                         "net_amount": 5000, "tax_amount": 0 }]
         });
-        let d = desglose(&create_from_sale_pure(inp_rules(payload, 6, rules, "")));
+        let d = desglose(&create_from_sale_pure(inp_rules(payload, 6, rules, "")).unwrap());
         assert_eq!(d[0]["class"], json!("exempt"));
         assert_eq!(d[0]["exempt_reason"], json!("E1"));
     }
