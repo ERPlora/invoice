@@ -16,6 +16,7 @@
 //! update/delete de factura emitida; solo rectify).
 
 use erplora_guest_sdk::money;
+use erplora_guest_sdk::tax;
 use erplora_guest_sdk::units::QUANTITY_SCALE;
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
@@ -113,9 +114,6 @@ fn sor(p: &Value, k: &str, d: &str) -> String {
 // Sin catálogo, sin categoría o sin regla → venta nacional sujeta y no exenta, que es lo que
 // significaban las facturas de antes. Nunca se rompe una emisión por no poder calificar.
 
-/// Régimen por defecto: el general.
-const DEFAULT_REGIME: &str = "01";
-
 /// La calificación fiscal de una línea, ya resuelta. `regime`/`exempt_reason` son códigos de la
 /// jurisdicción y viajan OPACOS: este módulo no los interpreta, los copia.
 #[derive(Clone, PartialEq)]
@@ -139,7 +137,7 @@ impl FiscalKey {
     fn nacional(rate: f64) -> Self {
         FiscalKey {
             kind: "vat".to_string(),
-            regime: DEFAULT_REGIME.to_string(),
+            regime: tax::DEFAULT_REGIME.to_string(),
             class: "subject".to_string(),
             exempt_reason: String::new(),
             rate,
@@ -157,134 +155,37 @@ struct DesgloseLine {
     surcharge_quota: i64,
 }
 
-/// Filas del catálogo de reglas fiscales pre-cargado por el runtime. Desenvuelve tanto el array
-/// directo como la forma paginada `{"rows":[…]}` — misma tolerancia que `sales`.
-fn rule_catalog(context: &Value) -> Vec<&Value> {
-    let Some(node) = context.get("reads").and_then(|r| r.get("taxes.rules.list")) else {
-        return Vec::new();
-    };
-    match node {
-        Value::Array(a) => a.iter().collect(),
-        Value::Object(_) => node
-            .get("rows")
-            .and_then(|v| v.as_array())
-            .map(|a| a.iter().collect())
-            .unwrap_or_default(),
-        _ => Vec::new(),
-    }
-}
-
-fn rule_field(rule: &Value, k: &str) -> String {
-    s(rule.get(k).unwrap_or(&Value::Null))
-}
-
-fn rule_active(rule: &Value) -> bool {
-    match rule.get("is_active") {
-        None | Some(Value::Null) => true,
-        Some(Value::Bool(b)) => *b,
-        Some(Value::Number(n)) => n.as_i64().unwrap_or(0) != 0,
-        Some(Value::String(x)) => matches!(x.as_str(), "1" | "true" | "True" | "yes"),
-        _ => false,
-    }
-}
-
-fn rule_valid_on(rule: &Value, date: &str) -> bool {
-    if date.is_empty() {
-        return true;
-    }
-    let from = rule_field(rule, "valid_from");
-    let until = rule_field(rule, "valid_to");
-    (from.is_empty() || from.as_str() <= date) && (until.is_empty() || until.as_str() >= date)
-}
-
-/// Resuelve la regla RAÍZ aplicable a `(cc, rc, cat, date)`. Precedencia: región exacta → regla de
-/// país (región vacía/NULL). Dentro de un nivel, la `valid_from` más reciente, luego `id`.
-///
-/// Réplica de `taxes::resolve_root` / `sales::resolve_root` — los guests WASM no pueden llamarse
-/// entre sí, así que la regla de precedencia vive escrita tres veces. Si diverge, divergen el
-/// precio cobrado y el impuesto declarado, así que los tres tienen el mismo test de región.
-fn resolve_root<'a>(rules: &[&'a Value], cc: &str, rc: &str, cat: &str, date: &str) -> Option<&'a Value> {
-    let eligible: Vec<&Value> = rules
-        .iter()
-        .copied()
-        .filter(|r| {
-            rule_field(r, "parent_id").is_empty()
-                && rule_active(r)
-                && rule_valid_on(r, date)
-                && rule_field(r, "country_code").eq_ignore_ascii_case(cc)
-                && rule_field(r, "tax_category_key") == cat
-        })
-        .collect();
-    let pick = |mut rows: Vec<&'a Value>| -> Option<&'a Value> {
-        rows.sort_by(|a, b| {
-            rule_field(b, "valid_from")
-                .cmp(&rule_field(a, "valid_from"))
-                .then_with(|| rule_field(a, "id").cmp(&rule_field(b, "id")))
-        });
-        rows.first().copied()
-    };
-    if !rc.is_empty() {
-        if let Some(r) = pick(
-            eligible.iter().copied()
-                .filter(|r| rule_field(r, "region_code").eq_ignore_ascii_case(rc))
-                .collect(),
-        ) {
-            return Some(r);
-        }
-    }
-    pick(eligible.iter().copied().filter(|r| rule_field(r, "region_code").is_empty()).collect())
-        .or_else(|| pick(eligible.clone()))
-}
+// ── La regla de impuesto: UNA sola implementación (hub#295) ──────────────────
+//
+// Reading the catalog, resolving the root rule and qualifying the operation live in
+// `erplora_guest_sdk::tax`. They used to be copied here, in `taxes` and in `sales`; WASM guests
+// cannot call each other, so the three copies were kept in step by hand — and had already
+// drifted: this module copied any `operation_class` verbatim into the breakdown while `taxes`
+// clamped it to the closed list, which is exactly "charge one thing, declare another".
 
 /// Clave fiscal de una línea. `rate_hint` es el tipo congelado en la línea (el que se respeta
 /// cuando no hay regla que resolver).
 fn fiscal_key(item: &Value, rules: &[&Value], cc: &str, rc: &str, date: &str, rate_hint: f64) -> FiscalKey {
     let cat = s(item.get("tax_category_key").unwrap_or(&Value::Null));
-    let Some(root) = (if cat.is_empty() { None } else { resolve_root(rules, cc, rc, &cat, date) })
+    let Some(root) = (if cat.is_empty() { None } else { tax::resolve_root(rules, cc, rc, &cat, date) })
     else {
         return FiscalKey::nacional(rate_hint);
     };
 
     // El recargo de equivalencia es un COMPONENTE de la regla del IVA (`parent_id` = raíz): aporta
     // cuota sobre la misma base, pero no es otra operación ni otro tipo. Va DENTRO de la línea.
-    let root_id = rule_field(root, "id");
-    let surcharge: f64 = rules
-        .iter()
-        .copied()
-        .filter(|r| {
-            !rule_field(r, "id").is_empty()
-                && rule_field(r, "parent_id") == root_id
-                && rule_active(r)
-                && rule_valid_on(r, date)
-        })
-        .map(|r| f(r.get("rate_pct").unwrap_or(&Value::Null), 0.0))
-        .sum();
+    let components = tax::rule_components(root, rules, date);
+    let surcharge: f64 = components.iter().skip(1).map(|c| c.rate_pct).sum();
 
-    let class = {
-        let c = rule_field(root, "operation_class").trim().to_ascii_lowercase();
-        if c.is_empty() { "subject".to_string() } else { c }
-    };
-    let exempt_reason = if class == "exempt" {
-        rule_field(root, "exempt_reason").trim().to_ascii_uppercase()
-    } else {
-        String::new()
-    };
-    let kind = {
-        let k = rule_field(root, "tax_type").trim().to_ascii_lowercase();
-        if k.is_empty() { "vat".to_string() } else { k }
-    };
-    let regime = {
-        let r = rule_field(root, "regime_key").trim().to_string();
-        if r.is_empty() { DEFAULT_REGIME.to_string() } else { r }
-    };
+    let qualification = tax::rule_qualification(root);
     FiscalKey {
-        kind,
-        regime,
-        class,
-        exempt_reason,
+        kind: qualification.tax_kind,
+        regime: qualification.regime_key,
+        class: qualification.operation_class,
+        exempt_reason: qualification.exempt_reason,
         // El tipo DECLARADO es el de la raíz. La línea trae la tasa combinada (21 + 5,2 = 26,2)
         // porque es lo que se le cobró al cliente, pero 26,2 no es un tipo que exista.
-        rate: f(root.get("rate_pct").unwrap_or(&Value::Null), rate_hint),
+        rate: tax::rule_rate_pct(root, rate_hint),
         surcharge_rate: surcharge,
         has_surcharge: surcharge > 0.0,
     }
@@ -486,7 +387,7 @@ fn build_invoice(
         "sender": "invoice", "invoice_id": invoice_id,
         "invoice_type": inv_type, "total": base_total + tax_total, // céntimos (contrato inter-módulo)
     }));
-    Output { operations: ops, events: vec![event] }
+    Output { operations: ops, events: vec![event], ..Default::default() }
 }
 
 /// Lo que hace falta para CALIFICAR una línea: el catálogo de reglas pre-cargado y la identidad
@@ -503,7 +404,10 @@ impl FiscalContext {
     fn from_input(input: &Value, now: &str) -> Self {
         let context = input.get("context").cloned().unwrap_or(Value::Null);
         FiscalContext {
-            rules: rule_catalog(&context).into_iter().cloned().collect(),
+            // `&Value::Null` as the payload fallback ON PURPOSE: only `taxes.calculate` lets a
+            // caller hand its own catalog for an ad-hoc calculation. What is DECLARED comes from
+            // the hub's own rules or from nothing.
+            rules: tax::rule_catalog(&context, &Value::Null).into_iter().cloned().collect(),
             country: s(context.get("country_code").unwrap_or(&Value::Null)),
             region: s(context.get("region_code").unwrap_or(&Value::Null)),
             date: now.chars().take(10).collect(),
@@ -1170,5 +1074,97 @@ mod tests {
         let rates = |d: &[Value]| d.iter().map(|e| e["rate"].as_f64().unwrap()).collect::<Vec<_>>();
         assert_eq!(rates(&d1), rates(&d2));
         assert_eq!(rates(&d1), vec![21.0, 10.0], "tipo descendente");
+    }
+
+    // ── El contrato COMPARTIDO de la regla (hub#295) ──────────────────────────
+    //
+    // The same fixture is replayed by `taxes` (the `taxes.calculate` contract) and by `sales`
+    // (what the customer is CHARGED). The three entry points resolve it through
+    // `erplora_guest_sdk::tax`, so what is charged there and what is DECLARED here cannot drift
+    // apart any more — which is the whole failure mode: a ticket that says 21 % and a fiscal
+    // record that says something else.
+
+    /// The catalog the three entry points share in their tests (hub#295).
+    fn shared_fixture_rules() -> Value {
+        json!([
+            {"id": "es-vat-21", "country_code": "ES", "region_code": null, "tax_category_key": "standard",
+             "rate_pct": 21.0, "tax_type": "vat", "parent_id": null, "valid_from": "2012-09-01"},
+            {"id": "es-vat-21-surcharge", "parent_id": "es-vat-21", "country_code": "ES", "region_code": null,
+             "tax_category_key": "standard", "rate_pct": 5.2, "tax_type": "surcharge"},
+            {"id": "es-cn-igic-7", "country_code": "ES", "region_code": "CN", "tax_category_key": "standard",
+             "rate_pct": 7.0, "tax_type": "IGIC", "parent_id": null},
+            {"id": "es-vat-10", "country_code": "ES", "region_code": null, "tax_category_key": "restaurant.food",
+             "rate_pct": 10.0, "tax_type": "vat", "parent_id": null},
+            {"id": "es-exempt-health", "country_code": "ES", "region_code": null,
+             "tax_category_key": "health.treatment", "rate_pct": 0.0, "tax_type": "vat", "parent_id": null,
+             "operation_class": "exempt", "exempt_reason": "e1"},
+            {"id": "es-broken-class", "country_code": "ES", "region_code": null,
+             "tax_category_key": "broken.class", "rate_pct": 21.0, "tax_type": "vat", "parent_id": null,
+             "operation_class": "exent"}
+        ])
+    }
+
+    /// Declares one 100,00 € net line of `category` in `region` against the shared fixture and
+    /// returns its single breakdown entry.
+    fn shared_declaration(category: &str, region: &str, rate_hint: f64) -> Value {
+        let payload = json!({
+            "series_code": "FACT",
+            "items": [{ "description": "Item", "quantity": 1_000_000, "unit_price": 10000,
+                        "tax_rate": rate_hint, "tax_category_key": category }]
+        });
+        let d = desglose(&create_invoice_pure(inp_rules(payload, 8, shared_fixture_rules(), region)));
+        assert_eq!(d.len(), 1, "one fiscal key per scenario: {d:?}");
+        d[0].clone()
+    }
+
+    #[test]
+    fn the_shared_fixture_declares_what_the_other_entry_points_charge() {
+        let peninsula = shared_declaration("standard", "", 26.2);
+        assert_eq!(peninsula["tax"], json!("vat"));
+        assert_eq!(peninsula["rate"], json!(21.0), "the DECLARED rate is the root's, not 26.2");
+        assert_eq!(peninsula["surcharge_rate"], json!(5.2));
+        assert_eq!(peninsula["class"], json!("subject"));
+
+        let canaries = shared_declaration("standard", "CN", 7.0);
+        assert_eq!(canaries["tax"], json!("igic"));
+        assert_eq!(canaries["rate"], json!(7.0));
+
+        let reduced = shared_declaration("restaurant.food", "", 10.0);
+        assert_eq!(reduced["rate"], json!(10.0));
+
+        let exempt = shared_declaration("health.treatment", "", 0.0);
+        assert_eq!(exempt["class"], json!("exempt"));
+        assert_eq!(exempt["exempt_reason"], json!("E1"), "the reason is normalised, not copied");
+        assert_eq!(exempt["quota"], json!(0));
+    }
+
+    #[test]
+    fn a_qualification_that_does_not_exist_is_never_declared() {
+        // THE divergence hub#295 is about. `taxes` clamped anything outside the closed list to
+        // `subject`; this module only defaulted the EMPTY value and copied any other string
+        // verbatim into the breakdown. A typo in one rule row meant charging a plain domestic
+        // sale and declaring a class the tax authority does not know — and the rejection arrives
+        // with the invoice number already spent in the chain.
+        let broken = shared_declaration("broken.class", "", 21.0);
+        assert_eq!(broken["class"], json!("subject"));
+        assert_eq!(broken["rate"], json!(21.0));
+    }
+
+    #[test]
+    fn a_rule_catalog_delivered_under_the_alias_read_is_honoured() {
+        // `taxes.rules.by_country` is a real query of the `taxes` module and `taxes.calculate`
+        // read it. This module only looked at `taxes.rules.list`, so the same pre-load left the
+        // invoice declaring a plain domestic sale from the line's frozen rate.
+        let payload = json!({
+            "series_code": "FACT",
+            "items": [{ "description": "Item", "quantity": 1_000_000, "unit_price": 10000,
+                        "tax_rate": 21.0, "tax_category_key": "standard" }]
+        });
+        let mut input = inp_rules(payload, 8, json!([]), "CN");
+        input["context"]["reads"] =
+            json!({ "taxes.rules.by_country": shared_fixture_rules() });
+        let d = desglose(&create_invoice_pure(input));
+        assert_eq!(d[0]["tax"], json!("igic"));
+        assert_eq!(d[0]["rate"], json!(7.0));
     }
 }
