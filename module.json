@@ -343,7 +343,11 @@
       "sale.completed": {
         "command": "invoice.create_from_sale"
       }
-    }
+    },
+    "emits": [
+      "invoice.created",
+      "invoice.rectified"
+    ]
   },
   "ui": {
     "entry": "dist/invoice.esm.js"
