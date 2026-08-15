@@ -1,0 +1,92 @@
+# Invoicing — Limits and troubleshooting
+
+## Known gaps you should know about
+
+**The "ask for an invoice for this ticket" button does not exist yet.** The substitution command
+works, but the Invoices screen does not offer it. Until it is wired, an F3 has to be issued through
+the API.
+
+**Every sale is invoiced as F2.** The sale's choice of ticket versus full invoice does not travel in
+the event, so an invoice created from a sale is always a simplified F2 in the `TICKET` series. To get
+a full invoice for that sale, issue a substituting F3.
+
+**An invoice line stores the rate and the category, but not the country, region or rule id.** Only
+two of the sale's five frozen fiscal fields travel in the event.
+
+## Errors and refusals
+
+| Situation | What happens | What to do |
+|---|---|---|
+| Marking a `draft`, `paid` or `cancelled` invoice as paid | Nothing changes — only `issued` invoices can be marked paid | Check the status first |
+| Rectifying an already-rectifying or cancelled invoice | The action is not offered | You cannot rectify a rectification |
+| Issuing a second F3 for the same F2 | Resolves to the existing F3 | One substitution per ticket, by design |
+| The same sale event delivered twice | Resolves to the existing invoice | Idempotent by source; nothing to do |
+| Creating a series whose code and year already exist | Rejected | Codes are unique per hub and year |
+| Trying to change a series' code, year or counter | Not accepted | Those are the fiscal identity of the numbering |
+| Creating an invoice with no lines | Rejected | At least one line is required |
+
+## Caps and sizes
+
+| Limit | Value |
+|---|---|
+| Rows per page (invoices, series) | 50 |
+| Maximum rows a paginated request may ask for | 500 |
+| Invoices per sale | 1 |
+| Substituting invoices per ticket | 1 |
+| Default series list sort | invoices by id ascending; series by name ascending |
+
+## Permissions per action
+
+| To do this | You need |
+|---|---|
+| See invoices, their lines and the series | `invoice.view_invoice` |
+| Create an invoice, create one from a sale, issue a substitution, mark one paid | `invoice.add_invoice` |
+| Issue a rectifying invoice | `invoice.rectify_invoice` |
+| Create or change a numbering series | `invoice.manage_series` |
+| Change the module settings | `invoice.manage_settings` |
+
+By role: **admin** has everything. **manager** has everything except `manage_settings`. **employee**
+can only **see** invoices and **create** them — an employee **cannot rectify** an invoice and cannot
+touch the series.
+
+## Dependencies — what breaks if something is missing
+
+**`taxes` and `sales` are required** and are installed automatically with Invoicing. You cannot
+uninstall either while Invoicing is installed.
+
+- Without `sales`, nothing emits `sale.completed`, so no invoice is ever created automatically. Manual
+  invoices still work.
+- Without `taxes`, the rule catalogue cannot be read and the breakdown falls back to treating the
+  operation as a plain domestic taxable sale. **The amounts do not change**, but the fiscal
+  qualification is generic — which matters if you actually sell something exempt.
+
+**`verifactu` is optional but expected in Spain.** Without it, invoices are issued but nothing is
+reported to the tax authority.
+
+## When something looks wrong
+
+**"I sold something and no invoice appeared."** Check that Invoicing is installed and that `sales` is
+emitting. Note the invoice is created by the event, not by the sale screen — it may take a moment.
+
+**"There are two invoices for one sale."** There cannot be; the origin makes it idempotent. If you see
+two, check their source: one is probably a manual invoice or a substitution.
+
+**"I need to change an amount on an invoice."** You cannot. Rectify it and issue a correct one.
+
+**"I rectified an invoice and the original is still visible."** That is correct. It is marked
+`cancelled` and stays in the record. Fiscal history is never removed.
+
+**"The customer wants an invoice and I already gave them a ticket."** Do **not** rectify — nothing was
+wrong. Issue a substituting F3.
+
+**"The numbering has a gap."** The counter only moves forward and never rewinds, so a gap means an
+attempt that did not complete. Do not try to reuse the number; that is worse than the gap.
+
+**"The counter restarted at 1."** A new year starts a new counter for the same series code. That is
+correct.
+
+**"Two series are both marked default."** They cannot be for the same year. Check the year column —
+each year has its own default.
+
+**"A 0 % line looks the same as an exempt line."** In the breakdown they are not the same, and should
+not be. Check the operation class and the exemption reason on the entry, not just the rate.
