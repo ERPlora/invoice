@@ -1,5 +1,6 @@
 {
   "name": "Facturación",
+  "description": "Emite facturas a partir de las ventas, márcalas como cobradas y emite facturas rectificativas.",
   "navigation": {
     "invoice": {
       "label": "Facturas"
