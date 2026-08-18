@@ -61,6 +61,8 @@
     "lineTaxPct": "Tax %",
     "lineBase": "Base",
     "lineTax": "Tax",
+    "taxSurcharge": "Eq. surcharge",
+    "taxSurchargeLong": "Equivalence surcharge",
     "lineTotal": "Total",
     "noLines": "No line items.",
     "totalBase": "Base",

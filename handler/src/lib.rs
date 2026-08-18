@@ -134,15 +134,17 @@ struct FiscalKey {
 
 impl FiscalKey {
     /// La clave de una línea sin catálogo: venta nacional, régimen general, sujeta y no exenta.
-    fn nacional(rate: f64) -> Self {
+    /// `surcharge_rate` is honoured when the item itself carries it (a new-generation line replayed
+    /// into an F3, invoice#21): without a catalog it is the only source that says there was one.
+    fn nacional(rate: f64, surcharge_rate: f64) -> Self {
         FiscalKey {
             kind: "vat".to_string(),
             regime: tax::DEFAULT_REGIME.to_string(),
             class: "subject".to_string(),
             exempt_reason: String::new(),
             rate,
-            surcharge_rate: 0.0,
-            has_surcharge: false,
+            surcharge_rate,
+            has_surcharge: surcharge_rate > 0.0,
         }
     }
 }
@@ -183,8 +185,9 @@ fn resolved_fiscal_key(item: &Value, rules: &[&Value], cc: &str, rc: &str, date:
         regime: qualification.regime_key,
         class: qualification.operation_class,
         exempt_reason: qualification.exempt_reason,
-        // El tipo DECLARADO es el de la raíz. La línea trae la tasa combinada (21 + 5,2 = 26,2)
-        // porque es lo que se le cobró al cliente, pero 26,2 no es un tipo que exista.
+        // The DECLARED rate is the root's. The sale sends the combined 21 + 5.2 = 26.2 (what the
+        // customer was charged), but 26.2 is not a rate that exists — neither in the breakdown nor,
+        // since invoice#21, on the persisted line (`tax_rate` = main, `surcharge_rate` apart).
         rate: tax::rule_rate_pct(root, rate_hint),
         surcharge_rate: surcharge,
         has_surcharge: surcharge > 0.0,
@@ -258,6 +261,10 @@ fn build_invoice(
         let qty = item.get("quantity").map(|v| as_qty(v, QUANTITY_SCALE)).unwrap_or(QUANTITY_SCALE);
         let unit_price = money::from_json(item.get("unit_price").unwrap_or(&Value::Null), 0);
         let rate_hint = item.get("tax_rate").map(|v| f(v, 0.0)).unwrap_or(0.0); // tasa % del llamante
+        // invoice#21: a new-generation line (F3 replay of an F2 issued after this change) carries
+        // its surcharge apart. Legacy lines / callers do not send it → 0 (the combined rate, if any,
+        // is still inside `tax_rate` and only a resolved rule can split it).
+        let surcharge_hint = item.get("surcharge_rate").map(|v| f(v, 0.0)).unwrap_or(0.0);
         // Clave fiscal de la línea (hub#292): qué impuesto, régimen y calificación. Se resuelve del
         // catálogo por la categoría fiscal congelada en la línea; sin catálogo/categoría/regla cae
         // a venta nacional sujeta y no exenta, que es lo que declaraban las facturas de antes.
@@ -267,8 +274,8 @@ fn build_invoice(
         // calculados por sales.calc_line), se RESPETAN — NO se vuelve a sumar IVA
         // sobre el bruto (bug D1). Solo cuando NO vienen (factura manual,
         // precios IVA-EXCLUIDO) se calcula base = qty*unit_price y tax = base*rate.
-        let (base, tax, rate) = match (item.get("base_amount"), item.get("tax_amount")) {
-            (Some(b), Some(t)) => (money::from_json(b, 0), money::from_json(t, 0), rate_hint),
+        let (base, tax) = match (item.get("base_amount"), item.get("tax_amount")) {
+            (Some(b), Some(t)) => (money::from_json(b, 0), money::from_json(t, 0)),
             _ => {
                 // Factura MANUAL (IVA no incluido): base = precio × cantidad, IVA encima.
                 //
@@ -279,7 +286,7 @@ fn build_invoice(
                 // all there is and it is honoured as before.
                 let rate = match &resolved {
                     Some(k) => k.rate + k.surcharge_rate,
-                    None => rate_hint,
+                    None => rate_hint + surcharge_hint,
                 };
                 //
                 // OJO: aquí la cuota se sigue redondeando POR LÍNEA, no por tipo — y es DELIBERADO.
@@ -293,14 +300,16 @@ fn build_invoice(
                 let rd = Decimal::from_f64(rate).unwrap_or(Decimal::ZERO);
                 let base = money::mul_qty(unit_price, qd);
                 let tax = money::percent_of(base, rd);
-                (base, tax, rate)
+                (base, tax)
             }
         };
         let total = base + tax;
         base_total += base;
         tax_total += tax;
 
-        let key = resolved.unwrap_or_else(|| FiscalKey::nacional(rate));
+        let key = resolved.unwrap_or_else(|| FiscalKey::nacional(rate_hint, surcharge_hint));
+        // Frozen on the line BEFORE `key` moves into the breakdown (invoice#21, see the insert below).
+        let (line_rate, line_surcharge_rate) = (key.rate, key.surcharge_rate);
         // El recargo se separa de la cuota SIN recalcular el total: la cuota de la línea es la que
         // se cobró (contrato D1), y de ella sale el recargo por su tipo; el resto es el impuesto
         // principal. Así 2100 + 520 siguen sumando exactamente los 2620 cobrados.
@@ -327,7 +336,13 @@ fn build_invoice(
         p.insert("description".into(), json!(s(item.get("description").unwrap_or(&Value::Null))));
         p.insert("quantity".into(), json!(qty)); // punto fijo 10⁶ (INTEGER, ADR-0147)
         p.insert("unit_price".into(), json!(unit_price)); // céntimos
-        p.insert("tax_rate".into(), json!(rate));         // tasa % (REAL)
+        // invoice#21: the line freezes the MAIN rate and the surcharge apart. Under equivalence
+        // surcharge the sale sends the combined 26.2 (21 + 5.2) — that is a sum, not a rate that
+        // exists, and grouping by it reproduced the bug ADR-0186 fixed in the breakdown. What is
+        // charged (`tax_amount`) does not move. `surcharge_rate` is ALWAYS written (0 when none):
+        // NULL marks the legacy generation, whose `tax_rate` may still be a combined sum.
+        p.insert("tax_rate".into(), json!(line_rate));                 // tasa % del impuesto principal (REAL)
+        p.insert("surcharge_rate".into(), json!(line_surcharge_rate)); // tasa % del recargo (REAL, 0 = sin recargo)
         // Categoría fiscal congelada de la línea (ADR-0085); NULL en factura manual sin categoría.
         p.insert("tax_category_key".into(), item.get("tax_category_key").cloned().unwrap_or(Value::Null));
         p.insert("base_amount".into(), json!(base));      // céntimos
@@ -1149,7 +1164,85 @@ mod tests {
         assert_eq!(d[0]["quota"], json!(2100));
         assert_eq!(d[0]["surcharge_quota"], json!(520));
         assert_eq!(out.operations[2].params["tax_amount"], json!(2620));
-        assert_eq!(out.operations[3].params["tax_rate"], json!(26.2));
+        // invoice#21: the LINE freezes the main rate and the surcharge apart — 26.2 is a sum, not a rate.
+        assert_eq!(out.operations[3].params["tax_rate"], json!(21.0));
+        assert_eq!(out.operations[3].params["surcharge_rate"], json!(5.2));
+        quotas_add_up(&out);
+    }
+
+    // ── invoice#21: the line stores the main rate + `surcharge_rate`, never the combined sum ──
+    //
+    // The breakdown already separated 21 / 5.2 (ADR-0186) but `invoice_invoiceitem.tax_rate` kept
+    // the combined 26.2 that arrives from the sale. 26.2 is not a rate that exists; any consumer
+    // grouping by `line.tax_rate` reproduced the bug the breakdown had fixed. Lines issued before
+    // this change carry `surcharge_rate = NULL` (legacy generation: `tax_rate` MAY be a sum); new
+    // lines always carry a non-null `surcharge_rate` (0 when there is none) — that is how a reader
+    // tells the two generations apart without rewriting a frozen fiscal row.
+
+    fn surcharge_rules() -> Value {
+        json!([
+            { "id": "r-21", "country_code": "ES", "region_code": null,
+              "tax_category_key": "product.generic", "rate_pct": 21.0, "tax_type": "vat",
+              "parent_id": null, "is_active": 1, "regime_key": "01" },
+            { "id": "r-21-re", "country_code": "ES", "region_code": null,
+              "tax_category_key": "product.generic", "rate_pct": 5.2, "tax_type": "surcharge",
+              "parent_id": "r-21", "is_active": 1, "component_label": "Recargo de equivalencia" }
+        ])
+    }
+
+    #[test]
+    fn a_line_from_a_sale_under_surcharge_persists_the_main_rate_and_the_surcharge_apart() {
+        // `sales` sends the combined 26.2 and the total quota (D1 contract). The breakdown splits
+        // them; the LINE must persist the same split, not the sum.
+        let payload = json!({
+            "series_code": "FACT",
+            "items": [{ "description": "Producto", "quantity": 1_000_000, "unit_price": 10000,
+                        "tax_rate": 26.2, "tax_category_key": "product.generic",
+                        "base_amount": 10000, "tax_amount": 2620 }]
+        });
+        let out = create_invoice_pure(inp_rules(payload, 8, surcharge_rules(), ""));
+        let line = &out.operations[3].params;
+        assert_eq!(line["tax_rate"], json!(21.0), "the line rate is the MAIN tax rate");
+        assert_eq!(line["surcharge_rate"], json!(5.2), "the surcharge has its own column");
+        assert_eq!(line["tax_amount"], json!(2620), "the charged quota does not move");
+        quotas_add_up(&out);
+    }
+
+    #[test]
+    fn a_line_without_surcharge_persists_surcharge_rate_zero_not_null() {
+        // A non-null `surcharge_rate` is the marker of the new generation: NULL = legacy row whose
+        // `tax_rate` may still be a combined sum.
+        let out = create_invoice_pure(inp(
+            json!({ "series_code": "FACT",
+                    "items": [{ "description": "Servicio", "quantity": 1_000_000, "unit_price": 10000, "tax_rate": 21.0 }] }),
+            8,
+        ));
+        let line = &out.operations[3].params;
+        assert_eq!(line["tax_rate"], json!(21.0));
+        assert_eq!(line["surcharge_rate"], json!(0.0));
+    }
+
+    #[test]
+    fn a_new_generation_line_replayed_without_a_catalog_keeps_its_surcharge() {
+        // F3 substitution (ADR-0140) replays the F2 lines as items. A new-generation line carries
+        // `tax_rate: 21` + `surcharge_rate: 5.2`; without a catalog the fallback must NOT drop the
+        // surcharge from the declaration (that would declare 21 % over a quota of 26.2 %).
+        let payload = json!({
+            "series_code": "FACT",
+            "items": [{ "description": "Producto", "quantity": 1_000_000, "unit_price": 10000,
+                        "tax_rate": 21.0, "surcharge_rate": 5.2,
+                        "base_amount": 10000, "tax_amount": 2620 }]
+        });
+        let out = create_invoice_pure(inp(payload, 8));
+        let d = desglose(&out);
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0]["rate"], json!(21.0));
+        assert_eq!(d[0]["surcharge_rate"], json!(5.2));
+        assert_eq!(d[0]["quota"], json!(2100));
+        assert_eq!(d[0]["surcharge_quota"], json!(520));
+        let line = &out.operations[3].params;
+        assert_eq!(line["tax_rate"], json!(21.0));
+        assert_eq!(line["surcharge_rate"], json!(5.2));
         quotas_add_up(&out);
     }
 

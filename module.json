@@ -60,7 +60,8 @@
       "migrations/postgres/002_tax_category_key.sql",
       "migrations/postgres/003_substitution.sql",
       "migrations/postgres/004_quantity_fixed_point.sql",
-      "migrations/postgres/005_substitution_unique.sql"
+      "migrations/postgres/005_substitution_unique.sql",
+      "migrations/postgres/006_line_surcharge_rate.sql"
     ]
   },
   "queries": {

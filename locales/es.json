@@ -62,6 +62,8 @@
     "lineTaxPct": "IVA %",
     "lineBase": "Base",
     "lineTax": "Impuesto",
+    "taxSurcharge": "RE",
+    "taxSurchargeLong": "Recargo de equivalencia",
     "lineTotal": "Total",
     "noLines": "Sin líneas de detalle.",
     "totalBase": "Base",
