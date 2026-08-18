@@ -15,8 +15,10 @@ Everything else in the module follows from that.
 - **It does not edit or delete invoices.** There is no such command, on purpose (RD 1007/2023).
 - **It does not report anything to the tax authority.** It emits `invoice.created`; `verifactu`
   builds and sends the fiscal record.
-- **It does not compute tax rates.** It reuses the amounts and the rate the sale already froze, and
-  reads the rule catalogue only to qualify the breakdown.
+- **It does not second-guess the sale.** For an invoice created from a sale it reuses the amounts
+  and the rate the sale already froze, and reads the rule catalogue only to qualify the breakdown.
+  For a manual invoice with a tax category, the rate comes from the resolved rule, not from the
+  caller.
 - **It does not record how something was paid.** Marking an invoice paid stores the date, not a
   payment method.
 - **It does not print or email documents.** That belongs to `printing` and to the sale document view.
