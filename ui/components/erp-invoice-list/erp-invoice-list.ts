@@ -10,6 +10,7 @@ import { createListController, eurosToCents } from '@erplora/module-sdk';
 import type { ListController, ListClient, ListParams, ListPage } from '@erplora/module-sdk';
 // Aduana de la escala de cantidades (ADR-0147): la UI habla lógico (0,5), el cable habla µ (500000).
 import { QUANTITY_SCALE, parseQuantity, formatQuantity, fromMicro } from '../../lib/quantity';
+import { lineTaxLabel } from '../../lib/line-tax';
 // Catálogo i18n del módulo (ADR-0055): esbuild inlinea estos JSON en el `dist` del WC. Los textos
 // internos se resuelven con `erplora.t(CATALOG, 'ui.clave')` (idioma activo, fallback locale→en→clave).
 import esLocale from '../../../locales/es.json';
@@ -51,6 +52,9 @@ interface InvoiceDetail extends Invoice {
 interface InvoiceLine {
   id: string; line_number: number; description: string; quantity: number; unit_price: number;
   tax_rate: number; base_amount: number; tax_amount: number; total_amount: number;
+  /** invoice#21: equivalence surcharge apart from `tax_rate` (main rate). NULL = legacy row whose
+   *  `tax_rate` may still be the combined sum; painted as frozen (see `lib/line-tax.ts`). */
+  surcharge_rate?: number | null;
   product_id: string | null;
 }
 
@@ -483,7 +487,7 @@ export class ErpInvoiceList extends LitElement {
         // (el cliente tiene que ver los dos importes) aunque en el registro fiscal vaya dentro.
         if (e.surcharge_rate != null) {
           const sr = Number(e.surcharge_rate);
-          out.push({ label: `Recargo de equivalencia ${pct(sr)}%`, rate: sr, base, amount: Number(e.surcharge_quota ?? 0) });
+          out.push({ label: `${erploraT('ui.taxSurchargeLong')} ${pct(sr)}%`, rate: sr, base, amount: Number(e.surcharge_quota ?? 0) });
         }
       }
     } else if (parsed && typeof parsed === 'object') {
@@ -617,7 +621,7 @@ export class ErpInvoiceList extends LitElement {
           <thead><tr><th>#</th><th>${erploraT('ui.lineDescription')}</th><th>${erploraT('ui.lineQty')}</th><th>${erploraT('ui.linePrice')}</th><th>${erploraT('ui.lineTaxPct')}</th><th>${erploraT('ui.lineBase')}</th><th>${erploraT('ui.lineTax')}</th><th>${erploraT('ui.lineTotal')}</th></tr></thead>
           <tbody>${this.detailLines.map((l) => html`<tr>
             <td>${l.line_number}</td><td>${l.description}</td><td>${formatQuantity(Number(l.quantity) || 0)}</td>
-            <td>${fmtDoc(l.unit_price, d.currency)}</td><td>${num(l.tax_rate)}%</td>
+            <td>${fmtDoc(l.unit_price, d.currency)}</td><td>${lineTaxLabel(l, erploraT)}</td>
             <td>${fmtDoc(l.base_amount, d.currency)}</td><td>${fmtDoc(l.tax_amount, d.currency)}</td><td>${fmtDoc(l.total_amount, d.currency)}</td>
           </tr>`)}</tbody>
         </table>` : html`<p>${erploraT('ui.noLines')}</p>`}

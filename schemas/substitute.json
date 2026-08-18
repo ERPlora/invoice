@@ -49,6 +49,10 @@
           "tax_rate": {
             "type": "number"
           },
+          "surcharge_rate": {
+            "type": "number",
+            "minimum": 0
+          },
           "base_amount": {
             "type": "integer"
           },

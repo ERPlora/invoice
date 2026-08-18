@@ -4,7 +4,7 @@
   "properties": {
     "items": { "type": "array", "items": { "type": "object", "required": ["description","quantity","unit_price"],
       "properties": { "description":{"type":"string"}, "quantity":{"type":"integer","minimum":1},
-        "unit_price":{"type":"integer","minimum":0}, "tax_rate":{"type":"number"}, "product_id":{"type":["string","null"]},
+        "unit_price":{"type":"integer","minimum":0}, "tax_rate":{"type":"number"}, "surcharge_rate":{"type":"number","minimum":0}, "product_id":{"type":["string","null"]},
         "tax_category_key":{"type":["string","null"]} } } },
     "series_code": {"type":"string"}, "invoice_type": {"type":"string"},
     "issuer_nif": {"type":"string"}, "issuer_name": {"type":"string"},

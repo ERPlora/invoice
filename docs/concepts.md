@@ -96,6 +96,17 @@ legal reasons, and the tax authority needs to know which.
 The fiscal record sent to the authority is built from this list **verbatim**. Invoices issued before
 this change keep the old rate-keyed shape and are still read correctly.
 
+## The line stores the rate and the surcharge apart
+
+Under the equivalence surcharge the sale charges a combined 26.2 % (21 % VAT + 5.2 % surcharge).
+That is a sum, not a tax rate, so an invoice line freezes them **separately**: `tax_rate` is the main
+rate and `surcharge_rate` the surcharge (0 when there is none). The breakdown and the lines now say
+the same thing.
+
+Lines issued before this change are not rewritten (a fiscal row is frozen): they have no
+`surcharge_rate` at all, and their `tax_rate` may still be that combined sum. Readers tell the two
+generations apart by that absence and show the old ones exactly as they were frozen.
+
 ## Status is a small, one-way ladder
 
 `draft` → `issued` → `paid`, or `issued` → `cancelled` when a rectification cancels it.

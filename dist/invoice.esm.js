@@ -942,7 +942,7 @@ var g = class extends (globalThis.HTMLElement ?? HTMLElementShimWithRealType) {
 };
 g.elementStyles = [], g.shadowRootOptions = { mode: "open" }, g[f("elementProperties")] = /* @__PURE__ */ new Map(), g[f("finalized")] = /* @__PURE__ */ new Map(), u?.({ ReactiveElement: g }), (l.reactiveElementVersions ??= []).push("2.1.2");
 
-// ../module-toolkit/node_modules/lit-html/lit-html.js
+// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/lit-html.js
 var t2 = globalThis;
 var i2 = (t5) => t5;
 var s2 = t2.trustedTypes;
@@ -1197,7 +1197,7 @@ var D = (t5, i7, s5) => {
   return h4._$AI(t5), h4;
 };
 
-// ../module-toolkit/node_modules/lit-element/lit-element.js
+// node_modules/.pnpm/lit-element@4.2.2/node_modules/lit-element/lit-element.js
 var s3 = globalThis;
 var i3 = class extends g {
   constructor() {
@@ -1633,7 +1633,7 @@ __decorateClass2([
 ], OkInlineFeedback.prototype, "hasActions");
 define("ok-inline-feedback", OkInlineFeedback);
 
-// ../module-toolkit/node_modules/lit-html/directive.js
+// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directive.js
 var t3 = { ATTRIBUTE: 1, CHILD: 2, PROPERTY: 3, BOOLEAN_ATTRIBUTE: 4, EVENT: 5, ELEMENT: 6 };
 var e4 = (t5) => (...e5) => ({ _$litDirective$: t5, values: e5 });
 var i4 = class {
@@ -1653,7 +1653,7 @@ var i4 = class {
   }
 };
 
-// ../module-toolkit/node_modules/lit-html/directive-helpers.js
+// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directive-helpers.js
 var { I: t4 } = j;
 var i5 = (o7) => o7;
 var s4 = () => document.createComment("");
@@ -1686,7 +1686,7 @@ var h3 = (o7) => {
   o7._$AR(), o7._$AA.remove();
 };
 
-// ../module-toolkit/node_modules/lit-html/directives/repeat.js
+// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/repeat.js
 var u4 = (e5, s5, t5) => {
   const r6 = /* @__PURE__ */ new Map();
   for (let l3 = s5; l3 <= t5; l3++) r6.set(e5[l3], l3);
@@ -1739,7 +1739,7 @@ var c4 = e4(class extends i4 {
   }
 });
 
-// ../module-toolkit/node_modules/lit-html/directives/style-map.js
+// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/style-map.js
 var n5 = "important";
 var i6 = " !" + n5;
 var o6 = e4(class extends i4 {
@@ -1898,6 +1898,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
     this.filterDraft = {};
     this.panel = "none";
     this.viewMode = "table";
+    this.viewChosenByUser = false;
     this.isMobile = false;
     this.hiddenKeys = /* @__PURE__ */ new Set();
     this.internalSelection = /* @__PURE__ */ new Set();
@@ -2534,6 +2535,25 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
   // forma robusta de arrancar en tarjetas sin depender de fijar `viewMode` por referencia (que
   // falla si la tabla monta detrás de un `v-if`/loading y el ref aún es null).
   firstUpdated() {
+    this.applyInitialView();
+  }
+  /** Re-evalúa la vista inicial cada render mientras el usuario no haya elegido a mano.
+   *
+   * `firstUpdated` NO basta: decide una sola vez, y los consumidores que asignan las props por JS
+   * DESPUÉS de insertar el elemento —lo normal en páginas renderizadas por el servidor— llegan
+   * tarde. En ese momento `cardViewEnabled` aún era `false`, así que no se conmutaba; y el
+   * listener de `matchMedia` solo dispara al CAMBIAR el viewport, cosa que en un móvil no pasa
+   * nunca. La tabla se quedaba con scroll lateral para siempre.
+   *
+   * Medido en Android contra producción el 2026-08-02 con el bundle ya actualizado:
+   *   `views` antes de insertar  → tarjetas
+   *   `views` después de insertar → tabla   ← lo que hace la página
+   */
+  willUpdate() {
+    this.applyInitialView();
+  }
+  applyInitialView() {
+    if (this.viewChosenByUser) return;
     if (this.isMobile && this.cardViewEnabled) {
       this.viewMode = "cards";
     } else if (this.defaultView === "cards" && this.cardViewEnabled) {
@@ -2543,6 +2563,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
     }
   }
   setViewMode(mode) {
+    this.viewChosenByUser = true;
     if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.emit("viewChange", mode);
@@ -3922,6 +3943,37 @@ var OkInvoice = class extends i3 {
     .qr-note { font-size: 8px; max-width: 36mm; text-align: center; color: var(--muted); word-break: break-word; }
     .legal { margin-top: 8mm; padding-top: 3mm; border-top: 1px solid var(--rule); font-size: 9px; color: var(--muted); white-space: pre-line; text-align: center; }
     .empty { padding: 12mm; text-align: center; color: #999; font-style: italic; }
+
+    /* ── Papel ──────────────────────────────────────────────────────────────────────────────
+       Una factura es un documento fiscal: acaba impresa, y en pantalla y en papel no se
+       comporta igual. Lo que hay aquí resuelve lo que rompe al imprimir.
+
+       NOTA: aquí NO va \`@page\` (tamaño y márgenes del folio). Es una at-rule de DOCUMENTO y
+       dentro de un shadow root se IGNORA en silencio; la pone quien monta el documento —en el
+       Hub, \`lib/print.ts\` al escribir el iframe aislado. */
+    @media print {
+      .sheet {
+        /* En papel el ancho lo manda \`@page\`; forzar 210mm aquí provoca una segunda página
+           en blanco cuando el navegador ya ha restado los márgenes. */
+        width: auto;
+        max-width: none;
+        padding: 0;
+      }
+      /* Fondos y sombras: en pantalla ayudan a leer, en papel gastan tóner y salen sucios en
+         láser monocroma. Se sustituye el relleno del bloque de receptor por un filete. */
+      .bill-to {
+        background: transparent;
+        border: 1px solid var(--rule);
+      }
+      /* Que las cabeceras de la tabla se repitan en cada folio: una factura larga sin esto deja
+         las columnas sin rotular a partir de la página 2. */
+      table.lines thead { display: table-header-group; }
+      table.lines tbody tr { break-inside: avoid; page-break-inside: avoid; }
+      /* Los bloques que se leen como una unidad no se parten a la mitad. */
+      .summary, .foot, .legal, .bill-to { break-inside: avoid; page-break-inside: avoid; }
+      /* El total y el QR son lo que se comprueba de un vistazo: no deben quedar huérfanos. */
+      .summary { break-before: avoid; page-break-before: avoid; }
+    }
   `;
   }
   get t() {
@@ -4187,9 +4239,19 @@ function formatQuantity2(raw) {
   return String(fromMicro2(raw));
 }
 
+// modules/invoice/ui/lib/line-tax.ts
+var pct = (v3) => `${Number(v3 || 0).toFixed(2)}%`;
+function lineTaxLabel(line, t5) {
+  const main = pct(line.tax_rate);
+  if (line.surcharge_rate == null) return main;
+  const surcharge = Number(line.surcharge_rate) || 0;
+  return surcharge > 0 ? `${main} + ${t5("ui.taxSurcharge")} ${pct(surcharge)}` : main;
+}
+
 // modules/invoice/locales/es.json
 var es_default = {
   name: "Facturaci\xF3n",
+  description: "Emite facturas a partir de las ventas, m\xE1rcalas como cobradas y emite facturas rectificativas.",
   navigation: {
     invoice: {
       label: "Facturas"
@@ -4251,6 +4313,8 @@ var es_default = {
     lineTaxPct: "IVA %",
     lineBase: "Base",
     lineTax: "Impuesto",
+    taxSurcharge: "RE",
+    taxSurchargeLong: "Recargo de equivalencia",
     lineTotal: "Total",
     noLines: "Sin l\xEDneas de detalle.",
     totalBase: "Base",
@@ -4379,6 +4443,8 @@ var en_default = {
     lineTaxPct: "Tax %",
     lineBase: "Base",
     lineTax: "Tax",
+    taxSurcharge: "Eq. surcharge",
+    taxSurchargeLong: "Equivalence surcharge",
     lineTotal: "Total",
     noLines: "No line items.",
     totalBase: "Base",
@@ -4485,7 +4551,6 @@ var STATUS_COLOR = {
 };
 var fmtMoney = (v3) => erplora().formatMoney(Number(v3 || 0));
 var fmtDoc = (v3, currency) => erplora().formatMoney(Number(v3 || 0), { currency });
-var num = (v3) => Number(v3 || 0).toFixed(2);
 var emptyItem = () => ({ description: "", quantity: "1", unit_price: "", tax_rate: "21" });
 var ErpInvoiceList = class extends i3 {
   constructor() {
@@ -4816,7 +4881,7 @@ var ErpInvoiceList = class extends i3 {
     } catch {
       parsed = null;
     }
-    const pct = (n6) => Number.isInteger(n6) ? n6.toFixed(0) : String(n6);
+    const pct2 = (n6) => Number.isInteger(n6) ? n6.toFixed(0) : String(n6);
     const out = [];
     if (Array.isArray(parsed)) {
       for (const e5 of parsed) {
@@ -4834,12 +4899,12 @@ var ErpInvoiceList = class extends i3 {
         } else if (cls === "subject_reverse") {
           label = "Inversi\xF3n del sujeto pasivo";
         } else {
-          label = `${name} ${pct(rate)}%`;
+          label = `${name} ${pct2(rate)}%`;
         }
         out.push({ label, rate: Number.isFinite(rate) ? rate : void 0, base, amount: Number(e5.quota ?? 0) });
         if (e5.surcharge_rate != null) {
           const sr = Number(e5.surcharge_rate);
-          out.push({ label: `Recargo de equivalencia ${pct(sr)}%`, rate: sr, base, amount: Number(e5.surcharge_quota ?? 0) });
+          out.push({ label: `${erploraT("ui.taxSurchargeLong")} ${pct2(sr)}%`, rate: sr, base, amount: Number(e5.surcharge_quota ?? 0) });
         }
       }
     } else if (parsed && typeof parsed === "object") {
@@ -4964,7 +5029,7 @@ var ErpInvoiceList = class extends i3 {
           <thead><tr><th>#</th><th>${erploraT("ui.lineDescription")}</th><th>${erploraT("ui.lineQty")}</th><th>${erploraT("ui.linePrice")}</th><th>${erploraT("ui.lineTaxPct")}</th><th>${erploraT("ui.lineBase")}</th><th>${erploraT("ui.lineTax")}</th><th>${erploraT("ui.lineTotal")}</th></tr></thead>
           <tbody>${this.detailLines.map((l3) => b2`<tr>
             <td>${l3.line_number}</td><td>${l3.description}</td><td>${formatQuantity2(Number(l3.quantity) || 0)}</td>
-            <td>${fmtDoc(l3.unit_price, d3.currency)}</td><td>${num(l3.tax_rate)}%</td>
+            <td>${fmtDoc(l3.unit_price, d3.currency)}</td><td>${lineTaxLabel(l3, erploraT)}</td>
             <td>${fmtDoc(l3.base_amount, d3.currency)}</td><td>${fmtDoc(l3.tax_amount, d3.currency)}</td><td>${fmtDoc(l3.total_amount, d3.currency)}</td>
           </tr>`)}</tbody>
         </table>` : b2`<p>${erploraT("ui.noLines")}</p>`}

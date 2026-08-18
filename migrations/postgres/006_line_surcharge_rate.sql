@@ -1,0 +1,13 @@
+-- Invoice · 006 — invoice#21: the LINE freezes the equivalence surcharge apart from the main rate.
+--
+-- Until now `invoice_invoiceitem.tax_rate` stored the COMBINED rate that arrives from the sale
+-- (21 + 5.2 = 26.2). 26.2 is a sum, not a tax rate; the breakdown (`tax_breakdown`, ADR-0186) had
+-- already split it (`rate` 21 + `surcharge_rate` 5.2) and the line said something else.
+--
+-- Additive, append-only (a frozen fiscal row is never rewritten — ADR-0085):
+--   * `surcharge_rate` NULL  → LEGACY generation: the row predates this migration and its
+--                              `tax_rate` MAY still be a combined sum. Read it as it is.
+--   * `surcharge_rate` NOT NULL (0 or the rate) → NEW generation: `tax_rate` is the MAIN rate and
+--                              the surcharge, if any, is here. The handler always writes it.
+-- Readers tell the two generations apart by that NULL; nothing is backfilled.
+ALTER TABLE invoice_invoiceitem ADD COLUMN IF NOT EXISTS surcharge_rate REAL;
