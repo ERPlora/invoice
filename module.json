@@ -23,8 +23,7 @@
     "invoice.view_invoice",
     "invoice.add_invoice",
     "invoice.rectify_invoice",
-    "invoice.manage_series",
-    "invoice.manage_settings"
+    "invoice.manage_series"
   ],
   "role_permissions": {
     "admin": [
@@ -52,8 +51,7 @@
       "id": "settings",
       "label": "Settings",
       "icon": "settings-outline",
-      "component": "erp-invoice-settings",
-      "permission": "invoice.view_invoice"
+      "component": "erp-invoice-settings"
     }
   ],
   "migrations": {

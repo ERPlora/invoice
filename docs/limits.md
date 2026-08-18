@@ -42,12 +42,16 @@ two of the sale's five frozen fiscal fields travel in the event.
 | See invoices, their lines and the series | `invoice.view_invoice` |
 | Create an invoice, create one from a sale, issue a substitution, mark one paid | `invoice.add_invoice` |
 | Issue a rectifying invoice | `invoice.rectify_invoice` |
-| Create or change a numbering series | `invoice.manage_series` |
-| Change the module settings | `invoice.manage_settings` |
+| Create or change a numbering series (the **Settings** tab) | `invoice.manage_series` |
 
-By role: **admin** has everything. **manager** has everything except `manage_settings`. **employee**
-can only **see** invoices and **create** them — an employee **cannot rectify** an invoice and cannot
-touch the series.
+By role: **admin** and **manager** have everything. **employee** can only **see** invoices and
+**create** them — an employee **cannot rectify** an invoice and cannot touch the series.
+
+**The Settings tab is visible to anyone who can open the module.** There is no per-tab permission in
+the navigation contract; what it protects is the *editing*: the tab hides the series form without
+`invoice.manage_series`, and the runtime refuses `invoice.series.create` / `invoice.series.update`
+without it regardless of what the screen shows. There is no separate "module settings" permission —
+the only thing this module configures is the numbering series.
 
 ## Dependencies — what breaks if something is missing
 
