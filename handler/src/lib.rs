@@ -163,14 +163,14 @@ struct DesgloseLine {
 // drifted: this module copied any `operation_class` verbatim into the breakdown while `taxes`
 // clamped it to the closed list, which is exactly "charge one thing, declare another".
 
-/// Clave fiscal de una línea. `rate_hint` es el tipo congelado en la línea (el que se respeta
-/// cuando no hay regla que resolver).
-fn fiscal_key(item: &Value, rules: &[&Value], cc: &str, rc: &str, date: &str, rate_hint: f64) -> FiscalKey {
+/// The fiscal key of a line WHEN a rule resolves for its category; `None` when there is no
+/// catalog, no category or no matching rule (the caller falls back to `FiscalKey::nacional` with
+/// the rate it charged). `rate_hint` is the rate frozen on the line, used only when the rule
+/// carries no `rate_pct`. Returning `Option` lets the manual path tell "the rule says 0 %" from
+/// "nobody said anything" (invoice#27): only the former overrides the caller's rate.
+fn resolved_fiscal_key(item: &Value, rules: &[&Value], cc: &str, rc: &str, date: &str, rate_hint: f64) -> Option<FiscalKey> {
     let cat = s(item.get("tax_category_key").unwrap_or(&Value::Null));
-    let Some(root) = (if cat.is_empty() { None } else { tax::resolve_root(rules, cc, rc, &cat, date) })
-    else {
-        return FiscalKey::nacional(rate_hint);
-    };
+    let root = if cat.is_empty() { None } else { tax::resolve_root(rules, cc, rc, &cat, date) }?;
 
     // El recargo de equivalencia es un COMPONENTE de la regla del IVA (`parent_id` = raíz): aporta
     // cuota sobre la misma base, pero no es otra operación ni otro tipo. Va DENTRO de la línea.
@@ -178,7 +178,7 @@ fn fiscal_key(item: &Value, rules: &[&Value], cc: &str, rc: &str, date: &str, ra
     let surcharge: f64 = components.iter().skip(1).map(|c| c.rate_pct).sum();
 
     let qualification = tax::rule_qualification(root);
-    FiscalKey {
+    Some(FiscalKey {
         kind: qualification.tax_kind,
         regime: qualification.regime_key,
         class: qualification.operation_class,
@@ -188,7 +188,7 @@ fn fiscal_key(item: &Value, rules: &[&Value], cc: &str, rc: &str, date: &str, ra
         rate: tax::rule_rate_pct(root, rate_hint),
         surcharge_rate: surcharge,
         has_surcharge: surcharge > 0.0,
-    }
+    })
 }
 
 /// Defaults de serie por code (fiel a on_install: TICKET=F2, FACT=F1, RECT=R1).
@@ -257,16 +257,30 @@ fn build_invoice(
         // Punto fijo entero escala 10⁶ (ADR-0147): `500000` = 0,5. Ausente → 1 unidad.
         let qty = item.get("quantity").map(|v| as_qty(v, QUANTITY_SCALE)).unwrap_or(QUANTITY_SCALE);
         let unit_price = money::from_json(item.get("unit_price").unwrap_or(&Value::Null), 0);
-        let rate = item.get("tax_rate").map(|v| f(v, 0.0)).unwrap_or(0.0); // tasa %
+        let rate_hint = item.get("tax_rate").map(|v| f(v, 0.0)).unwrap_or(0.0); // tasa % del llamante
+        // Clave fiscal de la línea (hub#292): qué impuesto, régimen y calificación. Se resuelve del
+        // catálogo por la categoría fiscal congelada en la línea; sin catálogo/categoría/regla cae
+        // a venta nacional sujeta y no exenta, que es lo que declaraban las facturas de antes.
+        let resolved = resolved_fiscal_key(item, &rules, &fiscal.country, &fiscal.region, &fiscal.date, rate_hint);
         // Base/IVA por línea (céntimos). Si el origen ya extrajo la base y el IVA
         // (p.ej. `sale.completed` con precios IVA-INCLUIDO: net_amount/tax_amount ya
         // calculados por sales.calc_line), se RESPETAN — NO se vuelve a sumar IVA
         // sobre el bruto (bug D1). Solo cuando NO vienen (factura manual,
         // precios IVA-EXCLUIDO) se calcula base = qty*unit_price y tax = base*rate.
-        let (base, tax) = match (item.get("base_amount"), item.get("tax_amount")) {
-            (Some(b), Some(t)) => (money::from_json(b, 0), money::from_json(t, 0)),
+        let (base, tax, rate) = match (item.get("base_amount"), item.get("tax_amount")) {
+            (Some(b), Some(t)) => (money::from_json(b, 0), money::from_json(t, 0), rate_hint),
             _ => {
                 // Factura MANUAL (IVA no incluido): base = precio × cantidad, IVA encima.
+                //
+                // The rate CHARGED is the resolved rule's (main + surcharge components), not the
+                // caller's hint (invoice#27, ADR-0223 single source): an exempt category sent with
+                // `tax_rate: 21` used to charge 21 % and declare `exempt` with no quota, so
+                // `CuotaTotal` no longer matched the declared quotas. Without a rule the hint is
+                // all there is and it is honoured as before.
+                let rate = match &resolved {
+                    Some(k) => k.rate + k.surcharge_rate,
+                    None => rate_hint,
+                };
                 //
                 // OJO: aquí la cuota se sigue redondeando POR LÍNEA, no por tipo — y es DELIBERADO.
                 // Cuando la factura viene de una venta, `base`/`tax` llegan YA calculados por
@@ -279,17 +293,14 @@ fn build_invoice(
                 let rd = Decimal::from_f64(rate).unwrap_or(Decimal::ZERO);
                 let base = money::mul_qty(unit_price, qd);
                 let tax = money::percent_of(base, rd);
-                (base, tax)
+                (base, tax, rate)
             }
         };
         let total = base + tax;
         base_total += base;
         tax_total += tax;
 
-        // Clave fiscal de la línea (hub#292): qué impuesto, régimen y calificación. Se resuelve del
-        // catálogo por la categoría fiscal congelada en la línea; sin catálogo/categoría/regla cae
-        // a venta nacional sujeta y no exenta, que es lo que declaraban las facturas de antes.
-        let key = fiscal_key(item, &rules, &fiscal.country, &fiscal.region, &fiscal.date, rate);
+        let key = resolved.unwrap_or_else(|| FiscalKey::nacional(rate));
         // El recargo se separa de la cuota SIN recalcular el total: la cuota de la línea es la que
         // se cobró (contrato D1), y de ella sale el recargo por su tipo; el resto es el impuesto
         // principal. Así 2100 + 520 siguen sumando exactamente los 2620 cobrados.
@@ -1054,6 +1065,101 @@ mod tests {
         let d = desglose(&create_from_sale_pure(inp_rules(payload, 6, rules, "")).unwrap());
         assert_eq!(d[0]["class"], json!("exempt"));
         assert_eq!(d[0]["exempt_reason"], json!("E1"));
+    }
+
+    // ── invoice#27: the charged amount and the declared qualification come from ONE resolution ──
+    //
+    // The MANUAL path of `invoice.create` used to trust the caller's `tax_rate` while the fiscal
+    // key came from the resolved rule. An exempt category sent with `tax_rate: 21` charged 21 % and
+    // declared `exempt` with no quota — and `CuotaTotal` stopped matching the sum of the quotas
+    // declared, the cross-check the AEAT performs. ADR-0223 (single source): when a rule resolves,
+    // ITS rate is what is charged; the caller's `tax_rate` is only a hint for lines without a rule.
+
+    fn manual_line(cat: &str, rate: f64) -> Value {
+        json!({
+            "series_code": "FACT",
+            "items": [{ "description": "Line", "quantity": 1_000_000, "unit_price": 10000,
+                        "tax_rate": rate, "tax_category_key": cat }]
+        })
+    }
+
+    fn quotas_add_up(out: &Output) {
+        let inv = &out.operations[2].params;
+        let declared: i64 = desglose(out)
+            .iter()
+            .map(|e| e["quota"].as_i64().unwrap_or(0) + e["surcharge_quota"].as_i64().unwrap_or(0))
+            .sum();
+        assert_eq!(inv["tax_amount"].as_i64().unwrap(), declared, "CuotaTotal must equal the sum of the declared quotas");
+    }
+
+    #[test]
+    fn an_exempt_category_sent_with_21_percent_charges_nothing_and_declares_exempt() {
+        let rules = json!([
+            { "id": "r-health", "country_code": "ES", "region_code": null,
+              "tax_category_key": "service.health", "rate_pct": 0.0, "tax_type": "vat",
+              "parent_id": null, "is_active": 1, "operation_class": "exempt",
+              "exempt_reason": "E1", "regime_key": "01" }
+        ]);
+        let out = create_invoice_pure(inp_rules(manual_line("service.health", 21.0), 8, rules, ""));
+        let d = desglose(&out);
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0]["class"], json!("exempt"));
+        assert_eq!(d[0]["rate"], json!(0.0));
+        assert_eq!(d[0]["quota"], json!(0));
+        // What was CHARGED follows the rule, not the caller's hint.
+        assert_eq!(out.operations[2].params["tax_amount"], json!(0));
+        assert_eq!(out.operations[2].params["total_amount"], json!(10000));
+        let line = &out.operations[3].params;
+        assert_eq!(line["tax_rate"], json!(0.0), "the persisted line rate is the applied one");
+        assert_eq!(line["tax_amount"], json!(0));
+        quotas_add_up(&out);
+    }
+
+    #[test]
+    fn a_reduced_category_sent_with_the_standard_rate_charges_the_reduced_one() {
+        let rules = json!([
+            { "id": "r-10", "country_code": "ES", "region_code": null,
+              "tax_category_key": "food.restaurant", "rate_pct": 10.0, "tax_type": "vat",
+              "parent_id": null, "is_active": 1, "regime_key": "01" }
+        ]);
+        let out = create_invoice_pure(inp_rules(manual_line("food.restaurant", 21.0), 8, rules, ""));
+        let d = desglose(&out);
+        assert_eq!(d[0]["rate"], json!(10.0));
+        assert_eq!(d[0]["quota"], json!(1000));
+        assert_eq!(out.operations[2].params["tax_amount"], json!(1000));
+        assert_eq!(out.operations[3].params["tax_rate"], json!(10.0));
+        quotas_add_up(&out);
+    }
+
+    #[test]
+    fn a_manual_line_under_equivalence_surcharge_charges_the_combined_rate_from_the_rule() {
+        let rules = json!([
+            { "id": "r-21", "country_code": "ES", "region_code": null,
+              "tax_category_key": "product.generic", "rate_pct": 21.0, "tax_type": "vat",
+              "parent_id": null, "is_active": 1, "regime_key": "01" },
+            { "id": "r-21-re", "country_code": "ES", "region_code": null,
+              "tax_category_key": "product.generic", "rate_pct": 5.2, "tax_type": "surcharge",
+              "parent_id": "r-21", "is_active": 1, "component_label": "Recargo de equivalencia" }
+        ]);
+        // The caller sends the bare 21: the surcharge is a component of the rule, so it is charged too.
+        let out = create_invoice_pure(inp_rules(manual_line("product.generic", 21.0), 8, rules, ""));
+        let d = desglose(&out);
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0]["rate"], json!(21.0));
+        assert_eq!(d[0]["quota"], json!(2100));
+        assert_eq!(d[0]["surcharge_quota"], json!(520));
+        assert_eq!(out.operations[2].params["tax_amount"], json!(2620));
+        assert_eq!(out.operations[3].params["tax_rate"], json!(26.2));
+        quotas_add_up(&out);
+    }
+
+    #[test]
+    fn without_a_rule_the_caller_rate_is_still_honoured() {
+        // No catalog: the hint is all there is (unchanged behaviour, national subject sale).
+        let out = create_invoice_pure(inp(manual_line("service.health", 21.0), 8));
+        assert_eq!(out.operations[2].params["tax_amount"], json!(2100));
+        assert_eq!(desglose(&out)[0]["rate"], json!(21.0));
+        quotas_add_up(&out);
     }
 
     /// El orden del array no puede depender del orden de las líneas de la factura: el XML que sale

@@ -70,6 +70,13 @@ A caveat worth knowing: the sale freezes **five** fiscal fields on each line (ca
 country, region and rule), but only **two** of them — the rate and the category — travel in the
 event. So an invoice line stores the rate and the category, not the country, region or rule id.
 
+A **manual** invoice is different: nobody has charged anything yet, so the module computes the tax
+itself. When the line carries a tax category that resolves to a rule, **the rule's rate is what is
+charged** (including any equivalence surcharge component) — the `tax_rate` sent by the caller is
+only used when there is no rule to consult. Charging one thing and declaring another is exactly the
+mismatch the tax authority cross-checks (the total quota must equal the sum of the declared quotas),
+so both come from the same resolution.
+
 ## Every sale currently becomes an F2
 
 The sale decides whether it is a ticket or a full invoice, but that choice does **not travel in the
