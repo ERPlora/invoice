@@ -16,11 +16,19 @@ const SERIES = [
 ];
 
 const comandos: { name: string; payload: Record<string, unknown> }[] = [];
+const consultas: string[] = [];
 
 beforeEach(() => {
   comandos.length = 0;
+  consultas.length = 0;
   (globalThis as Record<string, unknown>).erplora = {
-    query: async (name: string) => (name === 'invoice.series.list' ? SERIES : []),
+    query: async (name: string) => {
+      consultas.push(name);
+      if (name === 'invoice.series.list') return SERIES;
+      // La vista previa la RENDERIZA EL SERVIDOR (queries/series_peek_next.sql).
+      if (name === 'invoice.series.peek_next') return [{ next_number: 'FACT-2026-000013', format_locked: 0 }];
+      return [];
+    },
     command: async (name: string, payload: Record<string, unknown>) => {
       comandos.push({ name, payload });
       return {};
@@ -127,5 +135,90 @@ describe('los filtros de dominio cerrado son `select`', () => {
     expect(activa?.options?.length).toBe(2);
     const porDefecto = cols.find((c) => c.key === 'is_default');
     expect(porDefecto?.filterType).toBe('select');
+  });
+});
+
+// ── invoice#40: plantilla de formato por serie ─────────────────────────────────────────────
+//
+// El formato entra en la huella encadenada de VeriFactu a través del número, así que en cuanto la
+// serie ha emitido algo NO se puede tocar: `queries/series_list.sql` trae `format_locked` y la
+// pantalla tiene que OBEDECERLO — no basta con que el SQL ignore el cambio, el usuario no puede
+// creerse que ha guardado algo que no se guardó.
+//
+// La VISTA PREVIA la da el servidor (`invoice.series.peek_next`), nunca un render en JS: el número
+// se formatea en tres SQL y un cuarto renderizador en el navegador es exactamente la deuda que
+// invoice#40 vino a no heredar. Una previa que no coincide con el número emitido es peor que
+// ninguna previa.
+describe('formato de numeración por serie (invoice#40)', () => {
+  it('la columna de formato se pinta, y una serie sin plantilla enseña el formato histórico', async () => {
+    const el = await montar();
+    const cols = (el as unknown as { columns: { key: string; format?: (r: Record<string, unknown>) => string }[] }).columns;
+    const col = cols.find((c) => c.key === 'format');
+    expect(col, 'la tabla no enseña el formato de la serie').toBeTruthy();
+    expect(col!.format!({ format: null, prefix: 'FAC' }), 'sin plantilla debe leerse el formato por defecto')
+      .toContain('NNNNNN');
+    expect(col!.format!({ format: '{code}{year}/{seq:05d}', prefix: '' })).toBe('{code}{year}/{seq:05d}');
+  });
+
+  it('editar una serie CON emisiones deja el campo de formato bloqueado', async () => {
+    const el = await montar();
+    const wc = el as unknown as {
+      onRowAction: (ev: CustomEvent<{ actionId: string; row: Record<string, unknown> }>) => void;
+      formatLocked: boolean;
+    };
+    // sr2 = TICKET, current_number 340 → ya numeró.
+    wc.onRowAction(new CustomEvent('rowAction', { detail: { actionId: 'edit', row: SERIES[1] } }));
+    expect(wc.formatLocked, 'una serie que ya numeró debe bloquear el formato').toBe(true);
+
+    await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    const campo = el.shadowRoot.querySelector('ion-input[data-field="format"]') as HTMLElement & { disabled?: boolean };
+    expect(campo, 'no hay campo de formato en el formulario').toBeTruthy();
+    expect(campo.hasAttribute('disabled'), 'el campo de formato no está deshabilitado').toBe(true);
+  });
+
+  it('una serie NUEVA (contador a 0) sí deja elegir el formato', async () => {
+    const el = await montar();
+    const wc = el as unknown as {
+      onRowAction: (ev: CustomEvent<{ actionId: string; row: Record<string, unknown> }>) => void;
+      formatLocked: boolean;
+    };
+    wc.onRowAction(new CustomEvent('rowAction', {
+      detail: { actionId: 'edit', row: { ...SERIES[0], id: 'sr3', current_number: 0 } },
+    }));
+    expect(wc.formatLocked).toBe(false);
+  });
+
+  it('guardar una serie bloqueada NO manda `format` (no se promete lo que no se puede cumplir)', async () => {
+    const el = await montar();
+    const wc = el as unknown as {
+      onRowAction: (ev: CustomEvent<{ actionId: string; row: Record<string, unknown> }>) => void;
+      submit: (ev: Event) => Promise<void>;
+    };
+    wc.onRowAction(new CustomEvent('rowAction', { detail: { actionId: 'edit', row: SERIES[1] } }));
+    await wc.submit(new Event('submit'));
+    const upd = comandos.find((c) => c.name === 'invoice.series.update')!;
+    expect(upd, 'no se mandó la edición').toBeTruthy();
+    expect('format' in upd.payload, 'mandó `format` en una serie que ya numeró').toBe(false);
+  });
+
+  it('editar una serie desbloqueada manda el `format` y pide la vista previa AL SERVIDOR', async () => {
+    const el = await montar();
+    const wc = el as unknown as {
+      onRowAction: (ev: CustomEvent<{ actionId: string; row: Record<string, unknown> }>) => void;
+      form: Record<string, unknown>;
+      submit: (ev: Event) => Promise<void>;
+      preview: string;
+    };
+    wc.onRowAction(new CustomEvent('rowAction', {
+      detail: { actionId: 'edit', row: { ...SERIES[0], id: 'sr3', current_number: 0 } },
+    }));
+    await new Promise((r) => setTimeout(r, 0));
+    // La previa viene de `invoice.series.peek_next`, no de un render en JS.
+    expect(consultas, 'la vista previa no se pidió al servidor').toContain('invoice.series.peek_next');
+
+    wc.form = { ...wc.form, format: '{code}-{seq:04d}' };
+    await wc.submit(new Event('submit'));
+    const upd = comandos.find((c) => c.name === 'invoice.series.update')!;
+    expect(upd.payload.format).toBe('{code}-{seq:04d}');
   });
 });

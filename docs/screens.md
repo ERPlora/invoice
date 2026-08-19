@@ -89,10 +89,35 @@ The Settings tab manages the invoice series (`invoice.series.list`, 50 rows per 
 Marking a series as default **demotes the previous default of the same year** — there is only ever
 one default per year. Codes are unique per hub and year.
 
+### Choose the number format
+
+By default a number looks like `PREFIX-YYYY-NNNNNN`. A series can carry its own **template**
+instead — the field is *Number format*:
+
+| Placeholder | Becomes |
+|---|---|
+| `{prefix}` · `{code}` | the series prefix / its code |
+| `{year}` | the fiscal year |
+| `{seq}` | the counter, unpadded |
+| `{seq:01d}` … `{seq:09d}` | the counter, padded to that many digits |
+
+Everything else is written literally, so `VFT{year}-A-{seq:04d}` gives `VFT2026-A-0001` — a
+**series per till**, which is common practice in Spanish retail. Leaving the field empty keeps
+`PREFIX-YYYY-NNNNNN`. A template **must** contain a sequence placeholder; without one every invoice
+of the series would come out with the same number, and the form refuses it.
+
+The **next number** shown under the field is rendered by the server — it is literally the number the
+next invoice will carry, not an approximation drawn by the screen.
+
+> 🔴 **The format freezes with the first invoice.** A number is part of VeriFactu's chained
+> fingerprint, so re-shaping a series that has already issued would break the continuity of
+> everything issued after it. The field is offered only while the counter is still at zero; after
+> that it is locked, and a different format means a **new series**.
+
 ### Change a series
 
-Only `name`, `prefix`, `is_active` and `is_default` can be edited, and the edit is partial — fields
-you leave out are untouched.
+Only `name`, `prefix`, `is_active`, `is_default` — and `format` while the counter is still zero —
+can be edited, and the edit is partial: fields you leave out are untouched.
 
 **`code`, `year` and the current number cannot be changed.** They are the identity of the numbering
 and changing them would break the fiscal sequence.

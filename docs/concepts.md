@@ -43,8 +43,10 @@ act and it happens here.
 
 ## Numbering: one counter per series and year, only going up
 
-An invoice number is `PREFIX-YYYY-NNNNNN`. The number comes from the series counter, incremented in
-the same transaction that writes the invoice, so two documents can never share a number.
+An invoice number is `PREFIX-YYYY-NNNNNN` by default, or whatever **template** the series carries
+(`{prefix}`, `{code}`, `{year}`, `{seq}`, `{seq:01d}`…`{seq:09d}` — see *Screens*). The number comes
+from the series counter, incremented in the same transaction that writes the invoice, so two
+documents can never share a number. The next one can be previewed without consuming it.
 
 Consequences worth knowing:
 
@@ -53,6 +55,8 @@ Consequences worth knowing:
 - **A new year starts a new counter automatically.** The series row for `code + year` is ensured on
   first use.
 - **There is exactly one default series per year.** Marking one default demotes the previous one.
+- **The number format freezes with the first invoice.** It is part of VeriFactu's chained
+  fingerprint; a different shape means a new series, never a re-shaped one.
 
 ## The numbering book: every number handed out is written down
 

@@ -1,9 +1,40 @@
-{ "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "invoice.series.update payload", "type": "object", "additionalProperties": false,
-  "required": ["series_id"],
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "invoice.series.update payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "series_id"
+  ],
   "properties": {
-    "series_id": {"type": "string", "minLength": 1},
-    "name": {"type": "string"},
-    "prefix": {"type": "string"},
-    "is_active": {"type": ["boolean", "integer"]},
-    "is_default": {"type": ["boolean", "integer"]} } }
+    "series_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string"
+    },
+    "prefix": {
+      "type": "string"
+    },
+    "format": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60,
+      "pattern": "^(?=.*\\{seq(:0[1-9]d)?\\})[^\\n\\r]{1,60}$",
+      "description": "Number template. Placeholders: {prefix}, {code}, {year}, {seq}, {seq:01d}..{seq:09d}. A sequence placeholder is REQUIRED. Omit the field to keep PREFIX-YYYY-NNNNNN. Only settable while the series has not issued anything (current_number = 0): the number goes into VeriFactu's chained fingerprint."
+    },
+    "is_active": {
+      "type": [
+        "boolean",
+        "integer"
+      ]
+    },
+    "is_default": {
+      "type": [
+        "boolean",
+        "integer"
+      ]
+    }
+  }
+}

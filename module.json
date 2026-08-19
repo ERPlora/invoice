@@ -62,7 +62,8 @@
       "migrations/postgres/004_quantity_fixed_point.sql",
       "migrations/postgres/005_substitution_unique.sql",
       "migrations/postgres/006_line_surcharge_rate.sql",
-      "migrations/postgres/007_number_allocation.sql"
+      "migrations/postgres/007_number_allocation.sql",
+      "migrations/postgres/008_series_format.sql"
     ]
   },
   "queries": {
@@ -176,7 +177,9 @@
           "current_number",
           "prefix",
           "is_active",
-          "is_default"
+          "is_default",
+          "format",
+          "format_locked"
         ],
         "default_sort": "name",
         "default_dir": "asc",
@@ -204,12 +207,24 @@
           },
           "is_default": {
             "op": "eq"
+          },
+          "format_locked": {
+            "op": "eq"
           }
         },
         "page_size": 50
       },
       "ai": {
         "description": "Lists the available invoice series."
+      }
+    },
+    "invoice.series.peek_next": {
+      "permission": "invoice.view_invoice",
+      "expose_api": true,
+      "sql": "queries/series_peek_next.sql",
+      "schema": "schemas/series_peek_next.json",
+      "ai": {
+        "description": "Previews the next number a series would hand out WITHOUT consuming it, rendered with the series' own format template. Also reports whether the format is still editable."
       }
     },
     "invoice.numbering.allocations": {

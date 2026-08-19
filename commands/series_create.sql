@@ -2,12 +2,14 @@
 -- :new_id, :hub_id, :current_user_id, :now. La unicidad (hub_id, code, year) la
 -- garantiza el índice uq_invoice_series (un duplicado falla y revierte la tx).
 -- current_number arranca en 0 (monotónico, lo incrementa la emisión, nunca este command).
+-- invoice#40: `format` es opcional; NULL = el formato histórico `PREFIX-YYYY-NNNNNN`. Se puede
+-- seguir cambiando por `series_update` mientras la serie no haya emitido nada.
 INSERT INTO invoice_invoiceseries
-  (id, hub_id, code, name, invoice_type, year, current_number, prefix,
+  (id, hub_id, code, name, invoice_type, year, current_number, prefix, format,
    is_active, is_default,
    is_deleted, created_by, updated_by, created_at, updated_at)
 VALUES
   (:new_id, :hub_id, :code, COALESCE(:name, ''), :invoice_type, :year, 0,
-   COALESCE(:prefix, :code),
+   COALESCE(:prefix, :code), :format,
    COALESCE(:is_active, 1), COALESCE(:is_default, 0),
    0, :current_user_id, :current_user_id, :now, :now);

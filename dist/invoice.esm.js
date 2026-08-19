@@ -4260,6 +4260,10 @@ var es_default = {
       label: "Ajustes"
     }
   },
+  setup: {
+    title: "Tu numeraci\xF3n de facturas",
+    description: "Revisa el prefijo con el que saldr\xE1n tus n\xFAmeros de factura y a\xF1ade la serie separada que Hacienda exige para las rectificativas. Si vienes de otro sistema, contin\xFAa su numeraci\xF3n en vez de empezar otra vez por el 1."
+  },
   ui: {
     pageTitle: "Facturas",
     newInvoice: "Nueva factura",
@@ -4348,6 +4352,7 @@ var es_default = {
     seriesColYear: "A\xF1o",
     seriesColNumber: "N\xBA actual",
     seriesColPrefix: "Prefijo",
+    seriesColFormat: "Formato",
     seriesColActive: "Activa",
     seriesColDefault: "Predet.",
     seriesEmpty: "A\xFAn no hay series. Crea la primera para numerar tus facturas.",
@@ -4361,10 +4366,14 @@ var es_default = {
     fieldInvoiceType: "Tipo de factura",
     fieldYear: "A\xF1o",
     fieldPrefix: "Prefijo",
+    fieldFormat: "Formato del n\xFAmero",
     fieldActive: "Activa",
     fieldDefault: "Serie predeterminada",
     codeHint: "Identificador interno de la serie (inmutable tras crearla).",
     prefixHint: "Texto opcional antepuesto al n\xFAmero (ej. FAC \u2192 FAC-2026-000001).",
+    formatHint: "Marcadores: {prefix}, {code}, {year}, {seq} y {seq:01d}\u2026{seq:09d}. D\xE9jalo vac\xEDo para PREFIX-AAAA-NNNNNN. Lo dem\xE1s se escribe literal (p.\u2009ej. VFT{year}-A-{seq:04d}).",
+    formatLockedHint: "Esta serie ya ha emitido facturas, as\xED que su formato de n\xFAmero ya no se puede cambiar: el n\xFAmero forma parte de la cadena de VeriFactu. Crea una serie nueva si necesitas otro formato.",
+    formatPreview: "Siguiente n\xFAmero",
     yes: "S\xED",
     no: "No",
     save: "Guardar",
@@ -4389,6 +4398,10 @@ var en_default = {
     settings: {
       label: "Settings"
     }
+  },
+  setup: {
+    title: "Your invoice numbering",
+    description: "Check the prefix your invoice numbers will carry, and add the separate series the tax authority requires for corrective invoices. If you are coming from another system, continue its numbering instead of starting again at 1."
   },
   ui: {
     pageTitle: "Invoices",
@@ -4478,6 +4491,7 @@ var en_default = {
     seriesColYear: "Year",
     seriesColNumber: "Current no.",
     seriesColPrefix: "Prefix",
+    seriesColFormat: "Format",
     seriesColActive: "Active",
     seriesColDefault: "Default",
     seriesEmpty: "No series yet. Create the first one to number your invoices.",
@@ -4491,10 +4505,14 @@ var en_default = {
     fieldInvoiceType: "Invoice type",
     fieldYear: "Year",
     fieldPrefix: "Prefix",
+    fieldFormat: "Number format",
     fieldActive: "Active",
     fieldDefault: "Default series",
     codeHint: "Internal identifier of the series (immutable once created).",
     prefixHint: "Optional text prepended to the number (e.g. FAC \u2192 FAC-2026-000001).",
+    formatHint: "Placeholders: {prefix}, {code}, {year}, {seq} and {seq:01d}\u2026{seq:09d}. Leave empty for PREFIX-YYYY-NNNNNN. Anything else is written literally (e.g. VFT{year}-A-{seq:04d}).",
+    formatLockedHint: "This series has already issued invoices, so its number format can no longer be changed: the number is part of the VeriFactu chain. Create a new series if you need a different format.",
+    formatPreview: "Next number",
     yes: "Yes",
     no: "No",
     save: "Save",
@@ -5177,9 +5195,11 @@ var blankForm = () => ({
   invoice_type: "F1",
   year: String((/* @__PURE__ */ new Date()).getFullYear()),
   prefix: "",
+  format: "",
   is_active: true,
   is_default: false
 });
+var DEFAULT_FORMAT_LABEL = "PREFIX-YYYY-NNNNNN";
 var ErpInvoiceSettings = class extends i3 {
   constructor() {
     super(...arguments);
@@ -5189,6 +5209,8 @@ var ErpInvoiceSettings = class extends i3 {
     this.form = blankForm();
     this.saving = false;
     this.formError = "";
+    this.formatLocked = false;
+    this.preview = "";
     this.canManage = false;
     // Re-render al cambiar el idioma del shell (ADR-0055): los getters `columns`/`rowActions` y el
     // texto del template se re-evalúan con el nuevo `erplora.locale`.
@@ -5229,6 +5251,13 @@ var ErpInvoiceSettings = class extends i3 {
       },
       { key: "year", header: t5("ui.seriesColYear"), align: "right", sortable: true },
       { key: "prefix", header: t5("ui.seriesColPrefix"), format: (r6) => r6.prefix || "\u2014" },
+      // invoice#40: la plantilla del número. Sin plantilla se escribe el formato histórico —
+      // «—» haría creer que la serie no numera con ninguna forma concreta, y sí lo hace.
+      {
+        key: "format",
+        header: t5("ui.seriesColFormat"),
+        format: (r6) => r6.format || DEFAULT_FORMAT_LABEL
+      },
       { key: "current_number", header: t5("ui.seriesColNumber"), align: "right", sortable: true },
       // Sí/no = dominio cerrado: se filtra eligiendo, no tecleando 1 ó 0.
       {
@@ -5293,6 +5322,8 @@ var ErpInvoiceSettings = class extends i3 {
   startCreate() {
     this.formError = "";
     this.form = blankForm();
+    this.formatLocked = false;
+    this.preview = "";
   }
   // «Editar» reabre EL MISMO panel `create`, ya relleno: no hay una segunda pantalla de edición.
   startEdit(row) {
@@ -5304,10 +5335,32 @@ var ErpInvoiceSettings = class extends i3 {
       invoice_type: row.invoice_type,
       year: String(row.year ?? ""),
       prefix: row.prefix || "",
+      format: row.format || "",
       is_active: !!row.is_active,
       is_default: !!row.is_default
     };
+    this.formatLocked = !!row.format_locked || (row.current_number ?? 0) > 0;
+    this.preview = "";
+    void this.loadPreview(row.id);
     this.dataTable()?.open("create");
+  }
+  /** La vista previa la RENDERIZA EL SERVIDOR (`queries/series_peek_next.sql`).
+   *  Deliberadamente NO se formatea el número en JS: ya se formatea en tres SQL, y un cuarto
+   *  renderizador —encima en otro lenguaje— es justo la deuda que invoice#40 vino a no heredar.
+   *  Una previa que no coincide con el número emitido es peor que no tener previa. */
+  async loadPreview(seriesId) {
+    if (!seriesId) {
+      this.preview = "";
+      return;
+    }
+    try {
+      const res = await erplora2().query("invoice.series.peek_next", { series_id: seriesId });
+      const row = Array.isArray(res) ? res[0] : res?.rows?.[0];
+      this.preview = row?.next_number ?? "";
+      if (row?.format_locked !== void 0) this.formatLocked = !!row.format_locked;
+    } catch {
+      this.preview = "";
+    }
   }
   cancelForm() {
     this.startCreate();
@@ -5330,15 +5383,17 @@ var ErpInvoiceSettings = class extends i3 {
     this.formError = "";
     try {
       if (this.isEdit) {
-        await erplora2().command("invoice.series.update", {
+        const cambios = {
           series_id: f3.series_id,
           name: f3.name.trim(),
           prefix: f3.prefix.trim(),
           is_active: f3.is_active,
           is_default: f3.is_default
-        });
+        };
+        if (!this.formatLocked && f3.format.trim()) cambios.format = f3.format.trim();
+        await erplora2().command("invoice.series.update", cambios);
       } else {
-        await erplora2().command("invoice.series.create", {
+        const alta = {
           code: f3.code.trim(),
           name: f3.name.trim(),
           invoice_type: f3.invoice_type,
@@ -5346,7 +5401,9 @@ var ErpInvoiceSettings = class extends i3 {
           prefix: f3.prefix.trim(),
           is_active: f3.is_active,
           is_default: f3.is_default
-        });
+        };
+        if (f3.format.trim()) alta.format = f3.format.trim();
+        await erplora2().command("invoice.series.create", alta);
       }
       this.startCreate();
       this.dataTable()?.close();
@@ -5394,9 +5451,17 @@ var ErpInvoiceSettings = class extends i3 {
             fill="outline" label-placement="floating" label=${erploraT2("ui.fieldPrefix")}
             .value=${f3.prefix}
             @ionInput=${(e5) => this.setField("prefix", e5.target.value)}></ion-input>
+          <ion-input
+            fill="outline" label-placement="floating" label=${erploraT2("ui.fieldFormat")}
+            data-field="format" ?disabled=${this.formatLocked}
+            .value=${f3.format}
+            @ionInput=${(e5) => this.setField("format", e5.target.value)}></ion-input>
         </div>
         ${this.isEdit ? A : b2`<span class="hint">${erploraT2("ui.codeHint")}</span>`}
         <span class="hint">${erploraT2("ui.prefixHint")}</span>
+        <span class="hint">${erploraT2("ui.formatHint")}</span>
+        ${this.formatLocked ? b2`<ok-inline-feedback tone="warning" icon="lock-closed-outline">${erploraT2("ui.formatLockedHint")}</ok-inline-feedback>` : A}
+        ${this.preview ? b2`<span class="hint">${erploraT2("ui.formatPreview")}: <strong>${this.preview}</strong></span>` : A}
         <div class="toggles">
           <ion-item lines="none">
             <ion-toggle .checked=${f3.is_active} @ionChange=${(e5) => this.setField("is_active", e5.target.checked)}>${erploraT2("ui.fieldActive")}</ion-toggle>
@@ -5456,4 +5521,10 @@ __decorateClass([
 __decorateClass([
   r5()
 ], ErpInvoiceSettings.prototype, "formError", 2);
+__decorateClass([
+  r5()
+], ErpInvoiceSettings.prototype, "formatLocked", 2);
+__decorateClass([
+  r5()
+], ErpInvoiceSettings.prototype, "preview", 2);
 define("erp-invoice-settings", ErpInvoiceSettings);
