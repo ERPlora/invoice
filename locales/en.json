@@ -8,6 +8,10 @@
       "label": "Settings"
     }
   },
+  "setup": {
+    "title": "Your invoice numbering",
+    "description": "Check the prefix your invoice numbers will carry, and add the separate series the tax authority requires for corrective invoices. If you are coming from another system, continue its numbering instead of starting again at 1."
+  },
   "ui": {
     "pageTitle": "Invoices",
     "newInvoice": "New invoice",

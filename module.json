@@ -258,6 +258,13 @@
         "description": "Lists the numbering book: one row per fiscal number handed out, with the series, the sequence, the rendered number and the invoice behind it."
       }
     },
+    "invoice.numbering.status": {
+      "permission": "invoice.view_invoice",
+      "sql": "queries/numbering_status.sql",
+      "ai": {
+        "description": "Reports whether this hub's invoice numbering is set up for the current fiscal year: how many ordinary series (F1/F2/F3) and how many rectifying series (R1-R5) it has, whether one is the default, and how many series exist in total."
+      }
+    },
     "invoice.numbering.gaps": {
       "permission": "invoice.view_invoice",
       "expose_api": true,
@@ -405,6 +412,27 @@
       "invoice.created",
       "invoice.rectified"
     ]
+  },
+  "setup": {
+    "query": "invoice.numbering.status",
+    "configured_when": [
+      {
+        "field": "ordinary_series",
+        "truthy": true
+      },
+      {
+        "field": "rectifying_series",
+        "truthy": true
+      }
+    ],
+    "title": "Your invoice numbering",
+    "description": "Check the prefix your invoice numbers will carry, and add the separate series the tax authority requires for corrective invoices. If you are coming from another system, continue its numbering instead of starting again at 1.",
+    "icon": "bookmark-outline",
+    "route": "/m/invoice/settings",
+    "permission": "invoice.manage_series",
+    "countries": [],
+    "order": 50,
+    "required": true
   },
   "ui": {
     "entry": "dist/invoice.esm.js"
