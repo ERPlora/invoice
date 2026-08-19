@@ -69,8 +69,8 @@ def issue_sale(
 def issue_manual(invoice_id: str, *, hub: str = HUB) -> tuple[bool, str]:
     """A manual complete invoice (`source_id` NULL). Rectifications are driven from one of these on
     purpose: `rectify_insert.sql` COPIES `source_type`/`source_id` from the original, so rectifying
-    a sale-sourced invoice dies on `uq_invoice_source` — a separate, pre-existing bug (invoice#42),
-    out of the scope of this one."""
+    a sale-sourced invoice dies on `uq_invoice_source` — a separate, pre-existing bug
+    (invoice#5, already open and waiting on hub#1023), out of the scope of this one."""
     return H.issue(
         invoice_id,
         invoice_type="F1",
