@@ -18,7 +18,8 @@ two of the sale's five frozen fiscal fields travel in the event.
 | Situation | What happens | What to do |
 |---|---|---|
 | Marking a `draft`, `paid` or `cancelled` invoice as paid | Nothing changes — only `issued` invoices can be marked paid | Check the status first |
-| Rectifying an already-rectifying or cancelled invoice | The action is not offered | You cannot rectify a rectification |
+| Rectifying an already-rectifying or cancelled invoice | The action is not offered, and the command is a no-op if it is called anyway — no number consumed, nothing cancelled | You cannot rectify a rectification |
+| Rectifying the same invoice twice | Resolves to the existing rectification — no second number, no second document | One rectification per invoice; look for the one that already exists |
 | Issuing a second F3 for the same F2 | Resolves to the existing F3 | One substitution per ticket, by design |
 | The same sale event delivered twice | Resolves to the existing invoice | Idempotent by source; nothing to do |
 | Creating a series whose code and year already exist | Rejected | Codes are unique per hub and year |
@@ -29,7 +30,7 @@ two of the sale's five frozen fiscal fields travel in the event.
 
 | Limit | Value |
 |---|---|
-| Rows per page (invoices, series) | 50 |
+| Rows per page (invoices, series, numbering book) | 50 |
 | Maximum rows a paginated request may ask for | 500 |
 | Invoices per sale | 1 |
 | Substituting invoices per ticket | 1 |
@@ -84,7 +85,11 @@ two, check their source: one is probably a manual invoice or a substitution.
 wrong. Issue a substituting F3.
 
 **"The numbering has a gap."** The counter only moves forward and never rewinds, so a gap means an
-attempt that did not complete. Do not try to reuse the number; that is worse than the gap.
+attempt that did not complete. Do not try to reuse the number; that is worse than the gap. Ask
+`invoice.numbering.gaps` — it names the series and the exact stretch that is missing, and returns
+**nothing at all** when the numbering is correlative. `invoice.numbering.allocations` then shows what
+each number was used for. Note the book only covers numbers handed out **since the module was updated
+to the version that added it**; nothing before that was back-filled.
 
 **"The counter restarted at 1."** A new year starts a new counter for the same series code. That is
 correct.

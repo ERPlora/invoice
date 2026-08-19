@@ -54,6 +54,25 @@ Consequences worth knowing:
   first use.
 - **There is exactly one default series per year.** Marking one default demotes the previous one.
 
+## The numbering book: every number handed out is written down
+
+Since ADR-0369 this module is the hub's **only** fiscal sequencer, and every number it hands out is
+recorded in an **append-only book** — one row per number, with the series, the year, the sequence,
+the rendered number and the invoice behind it. The row is written **in the same transaction** as the
+counter bump and the invoice itself, so the book can never disagree with what was issued.
+
+It exists for the "no gaps, no duplicates" audit the law asks for. Two questions it answers:
+
+- **`invoice.numbering.allocations`** — the book itself: what number went to which invoice, and when.
+- **`invoice.numbering.gaps`** — the holes. **No rows means the numbering is correlative**, which is
+  the thing you actually have to be able to prove.
+
+Two things worth knowing. The book **starts the day the module is updated to the version that
+introduced it**: invoices numbered before that have no row, and nothing is back-filled — deriving an
+audit trail after the fact would be inventing evidence. And a row whose invoice is empty means a
+number was consumed without a document behind it; it is written down precisely so the gap is
+*explained* instead of merely visible.
+
 ## One invoice per source, always
 
 Every automatically-created invoice records where it came from — a sale, an order, a substitution —

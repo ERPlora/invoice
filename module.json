@@ -61,7 +61,8 @@
       "migrations/postgres/003_substitution.sql",
       "migrations/postgres/004_quantity_fixed_point.sql",
       "migrations/postgres/005_substitution_unique.sql",
-      "migrations/postgres/006_line_surcharge_rate.sql"
+      "migrations/postgres/006_line_surcharge_rate.sql",
+      "migrations/postgres/007_number_allocation.sql"
     ]
   },
   "queries": {
@@ -210,6 +211,60 @@
       "ai": {
         "description": "Lists the available invoice series."
       }
+    },
+    "invoice.numbering.allocations": {
+      "permission": "invoice.view_invoice",
+      "expose_api": true,
+      "sql": "queries/allocations.sql",
+      "list": {
+        "search": [
+          "document_number",
+          "code"
+        ],
+        "sort": [
+          "id",
+          "code",
+          "year",
+          "sequence",
+          "document_number",
+          "invoice_id",
+          "allocated_at"
+        ],
+        "default_sort": "sequence",
+        "default_dir": "asc",
+        "filters": {
+          "code": {
+            "op": "eq"
+          },
+          "year": {
+            "op": "eq"
+          },
+          "sequence": {
+            "op": "range"
+          },
+          "document_number": {
+            "op": "eq"
+          },
+          "invoice_id": {
+            "op": "eq"
+          },
+          "allocated_at": {
+            "op": "range"
+          }
+        },
+        "page_size": 50
+      },
+      "ai": {
+        "description": "Lists the numbering book: one row per fiscal number handed out, with the series, the sequence, the rendered number and the invoice behind it."
+      }
+    },
+    "invoice.numbering.gaps": {
+      "permission": "invoice.view_invoice",
+      "expose_api": true,
+      "sql": "queries/numbering_gaps.sql",
+      "ai": {
+        "description": "Reports gaps in the invoice numbering: one row per missing stretch of numbers inside a series. No rows means the numbering is correlative, which is what a tax inspection asks for."
+      }
     }
   },
   "commands": {
@@ -270,6 +325,7 @@
         "commands/rectify_ensure.sql",
         "commands/rectify_bump.sql",
         "commands/rectify_insert.sql",
+        "commands/_insert_allocation.sql",
         "commands/rectify_cancel.sql"
       ],
       "emit": [
@@ -328,7 +384,8 @@
     "invoice._insert_invoice": {
       "permission": "invoice.add_invoice",
       "sql": [
-        "commands/_insert_invoice.sql"
+        "commands/_insert_invoice.sql",
+        "commands/_insert_allocation.sql"
       ]
     },
     "invoice._insert_line": {

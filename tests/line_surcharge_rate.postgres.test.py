@@ -96,10 +96,17 @@ def test_the_column_exists_and_defaults_to_null():
         "migrations/postgres/006_line_surcharge_rate.sql"
         in H.MANIFEST["migrations"]["postgres"],
     )
+    # The invariant is ONE linear head, not "006 is the last file forever": asserting the latter
+    # made this test fail the day 007 landed (invoice#39) even though nothing about the surcharge
+    # had changed. What must hold is that the manifest declares every migration on disk, in
+    # filename order — two heads make the deploy's `migrate` abort in silence.
     check(
-        "the migration is the last one (append-only, linear head)",
-        "migrations/postgres/006_line_surcharge_rate.sql",
-        H.MANIFEST["migrations"]["postgres"][-1],
+        "the manifest declares every migration on disk, in order (one linear head)",
+        [
+            f"migrations/postgres/{p.name}"
+            for p in sorted((MODULE_DIR / "migrations" / "postgres").glob("*.sql"))
+        ],
+        H.MANIFEST["migrations"]["postgres"],
     )
 
 
