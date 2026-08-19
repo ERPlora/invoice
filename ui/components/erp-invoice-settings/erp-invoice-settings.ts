@@ -88,6 +88,10 @@ export class ErpInvoiceSettings extends LitElement {
     /* La vista llena el alto: el data-table ocupa todo (scroll interno, pie fijo). */
     .page { display:flex; flex-direction:column; min-height:0; flex:1 1 auto; }
     .page > ok-data-table { flex:1 1 auto; min-height:0; }
+    /* invoice#14: every own control is a touch target (44px), like the ok-data-table actions.
+       size="small" rendered ~27 px; Ionic md buttons default to 36 px. A finger needs 44×44
+       (WCAG 2.5.5). Same rule cash_register and tables applied. */
+    ion-button { min-height:44px; --min-height:44px; }
     h3 { margin:0 0 .5rem; font-size:1rem; }
     .err { color:#d9480f; font-weight:600; }
     .intro { color: var(--ion-color-medium,#8a8577); font-size:.85rem; margin:0 0 .75rem; max-width:60ch; line-height:1.45; }
@@ -393,12 +397,12 @@ export class ErpInvoiceSettings extends LitElement {
           </ion-item>
         </div>
         <div class="row-actions">
-          <ion-button size="small" type="submit" ?disabled=${this.saving}>
+          <ion-button type="submit" ?disabled=${this.saving}>
             ${this.saving
               ? erploraT(this.isEdit ? 'ui.saving' : 'ui.creating')
               : erploraT(this.isEdit ? 'ui.save' : 'ui.create')}
           </ion-button>
-          <ion-button size="small" fill="clear" color="medium" @click=${() => this.cancelForm()}>${erploraT('ui.cancel')}</ion-button>
+          <ion-button fill="clear" color="medium" @click=${() => this.cancelForm()}>${erploraT('ui.cancel')}</ion-button>
         </div>
         ${this.formError ? html`<ok-inline-feedback tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : nothing}
       </form>`;

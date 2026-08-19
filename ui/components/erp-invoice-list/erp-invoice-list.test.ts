@@ -209,3 +209,69 @@ describe('printing goes through the sdk.print cascade, never window.print() dire
     expect(browserPrints, 'without sdk.print the browser dialog is the last resort').toBe(1);
   });
 });
+
+// invoice#14 — touch targets of the module's OWN buttons. `ion-button size="small"` renders ~27 px
+// high; a finger needs 44×44 (WCAG 2.5.5, Ionic default size). The row actions, the toolbar and the
+// pager of `ok-data-table` already got their 44 px centrally in OutfitKit (`9927a4c`), so what is
+// left here are the buttons this component paints itself: the rectify card, the detail header, the
+// detail actions and the create panel. Same fix `cash_register` and `tables` applied: drop
+// `size="small"` and pin `min-height: 44px` in the component styles.
+//
+// happy-dom does no layout, so the height cannot be measured here: what is fixed is the CONTRACT
+// that produces it (no `size="small"` left + the rule present in the styles), plus the accessible
+// name of the icon-only control.
+describe("the module's own buttons are 44px touch targets (invoice#14)", () => {
+  const DETAIL_ISSUED = {
+    ...FACTURA, issuer_nif: 'B00000000', issuer_name: 'Emisora SL', customer_address: '',
+    description: '', tax_breakdown: '', currency: 'EUR', source_id: null,
+    rectifies_invoice_id: null, paid_at: null, notes: '',
+  };
+
+  const smallOnes = (el: HTMLElement & { shadowRoot: ShadowRoot }) =>
+    [...el.shadowRoot.querySelectorAll('ion-button[size="small"]')].map((b) => b.textContent?.trim() ?? '?');
+
+  it('no ion-button of the create panel uses size="small" (add line, issue, cancel, remove line)', async () => {
+    const el = await montar();
+    const wc = el as unknown as { newItems: unknown[]; updateComplete: Promise<unknown> };
+    // two lines so the per-line ✕ is rendered too
+    wc.newItems = [...(wc.newItems as unknown[]), { description: '', quantity: '1', unit_price: '0', tax_rate: '21' }];
+    await wc.updateComplete;
+    expect(smallOnes(el), 'size="small" = ~27 px, below the 44 px touch target').toEqual([]);
+  });
+
+  it('no ion-button of the rectify card uses size="small"', async () => {
+    const el = await montar();
+    const wc = el as unknown as { rectifyTarget: unknown; updateComplete: Promise<unknown> };
+    wc.rectifyTarget = FACTURA;
+    await wc.updateComplete;
+    expect(smallOnes(el)).toEqual([]);
+  });
+
+  it('no ion-button of the detail uses size="small" (print, back, mark paid, rectify)', async () => {
+    const el = await montar();
+    const wc = el as unknown as { detail: unknown; detailLines: unknown[]; updateComplete: Promise<unknown> };
+    wc.detail = DETAIL_ISSUED;
+    wc.detailLines = [];
+    await wc.updateComplete;
+    expect(el.shadowRoot.querySelectorAll('header ion-button.print').length, 'the detail header must still paint its buttons').toBe(1);
+    expect(smallOnes(el)).toEqual([]);
+  });
+
+  it('the touch-target rule is in the component styles: ion-button min-height 44px', async () => {
+    const el = await montar();
+    const cssText = ((el.constructor as unknown as { styles: { cssText: string } }).styles).cssText;
+    expect(cssText).toMatch(/ion-button\s*\{[^}]*min-height:\s*44px/);
+  });
+
+  it('the icon-only button that removes a draft line has an accessible name', async () => {
+    const el = await montar();
+    const wc = el as unknown as { newItems: unknown[]; updateComplete: Promise<unknown> };
+    wc.newItems = [...(wc.newItems as unknown[]), { description: '', quantity: '1', unit_price: '0', tax_rate: '21' }];
+    await wc.updateComplete;
+    const removes = [...el.shadowRoot.querySelectorAll('.item-row ion-button')];
+    expect(removes.length, 'with two draft lines each one carries its remove control').toBe(2);
+    for (const b of removes) {
+      expect(b.getAttribute('aria-label'), 'an icon-only button with no aria-label is announced as «✕»').toBe('ui.removeLine');
+    }
+  });
+});
