@@ -289,6 +289,15 @@
       }
     }
   },
+  "records": {
+    "invoice": {
+      "mutable": false,
+      "reason": "fiscal",
+      "correct_with": [
+        "invoice.rectify"
+      ]
+    }
+  },
   "commands": {
     "invoice.create": {
       "permission": "invoice.add_invoice",
