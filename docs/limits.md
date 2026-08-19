@@ -24,6 +24,8 @@ two of the sale's five frozen fiscal fields travel in the event.
 | The same sale event delivered twice | Resolves to the existing invoice | Idempotent by source; nothing to do |
 | Creating a series whose code and year already exist | Rejected | Codes are unique per hub and year |
 | Trying to change a series' code, year or counter | Not accepted | Those are the fiscal identity of the numbering |
+| Changing the number format of a series that already issued | Not accepted — the field is locked and the change is ignored | The number is in the VeriFactu chain; create a new series |
+| A number format with no `{seq}` placeholder | Rejected before it reaches the database | Every invoice would get the same number; add `{seq}` or `{seq:0Nd}` |
 | Creating an invoice with no lines | Rejected | At least one line is required |
 
 ## Caps and sizes

@@ -29,6 +29,10 @@ interface SeriesRow {
   year: number;
   current_number: number;
   prefix: string;
+  /** Plantilla del número (invoice#40). NULL/vacía = el formato histórico `PREFIX-YYYY-NNNNNN`. */
+  format: string | null;
+  /** 1 = la serie ya emitió → su forma está congelada (entra en la huella de VeriFactu). */
+  format_locked: number;
   is_active: number;
   is_default: number;
 }
@@ -41,6 +45,7 @@ interface SeriesForm {
   invoice_type: string;
   year: string;
   prefix: string;
+  format: string;
   is_active: boolean;
   is_default: boolean;
 }
@@ -71,8 +76,11 @@ const TYPE_CODES = ['F1', 'F2', 'F3', 'R1', 'R2', 'R3', 'R4', 'R5'];
 
 const blankForm = (): SeriesForm => ({
   series_id: '', code: '', name: '', invoice_type: 'F1',
-  year: String(new Date().getFullYear()), prefix: '', is_active: true, is_default: false,
+  year: String(new Date().getFullYear()), prefix: '', format: '', is_active: true, is_default: false,
 });
+
+/** Lo que se enseña cuando la serie no tiene plantilla: el formato histórico, escrito tal cual. */
+const DEFAULT_FORMAT_LABEL = 'PREFIX-YYYY-NNNNNN';
 
 export class ErpInvoiceSettings extends LitElement {
   static styles = css`
@@ -107,6 +115,10 @@ export class ErpInvoiceSettings extends LitElement {
   @state() saving = false;
 
   @state() formError = '';
+  /** invoice#40: la serie ya emitió → su plantilla de número está congelada. */
+  @state() formatLocked = false;
+  /** Siguiente número, RENDERIZADO POR EL SERVIDOR (`invoice.series.peek_next`). */
+  @state() preview = '';
 
   private canManage = false;
 
@@ -130,6 +142,13 @@ export class ErpInvoiceSettings extends LitElement {
       },
       { key: 'year', header: t('ui.seriesColYear'), align: 'right', sortable: true },
       { key: 'prefix', header: t('ui.seriesColPrefix'), format: (r) => (r.prefix as string) || '—' },
+      // invoice#40: la plantilla del número. Sin plantilla se escribe el formato histórico —
+      // «—» haría creer que la serie no numera con ninguna forma concreta, y sí lo hace.
+      {
+        key: 'format',
+        header: t('ui.seriesColFormat'),
+        format: (r) => (r.format as string) || DEFAULT_FORMAT_LABEL,
+      },
       { key: 'current_number', header: t('ui.seriesColNumber'), align: 'right', sortable: true },
       // Sí/no = dominio cerrado: se filtra eligiendo, no tecleando 1 ó 0.
       {
@@ -207,6 +226,8 @@ export class ErpInvoiceSettings extends LitElement {
   private startCreate() {
     this.formError = '';
     this.form = blankForm();
+    this.formatLocked = false;
+    this.preview = '';
   }
 
   // «Editar» reabre EL MISMO panel `create`, ya relleno: no hay una segunda pantalla de edición.
@@ -219,10 +240,35 @@ export class ErpInvoiceSettings extends LitElement {
       invoice_type: row.invoice_type,
       year: String(row.year ?? ''),
       prefix: row.prefix || '',
+      format: row.format || '',
       is_active: !!row.is_active,
       is_default: !!row.is_default,
     };
+    // 🔴 En cuanto la serie ha emitido algo su forma queda congelada: el número entra en la huella
+    // encadenada de VeriFactu. El SQL ya ignora el cambio, pero la pantalla tiene que decirlo — si
+    // no, el usuario cree haber guardado algo que no se guardó.
+    this.formatLocked = !!row.format_locked || (row.current_number ?? 0) > 0;
+    this.preview = '';
+    void this.loadPreview(row.id);
     this.dataTable()?.open('create');
+  }
+
+  /** La vista previa la RENDERIZA EL SERVIDOR (`queries/series_peek_next.sql`).
+   *  Deliberadamente NO se formatea el número en JS: ya se formatea en tres SQL, y un cuarto
+   *  renderizador —encima en otro lenguaje— es justo la deuda que invoice#40 vino a no heredar.
+   *  Una previa que no coincide con el número emitido es peor que no tener previa. */
+  private async loadPreview(seriesId: string) {
+    if (!seriesId) { this.preview = ''; return; }
+    try {
+      const res = await erplora().query<unknown>('invoice.series.peek_next', { series_id: seriesId });
+      const row = (Array.isArray(res) ? res[0] : (res as { rows?: unknown[] })?.rows?.[0]) as
+        | { next_number?: string; format_locked?: number }
+        | undefined;
+      this.preview = row?.next_number ?? '';
+      if (row?.format_locked !== undefined) this.formatLocked = !!row.format_locked;
+    } catch {
+      this.preview = ''; // una previa que falla no rompe la pantalla: es información, no un gate
+    }
   }
 
   private cancelForm() {
@@ -245,16 +291,22 @@ export class ErpInvoiceSettings extends LitElement {
     try {
       if (this.isEdit) {
         // Code, year y contador son inmutables (schemas/series_update.json): solo mutables.
-        await erplora().command('invoice.series.update', {
+        // `format` viaja SOLO si la serie aún puede cambiarlo: mandarlo en una serie que ya numeró
+        // sería pedir algo que `commands/series_update.sql` va a ignorar — y prometer al usuario un
+        // cambio que no ocurre. El esquema exige un marcador de secuencia, así que una plantilla
+        // vacía se omite (= conservar la que hay).
+        const cambios: Record<string, unknown> = {
           series_id: f.series_id,
           name: f.name.trim(),
           prefix: f.prefix.trim(),
           is_active: f.is_active,
           is_default: f.is_default,
-        });
+        };
+        if (!this.formatLocked && f.format.trim()) cambios.format = f.format.trim();
+        await erplora().command('invoice.series.update', cambios);
       } else {
         // schemas/series_create.json: required code, invoice_type, year.
-        await erplora().command('invoice.series.create', {
+        const alta: Record<string, unknown> = {
           code: f.code.trim(),
           name: f.name.trim(),
           invoice_type: f.invoice_type,
@@ -262,7 +314,9 @@ export class ErpInvoiceSettings extends LitElement {
           prefix: f.prefix.trim(),
           is_active: f.is_active,
           is_default: f.is_default,
-        });
+        };
+        if (f.format.trim()) alta.format = f.format.trim();
+        await erplora().command('invoice.series.create', alta);
       }
       this.startCreate(); // vacía el formulario (el panel es el mismo para alta y edición)
       this.dataTable()?.close(); // el panel se cierra solo tras guardar
@@ -315,9 +369,21 @@ export class ErpInvoiceSettings extends LitElement {
             fill="outline" label-placement="floating" label=${erploraT('ui.fieldPrefix')}
             .value=${f.prefix}
             @ionInput=${(e: any) => this.setField('prefix', e.target.value)}></ion-input>
+          <ion-input
+            fill="outline" label-placement="floating" label=${erploraT('ui.fieldFormat')}
+            data-field="format" ?disabled=${this.formatLocked}
+            .value=${f.format}
+            @ionInput=${(e: any) => this.setField('format', e.target.value)}></ion-input>
         </div>
         ${this.isEdit ? nothing : html`<span class="hint">${erploraT('ui.codeHint')}</span>`}
         <span class="hint">${erploraT('ui.prefixHint')}</span>
+        <span class="hint">${erploraT('ui.formatHint')}</span>
+        ${this.formatLocked
+          ? html`<ok-inline-feedback tone="warning" icon="lock-closed-outline">${erploraT('ui.formatLockedHint')}</ok-inline-feedback>`
+          : nothing}
+        ${this.preview
+          ? html`<span class="hint">${erploraT('ui.formatPreview')}: <strong>${this.preview}</strong></span>`
+          : nothing}
         <div class="toggles">
           <ion-item lines="none">
             <ion-toggle .checked=${f.is_active} @ionChange=${(e: any) => this.setField('is_active', e.target.checked)}>${erploraT('ui.fieldActive')}</ion-toggle>

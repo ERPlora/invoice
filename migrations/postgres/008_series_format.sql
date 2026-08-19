@@ -1,0 +1,26 @@
+-- Invoice · 008 — invoice#40 / ADR-0369 D3a: plantilla de FORMATO configurable por serie.
+--
+-- Hasta ahora el número se renderizaba fijo: `PREFIX-YYYY-NNNNNN`. El mercado lo configura
+-- (Holded «Numeración de documentos», Sage «Series de documentos», el `No. Series` de Business
+-- Central) y el sector español recomienda **serie por TPV** (p. ej. `VFT25-A`), que con un formato
+-- fijo no se puede expresar.
+--
+-- Aditiva y append-only:
+--   * `format` NULL (o vacío) → EXACTAMENTE el comportamiento actual, `PREFIX-YYYY-NNNNNN`. Esa es
+--     la forma que llevan TODAS las series ya emitidas, y no se toca ni se rellena: el número entra
+--     en la huella encadenada de VeriFactu (`hub/crates/verifactu/src/chain.rs` → `NumSerieFactura`),
+--     así que re-formatear una serie viva rompería la continuidad de todo lo emitido después.
+--   * `format` con plantilla → se renderiza con ella.
+--
+-- Marcadores admitidos: `{prefix}` · `{code}` · `{year}` · `{seq}` · `{seq:01d}`…`{seq:09d}`.
+-- **No hay `{suffix}`**, a diferencia de `invoice_series`: allí existía porque la serie tenía una
+-- columna `suffix` que interpolar. Aquí la plantilla es texto libre, así que un sufijo se escribe
+-- literal (`{prefix}-{year}-{seq:06d}-A`) — una columna menos y un marcador menos que explicar.
+-- Un marcador desconocido se queda LITERAL (el render no lanza), y el esquema del payload rechaza
+-- antes de llegar aquí cualquier plantilla sin marcador de secuencia: sin `{seq}` todas las
+-- facturas de la serie saldrían con el MISMO número.
+--
+-- La inmutabilidad no vive en el esquema sino en la puerta: `commands/series_update.sql` solo
+-- aplica `format` mientras `current_number = 0`, igual que `code`, `year` y el contador, que
+-- tampoco son editables. Un CHECK no puede verlo (no conoce el valor anterior).
+ALTER TABLE invoice_invoiceseries ADD COLUMN IF NOT EXISTS format TEXT;

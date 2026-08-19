@@ -6,7 +6,8 @@
       "invoice.get",
       "invoice.lines",
       "invoice.list",
-      "invoice.series.list"
+      "invoice.series.list",
+      "invoice.series.peek_next"
     ],
     "optional_queries": [
       "verifactu.records.by_invoice"
