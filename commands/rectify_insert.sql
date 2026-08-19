@@ -23,4 +23,14 @@ SELECT
     'Rectifies ' || number || '. Reason: ' || :reason,
     0, :current_user_id, :current_user_id, :now, :now
 FROM invoice_invoice
-WHERE id = :original_id AND hub_id = :hub_id AND invoice_type NOT LIKE 'R%';
+WHERE id = :original_id AND hub_id = :hub_id AND invoice_type NOT LIKE 'R%'
+  -- invoice#39: la MISMA guarda que `rectify_bump.sql` (patrón ADR-0020). Sin ella, un reintento
+  -- emitía una segunda rectificativa de la misma factura con un número nuevo; con la guarda solo en
+  -- el bump, el insert habría escrito con un número que el contador ya no había avanzado. Las dos
+  -- puertas se mueven juntas. `is_deleted = 0` también se exige aquí: una original soft-borrada no
+  -- se rectifica.
+  AND is_deleted = 0
+  AND NOT EXISTS (
+    SELECT 1 FROM invoice_invoice r
+    WHERE r.hub_id = :hub_id AND r.rectifies_invoice_id = :original_id AND r.is_deleted = 0
+  );
