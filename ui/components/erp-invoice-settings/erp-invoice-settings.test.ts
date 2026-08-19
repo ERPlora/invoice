@@ -222,3 +222,23 @@ describe('formato de numeración por serie (invoice#40)', () => {
     expect(upd.payload.format).toBe('{code}-{seq:04d}');
   });
 });
+
+// invoice#14 — touch targets of the module's OWN buttons. `ion-button size="small"` renders ~27 px
+// high; a finger needs 44×44 (WCAG 2.5.5). The table's own actions/toolbar/pager already got their
+// 44 px centrally in OutfitKit (`9927a4c`); these are the two buttons of the series form (submit +
+// cancel). Same fix `cash_register` and `tables` applied: drop `size="small"` and pin
+// `min-height: 44px` in the component styles.
+describe("the module's own buttons are 44px touch targets (invoice#14)", () => {
+  it('no ion-button of the series form uses size="small" (save/create + cancel)', async () => {
+    const el = await montar();
+    const small = [...el.shadowRoot.querySelectorAll('ion-button[size="small"]')].map((b) => b.textContent?.trim() ?? '?');
+    expect(small, 'size="small" = ~27 px, below the 44 px touch target').toEqual([]);
+    expect(el.shadowRoot.querySelectorAll('.row-actions ion-button').length, 'the form must still paint its two buttons').toBe(2);
+  });
+
+  it('the touch-target rule is in the component styles: ion-button min-height 44px', async () => {
+    const el = await montar();
+    const cssText = ((el.constructor as unknown as { styles: { cssText: string } }).styles).cssText;
+    expect(cssText).toMatch(/ion-button\s*\{[^}]*min-height:\s*44px/);
+  });
+});

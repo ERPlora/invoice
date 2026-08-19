@@ -4333,6 +4333,7 @@ var es_default = {
     createTitle: "Nueva factura manual",
     placeholderTaxId: "NIF",
     addLine: "+ L\xEDnea",
+    removeLine: "Quitar l\xEDnea",
     issuing: "Emitiendo\u2026",
     issueInvoice: "Emitir factura",
     errNotFound: "Factura no encontrada",
@@ -4472,6 +4473,7 @@ var en_default = {
     createTitle: "New manual invoice",
     placeholderTaxId: "Tax ID",
     addLine: "+ Line",
+    removeLine: "Remove line",
     issuing: "Issuing\u2026",
     issueInvoice: "Issue invoice",
     errNotFound: "Invoice not found",
@@ -4604,6 +4606,10 @@ var ErpInvoiceList = class extends i3 {
     .page { display:flex; flex-direction:column; min-height:0; flex:1 1 auto; }
     .page > ok-data-table { flex:1 1 auto; min-height:0; }
     header { display:flex; gap:.5rem; align-items:center; margin-bottom:.75rem; }
+    /* invoice#14: every own control is a touch target (44px), like the ok-data-table actions.
+       size="small" rendered ~27 px; Ionic md buttons default to 36 px. A finger needs 44×44
+       (WCAG 2.5.5). Same rule cash_register and tables applied. */
+    ion-button { min-height:44px; --min-height:44px; }
     h2 { margin:0; font-size:1.15rem; flex:1; }
     h3 { margin:0 0 .5rem; font-size:1rem; }
     .err { color:#d9480f; font-weight:600; }
@@ -4985,8 +4991,8 @@ var ErpInvoiceList = class extends i3 {
         <ion-textarea fill="outline" label-placement="floating" label=${erploraT("ui.lblReason")} placeholder=${erploraT("ui.rectifyReasonPlaceholder")} auto-grow .value=${this.rectifyReason} @ionInput=${(e5) => this.rectifyReason = e5.target.value}></ion-textarea>
       </div>
       <div class="row-actions">
-        <ion-button size="small" color="danger" ?disabled=${this.busy || !this.rectifyReason.trim()} @click=${() => this.confirmRectify()}>${this.busy ? erploraT("ui.rectifying") : erploraT("ui.issueRectifying")}</ion-button>
-        <ion-button size="small" fill="outline" color="medium" @click=${() => this.rectifyTarget = null}>${erploraT("ui.cancel")}</ion-button>
+        <ion-button color="danger" ?disabled=${this.busy || !this.rectifyReason.trim()} @click=${() => this.confirmRectify()}>${this.busy ? erploraT("ui.rectifying") : erploraT("ui.issueRectifying")}</ion-button>
+        <ion-button fill="outline" color="medium" @click=${() => this.rectifyTarget = null}>${erploraT("ui.cancel")}</ion-button>
       </div>
     </div>`;
   }
@@ -5021,10 +5027,10 @@ var ErpInvoiceList = class extends i3 {
       <header class="screen-only">
         <h2>${erploraT("ui.detailTitle", { number: d3.number })}</h2>
         <ion-badge color=${STATUS_COLOR[d3.status] ?? "medium"}>${statusLabel(d3.status)}</ion-badge>
-        <ion-button class="print" size="small" @click=${() => this.printDetail()}>
+        <ion-button class="print" @click=${() => this.printDetail()}>
           <ion-icon slot="start" name="print-outline"></ion-icon> ${erploraT("ui.actionPrint")}
         </ion-button>
-        <ion-button size="small" fill="outline" color="medium" @click=${() => this.closeDetail()}>← ${erploraT("ui.back")}</ion-button>
+        <ion-button fill="outline" color="medium" @click=${() => this.closeDetail()}>← ${erploraT("ui.back")}</ion-button>
       </header>
       ${this.actionError ? b2`<p class="err screen-only">${this.actionError}</p>` : A}
       <div class="screen-only">${this.renderRectifyCard()}</div>
@@ -5057,8 +5063,8 @@ var ErpInvoiceList = class extends i3 {
           <span>${erploraT("ui.totalTotal")}: ${fmtDoc(d3.total_amount, d3.currency)}</span>
         </div>
         <div class="row-actions">
-          ${this.canAdd && d3.status === "issued" ? b2`<ion-button size="small" color="success" ?disabled=${this.busy} @click=${() => this.markPaid(d3)}>${erploraT("ui.actionMarkPaid")}</ion-button>` : A}
-          ${this.canRectify && !(d3.invoice_type ?? "").startsWith("R") && d3.status !== "cancelled" ? b2`<ion-button size="small" fill="outline" color="danger" ?disabled=${this.busy} @click=${() => this.startRectify(d3)}>${erploraT("ui.actionRectify")}</ion-button>` : A}
+          ${this.canAdd && d3.status === "issued" ? b2`<ion-button color="success" ?disabled=${this.busy} @click=${() => this.markPaid(d3)}>${erploraT("ui.actionMarkPaid")}</ion-button>` : A}
+          ${this.canRectify && !(d3.invoice_type ?? "").startsWith("R") && d3.status !== "cancelled" ? b2`<ion-button fill="outline" color="danger" ?disabled=${this.busy} @click=${() => this.startRectify(d3)}>${erploraT("ui.actionRectify")}</ion-button>` : A}
         </div>
       </div>
       <!-- Documento imprimible (solo al imprimir / Guardar como PDF): layout factura con QR VeriFactu. -->
@@ -5083,12 +5089,12 @@ var ErpInvoiceList = class extends i3 {
           <ion-input class="num" fill="outline" label-placement="floating" label=${erploraT("ui.lineQty")} type="number" .value=${it.quantity} @ionInput=${(e5) => this.setItem(i7, "quantity", e5.target.value)}></ion-input>
           <ion-input class="num" fill="outline" label-placement="floating" label=${erploraT("ui.linePrice")} type="number" .value=${it.unit_price} @ionInput=${(e5) => this.setItem(i7, "unit_price", e5.target.value)}></ion-input>
           <ion-input class="num" fill="outline" label-placement="floating" label=${erploraT("ui.lineTaxPct")} type="number" .value=${it.tax_rate} @ionInput=${(e5) => this.setItem(i7, "tax_rate", e5.target.value)}></ion-input>
-          ${this.newItems.length > 1 ? b2`<ion-button size="small" fill="clear" color="danger" @click=${() => this.newItems = this.newItems.filter((_2, j2) => j2 !== i7)}>✕</ion-button>` : A}
+          ${this.newItems.length > 1 ? b2`<ion-button fill="clear" color="danger" aria-label=${erploraT("ui.removeLine")} @click=${() => this.newItems = this.newItems.filter((_2, j2) => j2 !== i7)}><ion-icon slot="icon-only" name="close-outline"></ion-icon></ion-button>` : A}
         </div>`)}
         <div class="row-actions">
-          <ion-button size="small" fill="outline" @click=${() => this.newItems = [...this.newItems, emptyItem()]}>${erploraT("ui.addLine")}</ion-button>
-          <ion-button size="small" type="submit" ?disabled=${this.saving || !this.itemsValid}>${this.saving ? erploraT("ui.issuing") : erploraT("ui.issueInvoice")}</ion-button>
-          <ion-button size="small" fill="clear" color="medium" @click=${() => this.dataTable()?.close()}>${erploraT("ui.cancel")}</ion-button>
+          <ion-button fill="outline" @click=${() => this.newItems = [...this.newItems, emptyItem()]}>${erploraT("ui.addLine")}</ion-button>
+          <ion-button type="submit" ?disabled=${this.saving || !this.itemsValid}>${this.saving ? erploraT("ui.issuing") : erploraT("ui.issueInvoice")}</ion-button>
+          <ion-button fill="clear" color="medium" @click=${() => this.dataTable()?.close()}>${erploraT("ui.cancel")}</ion-button>
         </div>
         ${this.formError ? b2`<ok-inline-feedback tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : A}
       </form>`;
@@ -5222,6 +5228,10 @@ var ErpInvoiceSettings = class extends i3 {
     /* La vista llena el alto: el data-table ocupa todo (scroll interno, pie fijo). */
     .page { display:flex; flex-direction:column; min-height:0; flex:1 1 auto; }
     .page > ok-data-table { flex:1 1 auto; min-height:0; }
+    /* invoice#14: every own control is a touch target (44px), like the ok-data-table actions.
+       size="small" rendered ~27 px; Ionic md buttons default to 36 px. A finger needs 44×44
+       (WCAG 2.5.5). Same rule cash_register and tables applied. */
+    ion-button { min-height:44px; --min-height:44px; }
     h3 { margin:0 0 .5rem; font-size:1rem; }
     .err { color:#d9480f; font-weight:600; }
     .intro { color: var(--ion-color-medium,#8a8577); font-size:.85rem; margin:0 0 .75rem; max-width:60ch; line-height:1.45; }
@@ -5471,10 +5481,10 @@ var ErpInvoiceSettings = class extends i3 {
           </ion-item>
         </div>
         <div class="row-actions">
-          <ion-button size="small" type="submit" ?disabled=${this.saving}>
+          <ion-button type="submit" ?disabled=${this.saving}>
             ${this.saving ? erploraT2(this.isEdit ? "ui.saving" : "ui.creating") : erploraT2(this.isEdit ? "ui.save" : "ui.create")}
           </ion-button>
-          <ion-button size="small" fill="clear" color="medium" @click=${() => this.cancelForm()}>${erploraT2("ui.cancel")}</ion-button>
+          <ion-button fill="clear" color="medium" @click=${() => this.cancelForm()}>${erploraT2("ui.cancel")}</ion-button>
         </div>
         ${this.formError ? b2`<ok-inline-feedback tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : A}
       </form>`;

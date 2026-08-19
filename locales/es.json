@@ -82,6 +82,7 @@
     "createTitle": "Nueva factura manual",
     "placeholderTaxId": "NIF",
     "addLine": "+ Línea",
+    "removeLine": "Quitar línea",
     "issuing": "Emitiendo…",
     "issueInvoice": "Emitir factura",
     "errNotFound": "Factura no encontrada",

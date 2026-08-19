@@ -81,6 +81,7 @@
     "createTitle": "New manual invoice",
     "placeholderTaxId": "Tax ID",
     "addLine": "+ Line",
+    "removeLine": "Remove line",
     "issuing": "Issuing…",
     "issueInvoice": "Issue invoice",
     "errNotFound": "Invoice not found",
