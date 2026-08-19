@@ -9,6 +9,10 @@
       "label": "Ajustes"
     }
   },
+  "setup": {
+    "title": "Tu numeración de facturas",
+    "description": "Revisa el prefijo con el que saldrán tus números de factura y añade la serie separada que Hacienda exige para las rectificativas. Si vienes de otro sistema, continúa su numeración en vez de empezar otra vez por el 1."
+  },
   "ui": {
     "pageTitle": "Facturas",
     "newInvoice": "Nueva factura",

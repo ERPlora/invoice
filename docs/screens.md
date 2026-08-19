@@ -107,3 +107,20 @@ and changing them would break the fiscal sequence.
 
 Each is ensured on first use for the year, so a new year starts a fresh counter without anyone doing
 anything.
+
+## The setup checklist points here
+
+The hub's setup checklist carries an item — **"Your invoice numbering"** — that stays pending until
+this hub has, **for the current fiscal year**, both an ordinary series (F1/F2/F3) *and* a **separate
+rectifying series** (R1–R5). It is a 🔴 *functional* item: nothing is blocked, but until it is done
+the numbering has not been looked at by a human.
+
+Why it is not ticked by the first sale: the `TICKET` series is born on its own the first time
+something is invoiced, prefix included, with nobody having chosen it — and the rectifying series the
+tax authority requires separately is never created by a sale at all. The item is what brings you to
+this screen to do two things:
+
+- **check the prefix** your numbers will carry (a series per till, e.g. `VFT25-A`, is common
+  practice), and
+- if you are migrating from another system, **continue its numbering** instead of starting again at
+  1 — interleaved series are the number-one failure when adapting to VeriFactu.
