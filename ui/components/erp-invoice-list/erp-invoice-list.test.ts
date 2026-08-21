@@ -275,3 +275,43 @@ describe("the module's own buttons are 44px touch targets (invoice#14)", () => {
     }
   });
 });
+
+// invoice#49 — una NEGATIVA de negocio (hub#139) llega con un `code` estable y namespaced, y la
+// pantalla tiene que pintar su TRADUCCIÓN, no la frase inglesa que el handler manda de reserva.
+// Sin esto, la única refusal que este formulario puede provocar se lee en inglés y en jerga
+// («prices to 0, scale 1000000»), que es exactamente lo que el catálogo `errors` existe para evitar.
+describe('las negativas del handler se leen traducidas', () => {
+  async function emitirConError(err: unknown) {
+    (globalThis as Record<string, unknown>).erplora = {
+      ...((globalThis as Record<string, unknown>).erplora as Record<string, unknown>),
+      command: async () => { throw err; },
+    };
+    const el = await montar();
+    const t = tabla(el)!;
+    const wc = el as unknown as {
+      newItems: { description: string; quantity: string; unit_price: string; tax_rate: string }[];
+      formError: string;
+      updateComplete: Promise<unknown>;
+    };
+    wc.newItems = [{ description: 'Servicio', quantity: '2', unit_price: '50', tax_rate: '21' }];
+    await wc.updateComplete;
+    (t.querySelector('form[slot="create"]') as HTMLFormElement).requestSubmit();
+    await new Promise((r) => setTimeout(r, 0));
+    await wc.updateComplete;
+    return wc.formError;
+  }
+
+  it('un `invoice.line_amount_underflow` se pinta en el idioma del hub', async () => {
+    const err = Object.assign(new Error('line 1 `Servicio`: quantity 2 at 5000 minor units each prices to 0'), {
+      code: 'invoice.line_amount_underflow',
+    });
+    const texto = await emitirConError(err);
+    expect(texto, 'se pintó la frase inglesa del handler en vez de la traducción').toContain('millonésimas');
+  });
+
+  it('el código de OTRO módulo se respeta tal cual (su frase gana a cualquier invento nuestro)', async () => {
+    const err = Object.assign(new Error('that sale does not exist'), { code: 'sales.sale_not_found' });
+    expect(await emitirConError(err)).toBe('that sale does not exist');
+  });
+});
+

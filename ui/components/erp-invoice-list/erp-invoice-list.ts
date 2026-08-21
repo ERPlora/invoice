@@ -17,6 +17,39 @@ import esLocale from '../../../locales/es.json';
 import enLocale from '../../../locales/en.json';
 const CATALOG: Record<string, unknown> = { es: esLocale, en: enLocale };
 
+/** The `errors` catalog of `locales/{en,es}.json`, resolved by the active language.
+ *
+ *  It is NOT reachable through `erplora().t()`: that helper splits the key on dots to walk the
+ *  catalog, and the `errors` block is FLAT — the whole namespaced code is ONE key
+ *  (`"invoice.line_amount_underflow"`), the shape `appointments`/`customers` already ship. */
+function catalogError(code: string): string {
+  for (const lang of [erplora().locale, 'en']) {
+    const dict = (CATALOG[lang] as { errors?: Record<string, string> } | undefined)?.errors;
+    const text = dict?.[code];
+    if (typeof text === 'string' && text) return text;
+  }
+  return '';
+}
+
+/** A business refusal (hub#139) travels as a stable `code` plus the handler's English fallback
+ *  sentence: paint the code's TRANSLATION and keep the sentence for codes the catalog has not
+ *  learned yet — same as `appointments`/`customers`.
+ *
+ *  invoice#49: the refusal this form can actually provoke talks about µ-units and scale 10⁶.
+ *  Untranslated, it reaches whoever issues the invoice as English jargon.
+ *
+ *  Only OUR codes: another module's (or the core's) is not in this catalog, and its own sentence
+ *  beats anything this one could invent for it. */
+function domainErrorText(e: unknown, fallbackKey: string): string {
+  const code = (e as { code?: unknown } | null)?.code;
+  const message = e instanceof Error ? e.message : '';
+  if (typeof code === 'string' && code.startsWith('invoice.')) {
+    const text = catalogError(code);
+    if (text) return text;
+  }
+  return message || erploraT(fallbackKey);
+}
+
 interface ErploraClientLike extends ListClient {
   query<T = unknown>(name: string, params?: Record<string, unknown>): Promise<T>;
   /** Integración OPCIONAL (ADR-0127): undefined SOLO si el módulo dueño no está instalado;
@@ -427,7 +460,7 @@ export class ErpInvoiceList extends LitElement {
       this.dataTable()?.close(); // el panel de alta se cierra solo tras emitir
       await this.ctrl.load();
     } catch (e) {
-      this.formError = e instanceof Error ? e.message : erploraT('ui.errCreate');
+      this.formError = domainErrorText(e, 'ui.errCreate');
     } finally {
       this.saving = false;
     }
