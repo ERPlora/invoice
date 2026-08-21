@@ -20,7 +20,7 @@ use erplora_guest_sdk::tax;
 use erplora_guest_sdk::units::QUANTITY_SCALE;
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
-use erplora_guest_sdk::{Event, Operation, Output};
+use erplora_guest_sdk::{DomainError, Event, Operation, Output};
 use serde_json::{json, Map, Value};
 
 #[cfg(feature = "guest")]
@@ -299,6 +299,32 @@ fn build_invoice(
                 let qd = Decimal::from(qty) / Decimal::from(QUANTITY_SCALE);
                 let rd = Decimal::from_f64(rate).unwrap_or(Decimal::ZERO);
                 let base = money::mul_qty(unit_price, qd);
+                // invoice#49: a priced line that ends up costing NOTHING is not a line, it is a
+                // payload sent in the wrong scale. `quantity` travels as a fixed-point integer of
+                // scale 10⁶ (ADR-0147), so a caller that means «2 coffees» and sends `2` is really
+                // asking for 0,000002 units: 0,00066 cents, which rounds to 0 — and the invoice was
+                // being ISSUED, numbered and chained in VeriFactu with base, quota and total at
+                // zero. A fiscal document already issued is never deleted (ADR-0331) and
+                // `invoice.rectify` is broken (invoice#5), so that mistake is irreversible for the
+                // business. Refusing costs nothing; a zero-euro invoice costs a rectification that
+                // does not exist.
+                //
+                // Only PRICED lines are judged (`unit_price > 0`): a comped/gift line honestly
+                // costs 0,00 € and must keep going through.
+                if unit_price > 0 && qty > 0 && base == 0 {
+                    return Output::new().with_error(DomainError::new(
+                        "invoice.line_amount_underflow",
+                        format!(
+                            "line {} `{}`: quantity {} at {} minor units each prices to 0, so the \
+                             invoice would be issued for 0.00. Quantities are fixed-point integers \
+                             of scale 1000000 (ADR-0147): one unit is 1000000, not 1.",
+                            i + 1,
+                            s(item.get("description").unwrap_or(&Value::Null)),
+                            qty,
+                            unit_price
+                        ),
+                    ));
+                }
                 let tax = money::percent_of(base, rd);
                 (base, tax)
             }
@@ -1365,5 +1391,101 @@ mod tests {
         let d = desglose(&create_invoice_pure(input));
         assert_eq!(d[0]["tax"], json!("igic"));
         assert_eq!(d[0]["rate"], json!(7.0));
+    }
+}
+
+#[cfg(test)]
+mod quantity_scale_tests {
+    //! invoice#49 — a `quantity` sent in UNITS must never be sealed as a zero-euro invoice.
+    //!
+    //! Quantities travel as fixed-point integers, scale 10⁶ (ADR-0147): `2` is 0,000002 units, not
+    //! two. Read that way, «2 coffees at 3,30 €» is 0,00066 cents, which rounds to 0 — and the
+    //! invoice was issued, numbered and chained in VeriFactu with base, quota and total at zero.
+    //! A fiscal document already issued is not deleted (ADR-0331), so the mistake is irreversible
+    //! for the business that makes it.
+    use super::*;
+
+    fn manual(items: Value, ids: usize) -> Value {
+        let new_ids: Vec<Value> = (0..ids).map(|i| json!(format!("id-{i}"))).collect();
+        json!({
+            "payload": { "customer_name": "Cliente QA", "items": items },
+            "context": { "new_ids": new_ids, "now": "2026-05-31T10:00:00+00:00" }
+        })
+    }
+
+    #[test]
+    fn a_quantity_sent_in_units_is_refused_instead_of_sealing_a_zero_euro_invoice() {
+        let out = create_invoice_pure(manual(
+            json!([{ "description": "Cafe con leche", "quantity": 2, "unit_price": 330, "tax_rate": 21.0 }]),
+            6,
+        ));
+        let err = out.error.as_ref().expect("2 µ-units × 3,30 € rounds to 0,00 € — it must be refused");
+        assert_eq!(err.code, "invoice.line_amount_underflow");
+        assert!(
+            err.message.contains("1000000"),
+            "the refusal has to name the scale so the caller can fix the payload: {}",
+            err.message
+        );
+        assert!(
+            out.operations.is_empty() && out.events.is_empty(),
+            "a refused invoice writes nothing: no series bump, no number, no `invoice.created`"
+        );
+    }
+
+    #[test]
+    fn a_fraction_of_a_unit_is_still_invoiceable() {
+        // Guard-rail of the guard: 0,5 units of a 12,00 € wine is 6,00 € and stays legal.
+        let out = create_invoice_pure(manual(
+            json!([{ "description": "Vino a granel", "quantity": 500_000, "unit_price": 1200, "tax_rate": 21.0 }]),
+            6,
+        ));
+        assert!(out.error.is_none(), "0,5 units is a real quantity: {:?}", out.error);
+        assert_eq!(out.operations[2].params["base_amount"], json!(600));
+    }
+
+    #[test]
+    fn a_line_given_away_for_free_is_not_an_underflow() {
+        // A 0,00 € line (a gift/comp coming from the till) prices to zero HONESTLY — there is no
+        // scale mistake to catch, and refusing it would break the invoice of a comped sale.
+        let out = create_invoice_pure(manual(
+            json!([
+                { "description": "Invitacion", "quantity": 1_000_000, "unit_price": 0, "tax_rate": 21.0 },
+                { "description": "Cafe", "quantity": 1_000_000, "unit_price": 330, "tax_rate": 21.0 }
+            ]),
+            8,
+        ));
+        assert!(out.error.is_none(), "{:?}", out.error);
+        assert_eq!(out.operations[2].params["base_amount"], json!(330));
+    }
+
+    #[test]
+    fn the_refusal_names_the_line_that_is_wrong() {
+        let out = create_invoice_pure(manual(
+            json!([
+                { "description": "Cafe", "quantity": 1_000_000, "unit_price": 330, "tax_rate": 21.0 },
+                { "description": "Tostada", "quantity": 3, "unit_price": 250, "tax_rate": 21.0 }
+            ]),
+            8,
+        ));
+        let err = out.error.as_ref().expect("the second line underflows");
+        assert!(err.message.contains("Tostada"), "the caller has to know WHICH line: {}", err.message);
+    }
+
+    #[test]
+    fn a_replayed_sale_that_carries_its_own_amounts_is_not_judged_by_this_guard() {
+        // `create_from_sale`/`substitute` hand over base/tax ALREADY extracted (contract D1): those
+        // lines are not priced here, so this guard does not apply to them. What checks THOSE is the
+        // arithmetic audit (invoice#50).
+        let new_ids: Vec<Value> = (0..6).map(|i| json!(format!("id-{i}"))).collect();
+        let input = json!({
+            "payload": { "sale_id": "sale-1", "items": [
+                { "product_name": "Cafe", "quantity": 1_000_000, "unit_price": 100, "tax_rate": 21.0,
+                  "net_amount": 83, "tax_amount": 17 }
+            ]},
+            "context": { "new_ids": new_ids, "now": "2026-05-31T10:00:00+00:00",
+                         "reads": { "sales.get": [{ "id": "sale-1" }] } }
+        });
+        let out = create_from_sale_pure(input).unwrap();
+        assert!(out.error.is_none(), "{:?}", out.error);
     }
 }

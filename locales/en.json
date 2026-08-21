@@ -1,5 +1,8 @@
 {
   "name": "Invoicing",
+  "errors": {
+    "invoice.line_amount_underflow": "One of the lines prices to 0.00, so no invoice was issued. Quantities are sent in millionths of a unit (one unit is 1000000): check the quantity of that line."
+  },
   "navigation": {
     "invoice": {
       "label": "Invoices"

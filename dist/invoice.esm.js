@@ -4252,6 +4252,9 @@ function lineTaxLabel(line, t5) {
 var es_default = {
   name: "Facturaci\xF3n",
   description: "Emite facturas a partir de las ventas, m\xE1rcalas como cobradas y emite facturas rectificativas.",
+  errors: {
+    "invoice.line_amount_underflow": "Una de las l\xEDneas sale a 0,00, as\xED que no se ha emitido ninguna factura. Las cantidades se env\xEDan en millon\xE9simas de unidad (una unidad son 1000000): revisa la cantidad de esa l\xEDnea."
+  },
   navigation: {
     invoice: {
       label: "Facturas"
@@ -4392,6 +4395,9 @@ var es_default = {
 // modules/invoice/locales/en.json
 var en_default = {
   name: "Invoicing",
+  errors: {
+    "invoice.line_amount_underflow": "One of the lines prices to 0.00, so no invoice was issued. Quantities are sent in millionths of a unit (one unit is 1000000): check the quantity of that line."
+  },
   navigation: {
     invoice: {
       label: "Invoices"
@@ -4531,6 +4537,23 @@ var en_default = {
 
 // modules/invoice/ui/components/erp-invoice-list/erp-invoice-list.ts
 var CATALOG = { es: es_default, en: en_default };
+function catalogError(code) {
+  for (const lang of [erplora().locale, "en"]) {
+    const dict = CATALOG[lang]?.errors;
+    const text = dict?.[code];
+    if (typeof text === "string" && text) return text;
+  }
+  return "";
+}
+function domainErrorText(e5, fallbackKey) {
+  const code = e5?.code;
+  const message = e5 instanceof Error ? e5.message : "";
+  if (typeof code === "string" && code.startsWith("invoice.")) {
+    const text = catalogError(code);
+    if (text) return text;
+  }
+  return message || erploraT(fallbackKey);
+}
 function erplora() {
   const c5 = globalThis.erplora;
   if (!c5) throw new Error("erplora SDK no inicializado por el shell");
@@ -4867,7 +4890,7 @@ var ErpInvoiceList = class extends i3 {
       this.dataTable()?.close();
       await this.ctrl.load();
     } catch (e5) {
-      this.formError = e5 instanceof Error ? e5.message : erploraT("ui.errCreate");
+      this.formError = domainErrorText(e5, "ui.errCreate");
     } finally {
       this.saving = false;
     }

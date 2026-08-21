@@ -1,6 +1,9 @@
 {
   "name": "Facturación",
   "description": "Emite facturas a partir de las ventas, márcalas como cobradas y emite facturas rectificativas.",
+  "errors": {
+    "invoice.line_amount_underflow": "Una de las líneas sale a 0,00, así que no se ha emitido ninguna factura. Las cantidades se envían en millonésimas de unidad (una unidad son 1000000): revisa la cantidad de esa línea."
+  },
   "navigation": {
     "invoice": {
       "label": "Facturas"
