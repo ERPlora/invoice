@@ -4253,7 +4253,10 @@ var es_default = {
   name: "Facturaci\xF3n",
   description: "Emite facturas a partir de las ventas, m\xE1rcalas como cobradas y emite facturas rectificativas.",
   errors: {
-    "invoice.line_amount_underflow": "Una de las l\xEDneas sale a 0,00, as\xED que no se ha emitido ninguna factura. Las cantidades se env\xEDan en millon\xE9simas de unidad (una unidad son 1000000): revisa la cantidad de esa l\xEDnea."
+    "invoice.line_amount_underflow": "Una de las l\xEDneas sale a 0,00, as\xED que no se ha emitido ninguna factura. Las cantidades se env\xEDan en millon\xE9simas de unidad (una unidad son 1000000): revisa la cantidad de esa l\xEDnea.",
+    "invoice.tax_quota_mismatch": "La cuota de impuesto no se corresponde con la base y el tipo que declara, as\xED que no se ha emitido ninguna factura. Cobrar una cosa y declarar otra rompe el cruce que hace Hacienda.",
+    "invoice.totals_mismatch": "El total de la factura no cuadra con sus propias l\xEDneas, as\xED que no se ha emitido nada.",
+    "invoice.negative_total": "Una factura ordinaria no puede sumar menos de cero. Para devolver un importe se emite una rectificativa."
   },
   navigation: {
     invoice: {
@@ -4396,7 +4399,10 @@ var es_default = {
 var en_default = {
   name: "Invoicing",
   errors: {
-    "invoice.line_amount_underflow": "One of the lines prices to 0.00, so no invoice was issued. Quantities are sent in millionths of a unit (one unit is 1000000): check the quantity of that line."
+    "invoice.line_amount_underflow": "One of the lines prices to 0.00, so no invoice was issued. Quantities are sent in millionths of a unit (one unit is 1000000): check the quantity of that line.",
+    "invoice.tax_quota_mismatch": "The tax quota does not match the base and the rate declared for it, so no invoice was issued. Charging one amount and declaring another breaks the check the tax authority performs.",
+    "invoice.totals_mismatch": "The invoice total does not add up to its own lines, so nothing was issued.",
+    "invoice.negative_total": "An ordinary invoice cannot total less than zero. To return an amount, issue a corrective invoice."
   },
   navigation: {
     invoice: {

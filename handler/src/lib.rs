@@ -155,6 +155,10 @@ struct DesgloseLine {
     base: i64,
     quota: i64,
     surcharge_quota: i64,
+    /// How many invoice lines were aggregated here. It is the ROUNDING TOLERANCE of the audit
+    /// (invoice#50): each line contributes at most one cent of its own rounding, so a row built
+    /// from three lines may sit up to three cents away from `base × rate` and still be right.
+    lines: i64,
 }
 
 // ── La regla de impuesto: UNA sola implementación (hub#295) ──────────────────
@@ -205,6 +209,97 @@ fn series_defaults(code: &str) -> (&'static str, &'static str) {
 
 fn year_from(now: &str) -> String {
     now.split('-').next().filter(|y| y.len() == 4).unwrap_or("2026").to_string()
+}
+
+/// Los tipos que NO admiten un total negativo: una factura ordinaria (F1), una simplificada (F2)
+/// y una completa en sustitución de un tiquet (F3) documentan una venta. Lo negativo es una
+/// RECTIFICATIVA (R1…R5), que no sale de este handler — la emite `invoice.rectify` en SQL.
+const NON_NEGATIVE_TYPES: [&str; 3] = ["F1", "F2", "F3"];
+
+/// Comprueba la aritmética de la factura ANTES de emitirla; `Some(err)` = no se emite nada.
+///
+/// Qué se puede comprobar y qué no, y por qué:
+///
+///   * **la cuota contra SU tipo declarado** — sí, y es la comprobación que faltaba: el desglose
+///     dice `rate: 21.0` y `quota: 9999` sobre una base de 545 en la misma fila. La tolerancia es
+///     de UN CÉNTIMO POR LÍNEA agregada, porque con precios IVA-incluido la cuota es
+///     `bruto − base` (la regla de redondeo de `taxes`) y esa cuota difiere hasta un céntimo de
+///     `base × tipo`. Ni un céntimo fijo (rechazaría un tiquet largo) ni un porcentaje.
+///
+///   * **la cuota contra el PRECIO de la línea** (`quantity × unit_price`) — NO, y no es un olvido:
+///     cuando la factura viene de una venta, `sales` prorratea el descuento DENTRO de la línea
+///     (net 372 + cuota 78 = 450 cobrados) y deja `unit_price` en el bruto sin descontar (500,
+///     display). Comparar contra el precio rechazaría toda venta con descuento y toda invitación.
+///     En el camino MANUAL el problema no existe porque ahí los importes ya no los pone el
+///     llamante: los calcula este handler (ver `create_invoice_pure`).
+///
+///   * **`CuotaTotal` = Σ cuotas declaradas y `total = base + cuota`** — sí, como invariante. Se
+///     cumplían por construcción; asertarlas aquí impide que un refactor las rompa en silencio,
+///     que es justo el cruce que hace la AEAT.
+///
+///   * **el total negativo en un tipo que no lo admite** — sí. «≤ 0» no, deliberadamente: un
+///     tiquet 100 % invitado suma 0,00 € honestamente y sigue siendo una venta que necesita su F2.
+fn audit(breakdown: &[DesgloseLine], base_total: i64, tax_total: i64, inv_type: &str) -> Option<DomainError> {
+    let mut declared_base: i64 = 0;
+    let mut declared_quota: i64 = 0;
+
+    for e in breakdown {
+        declared_base += e.base;
+        declared_quota += e.quota + e.surcharge_quota;
+
+        let tolerance = e.lines.max(1);
+        let expected = money::percent_of(e.base, Decimal::from_f64(e.key.rate).unwrap_or(Decimal::ZERO));
+        if (e.quota - expected).abs() > tolerance {
+            return Some(DomainError::new(
+                "invoice.tax_quota_mismatch",
+                format!(
+                    "the breakdown declares {} of quota over a base of {} at {} %, and that rate \
+                     justifies {} (tolerance {} cent(s) of rounding). Charging one amount and \
+                     declaring another is what breaks the AEAT cross-check.",
+                    e.quota, e.base, e.key.rate, expected, tolerance
+                ),
+            ));
+        }
+        if e.key.has_surcharge {
+            let expected_surcharge =
+                money::percent_of(e.base, Decimal::from_f64(e.key.surcharge_rate).unwrap_or(Decimal::ZERO));
+            if (e.surcharge_quota - expected_surcharge).abs() > tolerance {
+                return Some(DomainError::new(
+                    "invoice.tax_quota_mismatch",
+                    format!(
+                        "the breakdown declares {} of equivalence surcharge over a base of {} at \
+                         {} %, and that rate justifies {} (tolerance {} cent(s) of rounding).",
+                        e.surcharge_quota, e.base, e.key.surcharge_rate, expected_surcharge, tolerance
+                    ),
+                ));
+            }
+        }
+    }
+
+    if declared_base != base_total || declared_quota != tax_total {
+        return Some(DomainError::new(
+            "invoice.totals_mismatch",
+            format!(
+                "the header declares base {} and quota {}, and its own breakdown adds up to base {} \
+                 and quota {}. `CuotaTotal` must equal the sum of the declared quotas.",
+                base_total, tax_total, declared_base, declared_quota
+            ),
+        ));
+    }
+
+    if base_total + tax_total < 0 && NON_NEGATIVE_TYPES.contains(&inv_type) {
+        return Some(DomainError::new(
+            "invoice.negative_total",
+            format!(
+                "an invoice of type {} cannot total {}: a negative amount is a corrective invoice \
+                 (R1…R5), issued by `invoice.rectify`, not an ordinary one.",
+                inv_type,
+                base_total + tax_total
+            ),
+        ));
+    }
+
+    None
 }
 
 /// Construye las intenciones de una factura a partir de líneas ya normalizadas
@@ -350,8 +445,9 @@ fn build_invoice(
             e.base += base;
             e.quota += main_quota;
             e.surcharge_quota += surcharge_quota;
+            e.lines += 1;
         } else {
-            breakdown.push(DesgloseLine { key, base, quota: main_quota, surcharge_quota });
+            breakdown.push(DesgloseLine { key, base, quota: main_quota, surcharge_quota, lines: 1 });
         }
 
         let line_id = new_ids.get(i + 2).map(s).unwrap_or_default();
@@ -409,6 +505,16 @@ fn build_invoice(
             Value::Object(e)
         })
         .collect();
+
+    // ── LA AUDITORÍA (invoice#50): nada se sella sin cuadrar ────────────────────────────────
+    //
+    // Este módulo es el DUEÑO del documento y el que estampa `status: issued`. Lo que sale de aquí
+    // lo copia `verifactu.records.ingest_invoice` VERBATIM en `BaseImponibleOimporteNoSujeto` /
+    // `CuotaRepercutida` / `CuotaTotal`, y su `chain.validate` comprueba el ENCADENADO de hashes,
+    // no la aritmética de lo que encadena. Si no cuadra aquí, no cuadra en ninguna parte.
+    if let Some(err) = audit(&breakdown, base_total, tax_total, &inv_type) {
+        return Output::new().with_error(err);
+    }
 
     let mut h = Map::new();
     h.insert("invoice_id".into(), json!(invoice_id));
@@ -480,7 +586,33 @@ pub fn create_invoice_pure(input: Value) -> Output {
     let (new_ids, now) = ctx_ids(&input);
     let fiscal = FiscalContext::from_input(&input, &now);
     let empty: Vec<Value> = Vec::new();
-    let items = payload.get("items").and_then(|v| v.as_array()).unwrap_or(&empty);
+    // invoice#50 — EL CLIENTE PROPONE, EL SERVIDOR DISPONE (lo mismo que `sales` hace con su
+    // payload y que invoice#27 hizo con el TIPO). Una línea manual describe QUÉ se factura
+    // (descripción, cantidad, precio, categoría); cuánto suma lo decide este handler. Mientras
+    // `base_amount`/`tax_amount` se aceptaron del llamante, `invoice.create` sellaba 5,45 € de base
+    // y 99,99 € de cuota sobre una línea de 6,60 €, y de ahí pasaban intactos al registro VeriFactu.
+    //
+    // Se IGNORAN, no se rechazan, porque el schema ya los rechaza en la puerta
+    // (`additionalProperties: false`): esto es la segunda puerta, para cualquier camino que no pase
+    // por el schema. Los importes recibidos SÍ son contrato en `create_from_sale` y en
+    // `substitute_from_invoice`, donde vienen de una venta real o de un tiquet ya emitido — y ahí
+    // los audita `audit()`.
+    let items: Vec<Value> = payload
+        .get("items")
+        .and_then(|v| v.as_array())
+        .unwrap_or(&empty)
+        .iter()
+        .map(|it| match it.as_object() {
+            Some(o) => {
+                let mut m = o.clone();
+                m.remove("base_amount");
+                m.remove("tax_amount");
+                Value::Object(m)
+            }
+            None => it.clone(),
+        })
+        .collect();
+    let items = &items[..];
     let series_code = sor(&payload, "series_code", "FACT");
     let ty = payload.get("invoice_type").map(s).filter(|x| !x.is_empty());
     build_invoice(&new_ids, &now, &series_code, ty.as_deref(), &payload, items, &fiscal)
@@ -1487,5 +1619,220 @@ mod quantity_scale_tests {
         });
         let out = create_from_sale_pure(input).unwrap();
         assert!(out.error.is_none(), "{:?}", out.error);
+    }
+}
+
+#[cfg(test)]
+mod arithmetic_audit_tests {
+    //! invoice#50 — nobody checked the arithmetic before sealing the document.
+    //!
+    //! `invoice.create` stamped the base and the quota it was given: not against the lines
+    //! (`quantity × unit_price`), not against the rate it declares in its own breakdown row, not
+    //! against the tax engine it already has in front of it. Whatever mismatch came from upstream
+    //! entered the fiscal document intact and, from there, the VeriFactu record — which copies the
+    //! amounts verbatim and validates the hash CHAIN, not the arithmetic it chains.
+    //!
+    //! Same principle `sales` already applies (the client proposes, the server disposes) and the
+    //! one invoice#27 applied to the RATE: the number that goes into the document is the one the
+    //! server works out, and what cannot be worked out here is at least checked before sealing.
+    use super::*;
+
+    fn manual(items: Value, ids: usize) -> Value {
+        let new_ids: Vec<Value> = (0..ids).map(|i| json!(format!("id-{i}"))).collect();
+        json!({
+            "payload": { "customer_name": "QA", "items": items },
+            "context": { "new_ids": new_ids, "now": "2026-05-31T10:00:00+00:00" }
+        })
+    }
+
+    /// A `sale.completed` payload whose lines already carry base/quota (contract D1).
+    fn from_sale(items: Value, ids: usize) -> Value {
+        let new_ids: Vec<Value> = (0..ids).map(|i| json!(format!("id-{i}"))).collect();
+        json!({
+            "payload": { "sale_id": "sale-1", "items": items },
+            "context": { "new_ids": new_ids, "now": "2026-05-31T10:00:00+00:00",
+                         "reads": { "sales.get": [{ "id": "sale-1" }] } }
+        })
+    }
+
+    fn header(out: &Output) -> &Map<String, Value> {
+        &out.operations[2].params
+    }
+
+    // ── The manual path: the server disposes ────────────────────────────────────────────────
+
+    #[test]
+    fn case_a_the_amounts_the_caller_sends_are_not_what_gets_sealed() {
+        // invoice#50 case A — the sales#124 mismatch, inherited verbatim: a 6,60 € line sealed as
+        // base 5,45 + quota 1,14 = 6,59 €. The caller does not get to say what the line costs.
+        let out = create_invoice_pure(manual(
+            json!([{ "description": "x", "quantity": 1_000_000, "unit_price": 660, "tax_rate": 21,
+                     "base_amount": 545, "tax_amount": 114 }]),
+            6,
+        ));
+        assert!(out.error.is_none(), "a payload with forged amounts is not refused, it is DISPOSED: {:?}", out.error);
+        let h = header(&out);
+        assert_eq!(h["base_amount"], json!(660), "the base is the server's: 1 × 6,60 €");
+        assert_eq!(h["tax_amount"], json!(139), "the quota is the server's: 21 % of 6,60 €");
+        assert_eq!(h["total_amount"], json!(799));
+        assert_eq!(out.operations[3].params["base_amount"], json!(660), "the LINE stops carrying the forged base too");
+    }
+
+    #[test]
+    fn case_c_a_quota_the_rate_cannot_justify_never_reaches_the_document() {
+        // 99,99 € of quota on a base of 5,45 € with `rate: 21.0` in the very same breakdown row.
+        let out = create_invoice_pure(manual(
+            json!([{ "description": "x", "quantity": 1_000_000, "unit_price": 660, "tax_rate": 21,
+                     "base_amount": 545, "tax_amount": 9999 }]),
+            6,
+        ));
+        assert_eq!(header(&out)["tax_amount"], json!(139), "9999 is not a quota anybody can declare");
+    }
+
+    // ── The paths where the amounts DO come from outside: they get audited ───────────────────
+
+    #[test]
+    fn a_quota_that_does_not_match_its_declared_rate_is_refused() {
+        // `create_from_sale`/`substitute` hand over base/quota already extracted (contract D1), so
+        // there is nothing to recompute — but there IS something to check: the rate declared in the
+        // breakdown row has to justify the quota in that same row, give or take the rounding cent.
+        let out = create_from_sale_pure(from_sale(
+            json!([{ "product_name": "x", "quantity": 1_000_000, "unit_price": 660, "tax_rate": 21,
+                     "net_amount": 545, "tax_amount": 9999 }]),
+            6,
+        ))
+        .unwrap();
+        let err = out.error.as_ref().expect("quota 9999 over a base of 545 at 21 % must be refused");
+        assert_eq!(err.code, "invoice.tax_quota_mismatch");
+        assert!(
+            out.operations.is_empty() && out.events.is_empty(),
+            "a refused invoice consumes no number and emits no `invoice.created`"
+        );
+    }
+
+    #[test]
+    fn case_d_an_ordinary_invoice_cannot_come_out_negative() {
+        // A total below zero is a rectification (R1…), never an F1/F2/F3. This one was issued as a
+        // plain F2 with base −5,00 €, quota −1,00 € and total −6,00 €.
+        let out = create_from_sale_pure(from_sale(
+            json!([{ "product_name": "x", "quantity": 1_000_000, "unit_price": 660, "tax_rate": 21,
+                     "net_amount": -500, "tax_amount": -105 }]),
+            6,
+        ))
+        .unwrap();
+        let err = out.error.as_ref().expect("an F2 with a negative total must be refused");
+        assert_eq!(err.code, "invoice.negative_total");
+        assert!(out.operations.is_empty() && out.events.is_empty());
+    }
+
+    #[test]
+    fn an_exempt_line_that_carries_a_quota_is_refused() {
+        // The other half of invoice#27: the qualification says «exempt, 0 %» and the amounts say
+        // «21 % charged». Declaring one thing and charging another is what breaks `CuotaTotal`.
+        let rules = json!([
+            { "id": "r-health", "country_code": "ES", "region_code": null,
+              "tax_category_key": "service.health", "rate_pct": 0.0, "tax_type": "vat",
+              "parent_id": null, "is_active": 1, "operation_class": "exempt",
+              "exempt_reason": "E1", "regime_key": "01" }
+        ]);
+        let mut input = from_sale(
+            json!([{ "product_name": "Tratamiento", "quantity": 1_000_000, "unit_price": 5000,
+                     "tax_rate": 0.0, "tax_category_key": "service.health",
+                     "net_amount": 5000, "tax_amount": 1050 }]),
+            6,
+        );
+        input["context"]["reads"]["taxes.rules.list"] = rules;
+        let out = create_from_sale_pure(input).unwrap();
+        assert_eq!(
+            out.error.as_ref().map(|e| e.code.as_str()),
+            Some("invoice.tax_quota_mismatch"),
+            "an exempt line with a 10,50 € quota was sealed as exempt with a quota"
+        );
+    }
+
+    // ── What the till really sends has to keep going through ────────────────────────────────
+
+    #[test]
+    fn a_discounted_sale_still_invoices() {
+        // sales prorates the discount INTO the line (net 3,72 € + quota 0,78 € = 4,50 € charged)
+        // while `unit_price` stays the undiscounted gross (5,00 €, display). Any check comparing
+        // the amounts against `quantity × unit_price` would refuse every discounted sale in the
+        // house — which is why the audit judges the quota against its RATE, not against the price.
+        let out = create_from_sale_pure(from_sale(
+            json!([{ "product_name": "Menú", "quantity": 1_000_000, "unit_price": 500, "tax_rate": 21,
+                     "net_amount": 372, "tax_amount": 78 }]),
+            6,
+        ))
+        .unwrap();
+        assert!(out.error.is_none(), "a discounted sale must still be invoiceable: {:?}", out.error);
+        assert_eq!(header(&out)["total_amount"], json!(450));
+    }
+
+    #[test]
+    fn a_tax_included_ticket_still_invoices() {
+        // With VAT-included prices the quota is `gross − base` (6,60 − 5,45 = 1,15), which differs
+        // by one cent from `base × rate` (114,45 → 114). That cent is the rounding rule, not an
+        // error: the tolerance is one cent per line aggregated into the breakdown row.
+        let out = create_from_sale_pure(from_sale(
+            json!([{ "product_name": "Café", "quantity": 1_000_000, "unit_price": 660, "tax_rate": 21,
+                     "net_amount": 545, "tax_amount": 115 }]),
+            6,
+        ))
+        .unwrap();
+        assert!(out.error.is_none(), "{:?}", out.error);
+        assert_eq!(header(&out)["total_amount"], json!(660));
+    }
+
+    #[test]
+    fn a_comped_line_still_invoices() {
+        // A gift/comp line is 0,00 € honestly (`is_gift` in the till): it is not a mismatch, and a
+        // fully comped ticket is a real sale that still needs its F2. That is why the refusal is
+        // «negative», not «zero or less».
+        let out = create_from_sale_pure(from_sale(
+            json!([{ "product_name": "Invitación", "quantity": 1_000_000, "unit_price": 500, "tax_rate": 21,
+                     "net_amount": 0, "tax_amount": 0 }]),
+            6,
+        ))
+        .unwrap();
+        assert!(out.error.is_none(), "a comped sale must still be invoiceable: {:?}", out.error);
+        assert_eq!(header(&out)["total_amount"], json!(0));
+    }
+
+    #[test]
+    fn many_lines_of_the_same_rate_get_one_cent_of_slack_each() {
+        // Three VAT-included lines aggregate into ONE breakdown row, each contributing up to a cent
+        // of rounding. The tolerance follows the number of lines; it is not a flat cent that would
+        // refuse a long ticket.
+        let line = json!({ "product_name": "Café", "quantity": 1_000_000, "unit_price": 660,
+                           "tax_rate": 21, "net_amount": 545, "tax_amount": 115 });
+        let out = create_from_sale_pure(from_sale(json!([line, line, line]), 8)).unwrap();
+        assert!(out.error.is_none(), "three legal lines must not add up to a refusal: {:?}", out.error);
+        assert_eq!(header(&out)["total_amount"], json!(1980));
+    }
+
+    #[test]
+    fn the_declared_quotas_always_add_up_to_the_total_quota() {
+        // The cross-check the AEAT performs: `CuotaTotal` = Σ declared quotas. It held by
+        // construction; now it is asserted before sealing, so a future refactor cannot break it
+        // silently.
+        let out = create_invoice_pure(manual(
+            json!([
+                { "description": "a", "quantity": 1_000_000, "unit_price": 10000, "tax_rate": 21 },
+                { "description": "b", "quantity": 2_000_000, "unit_price": 5000, "tax_rate": 10 }
+            ]),
+            8,
+        ));
+        assert!(out.error.is_none(), "{:?}", out.error);
+        let h = header(&out);
+        let declared: i64 = serde_json::from_str::<Vec<Value>>(h["tax_breakdown"].as_str().unwrap())
+            .unwrap()
+            .iter()
+            .map(|e| e["quota"].as_i64().unwrap_or(0) + e["surcharge_quota"].as_i64().unwrap_or(0))
+            .sum();
+        assert_eq!(h["tax_amount"].as_i64().unwrap(), declared);
+        assert_eq!(
+            h["total_amount"].as_i64().unwrap(),
+            h["base_amount"].as_i64().unwrap() + h["tax_amount"].as_i64().unwrap()
+        );
     }
 }
