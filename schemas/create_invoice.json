@@ -1,10 +1,11 @@
 { "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "invoice.create_invoice payload",
-  "description": "Issues an invoice from its lines. MONEY (`unit_price`) = integer MINOR UNITS (cents, ADR-0007/0123): 3,30 € is 330. `quantity` = FIXED-POINT integer, global scale 10⁶ (ADR-0147): one unit is 1000000 and 0,5 kg is 500000 — a bare `2` means 0,000002 units, which prices to 0,00 € and is REJECTED here (invoice#49). The `tax_rate` a caller sends is a HINT: the rate actually charged and declared comes from the rule resolved for `tax_category_key` (invoice#27, ADR-0223).",
+  "description": "Issues an invoice from its lines. MONEY (`unit_price`) = integer MINOR UNITS (cents, ADR-0007/0123): 3,30 € is 330. `quantity` = FIXED-POINT integer, global scale 10⁶ (ADR-0147): one unit is 1000000 and 0,5 kg is 500000 — a bare `2` means 0,000002 units, which prices to 0,00 € and is REJECTED here (invoice#49). The `tax_rate` a caller sends is a HINT: the rate actually charged and declared comes from the rule resolved for `tax_category_key` (invoice#27, ADR-0223). And a line says WHAT is invoiced, never how much it adds up to: the base and the quota are worked out by the server (invoice#50), so `base_amount`/`tax_amount` are not part of this contract and a line carrying them is refused.",
   "type": "object", "additionalProperties": true,
   "required": ["items"],
   "properties": {
     "items": { "type": "array", "items": { "type": "object", "required": ["description","quantity","unit_price"],
+      "additionalProperties": false,
       "properties": { "description":{"type":"string"},
         "quantity":{"type":"integer","minimum":1000,
           "description":"Fixed-point integer, global scale 10⁶ (ADR-0147): 1 unit = 1000000, 0,5 = 500000. The floor is 1000 (a thousandth of a unit): below that no invoiceable line exists and the value is a scale mistake, not a quantity."},

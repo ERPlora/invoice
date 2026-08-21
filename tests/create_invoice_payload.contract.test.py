@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Payload contract of `invoice.create` (invoice#49) — the schema DECLARES the quantity scale.
+"""Payload contract of `invoice.create` (invoice#49 + #50) — what a caller may say, and in what units.
 
 WHY. Quantities travel as fixed-point integers of global scale 10⁶ (ADR-0147): `2000000` is two
 units, `500000` is half a unit. The handler has assumed that since the scale landed, but the
@@ -9,16 +9,23 @@ an invoice ISSUED, numbered and chained in VeriFactu for 0,00 € (2 µ-units ×
 → 0). A fiscal document already issued is never deleted (ADR-0331) and `invoice.rectify` is broken
 (invoice#5): the mistake is irreversible for the business that makes it.
 
-Rule under test: the payload contract states the scale in words AND enforces a floor that a
-mis-scaled quantity cannot pass. The money guard in the handler
-(`invoice.line_amount_underflow`) is the second door, for the paths that carry no schema
-(`invoice.create_from_sale` is fed by an event, not by a caller).
+AND (invoice#50) a line says WHAT is invoiced, never how much it adds up to. While
+`base_amount`/`tax_amount` were accepted from the caller, `invoice.create` sealed a base of 5,45 €
+with a quota of 99,99 € on a 6,60 € line — and `verifactu.records.ingest_invoice` copied both
+verbatim into the record it sends to the AEAT.
+
+Rules under test: the payload contract states the scale in words AND enforces a floor that a
+mis-scaled quantity cannot pass; the line carries no amounts; and every domain error the handler
+can return is translatable (it exists in `locales/{en,es}.json`). The guards in the handler
+(`invoice.line_amount_underflow`, `invoice.tax_quota_mismatch`, …) are the second door, for the
+paths that carry no schema (`invoice.create_from_sale` is fed by an event, not by a caller).
 
 Usage: tests/create_invoice_payload.contract.test.py   (exit 0 = green)
 """
 
 import json
 import pathlib
+import re
 import sys
 
 MODULE_DIR = pathlib.Path(__file__).resolve().parent.parent
@@ -80,6 +87,40 @@ def check_declares_the_scale() -> None:
         ok("the payload description states the units of the contract")
 
 
+def check_the_caller_does_not_state_the_amounts() -> None:
+    """invoice#50 — the client proposes, the server disposes."""
+    items = SCHEMA["properties"]["items"]["items"]
+    if items.get("additionalProperties") is not False:
+        fail(
+            "items[] must be a CLOSED object: while it was open, `base_amount`/`tax_amount` from the "
+            "caller were sealed into the document and copied into the VeriFactu record"
+        )
+    else:
+        ok("items[] is a closed object (a line cannot smuggle its own amounts in)")
+
+    declared = [f for f in ("base_amount", "tax_amount", "total_amount") if f in items["properties"]]
+    if declared:
+        fail(f"items[] must not declare {', '.join(declared)}: the server works the amounts out")
+    else:
+        ok("no amount field is declared on the line")
+
+
+def check_every_refusal_is_translatable() -> None:
+    """A domain error is only useful if the code has a sentence in the catalogue (hub#139)."""
+    handler = (MODULE_DIR / "handler" / "src" / "lib.rs").read_text()
+    codes = sorted(set(re.findall(r'DomainError::new\(\s*"(invoice\.[a-z_]+)"', handler)))
+    if not codes:
+        fail("no `DomainError` code found in the handler — is the guard still there?")
+        return
+    for lang in ("en", "es"):
+        catalog = json.loads((MODULE_DIR / "locales" / f"{lang}.json").read_text()).get("errors", {})
+        missing = [c for c in codes if not catalog.get(c)]
+        if missing:
+            fail(f"locales/{lang}.json has no translation for: {', '.join(missing)}")
+        else:
+            ok(f"locales/{lang}.json translates all {len(codes)} refusal(s): {', '.join(codes)}")
+
+
 def check_against_real_payloads() -> None:
     """Same rule, exercised end to end — skipped where `jsonschema` is not installed."""
     try:
@@ -103,6 +144,13 @@ def check_against_real_payloads() -> None:
             ],
         }
 
+    forged = line(2 * QUANTITY_SCALE)
+    forged["items"][0].update({"base_amount": 545, "tax_amount": 9999})
+    if validator.is_valid(forged):
+        fail("a line carrying its own `base_amount`/`tax_amount` is accepted — that is invoice#50")
+    else:
+        ok("a line carrying its own amounts is refused (the server works them out)")
+
     # The exact payload of invoice#49: «2 coffees», sent in units.
     if validator.is_valid(line(2)):
         fail("`quantity: 2` (0,000002 units) is accepted — that is the 0,00 € invoice of invoice#49")
@@ -119,6 +167,8 @@ def check_against_real_payloads() -> None:
 def main() -> int:
     print(f"invoice.create payload contract — {SCHEMA_PATH.relative_to(MODULE_DIR)}")
     check_declares_the_scale()
+    check_the_caller_does_not_state_the_amounts()
+    check_every_refusal_is_translatable()
     check_against_real_payloads()
     if failures:
         print(f"\n{len(failures)} failure(s)")

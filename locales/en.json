@@ -1,7 +1,10 @@
 {
   "name": "Invoicing",
   "errors": {
-    "invoice.line_amount_underflow": "One of the lines prices to 0.00, so no invoice was issued. Quantities are sent in millionths of a unit (one unit is 1000000): check the quantity of that line."
+    "invoice.line_amount_underflow": "One of the lines prices to 0.00, so no invoice was issued. Quantities are sent in millionths of a unit (one unit is 1000000): check the quantity of that line.",
+    "invoice.tax_quota_mismatch": "The tax quota does not match the base and the rate declared for it, so no invoice was issued. Charging one amount and declaring another breaks the check the tax authority performs.",
+    "invoice.totals_mismatch": "The invoice total does not add up to its own lines, so nothing was issued.",
+    "invoice.negative_total": "An ordinary invoice cannot total less than zero. To return an amount, issue a corrective invoice."
   },
   "navigation": {
     "invoice": {
