@@ -1,7 +1,7 @@
 {
   "id": "invoice",
   "name": "Invoicing",
-  "version": "1.2.20",
+  "version": "1.2.21",
   "description": "Issue invoices from sales, mark them as paid, and issue rectifying invoices.",
   "agent": {
     "description": "Manages invoicing: create invoices from sales, issue rectifying invoices, mark invoices as paid, and manage invoice series.",
