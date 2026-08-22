@@ -50,11 +50,12 @@ two of the sale's five frozen fiscal fields travel in the event.
 By role: **admin** and **manager** have everything. **employee** can only **see** invoices and
 **create** them — an employee **cannot rectify** an invoice and cannot touch the series.
 
-**The Settings tab is visible to anyone who can open the module.** There is no per-tab permission in
-the navigation contract; what it protects is the *editing*: the tab hides the series form without
-`invoice.manage_series`, and the runtime refuses `invoice.series.create` / `invoice.series.update`
-without it regardless of what the screen shows. There is no separate "module settings" permission —
-the only thing this module configures is the numbering series.
+**Who sees the Settings tab.** The navigation entry is gated by `invoice.manage_series`: the menu
+does not offer the tab to anyone who cannot open it. That is the third layer, not the only one —
+the tab still hides the series form without the permission, and the runtime refuses
+`invoice.series.create` / `invoice.series.update` without it regardless of what the screen shows.
+There is no separate "module settings" permission — the only thing this module configures is the
+numbering series.
 
 ## Dependencies — what breaks if something is missing
 

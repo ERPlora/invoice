@@ -45,13 +45,15 @@
       "id": "invoice",
       "label": "Invoices",
       "icon": "document-text-outline",
-      "component": "erp-invoice-list"
+      "component": "erp-invoice-list",
+      "permission": "invoice.view_invoice"
     },
     {
       "id": "settings",
       "label": "Settings",
       "icon": "settings-outline",
-      "component": "erp-invoice-settings"
+      "component": "erp-invoice-settings",
+      "permission": "invoice.manage_series"
     }
   ],
   "migrations": {
