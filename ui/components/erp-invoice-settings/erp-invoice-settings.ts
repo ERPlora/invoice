@@ -414,6 +414,8 @@ export class ErpInvoiceSettings extends LitElement {
     return html`<div class="page">
       <p class="intro">${erploraT('ui.seriesIntro')}</p>
       ${this.listError ? html`<ok-inline-feedback tone="danger" icon="alert-circle-outline">${this.listError}</ok-inline-feedback>` : nothing}
+      <!-- The «Edit» button is not the only door: rowClickable makes the whole row open the
+           same edit form (outfitkit#67 — the actions column can be off-screen at 1440 px). -->
       <ok-data-table
         .fill=${true}
         .addable=${this.canManage}
@@ -425,8 +427,10 @@ export class ErpInvoiceSettings extends LitElement {
         .searchable=${true}
         .searchPlaceholder=${erploraT('ui.seriesSearchPlaceholder')}
         .actions=${this.rowActions}
+        .rowClickable=${true}
         .emptyMessage=${this.loading ? erploraT('ui.seriesLoading') : erploraT('ui.seriesEmpty')}
-        @rowAction=${(e: CustomEvent<{ actionId: string; row: Record<string, unknown> }>) => this.onRowAction(e)}>
+        @rowAction=${(e: CustomEvent<{ actionId: string; row: Record<string, unknown> }>) => this.onRowAction(e)}
+        @rowClick=${(e: CustomEvent<{ row: Record<string, unknown> }>) => this.onRowAction({ detail: { actionId: 'edit', row: e.detail.row } } as CustomEvent<{ actionId: string; row: Record<string, unknown> }>)}>
         ${this.canManage ? this.renderForm() : nothing}
       </ok-data-table>
     </div>`;

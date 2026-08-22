@@ -1770,12 +1770,53 @@ var o6 = e4(class extends i4 {
 
 // ../outfitkit/dist/ok-data-table.js
 var CSV_BOM = "\uFEFF";
+var WINDOWS_1252_C1 = [
+  8364,
+  129,
+  8218,
+  402,
+  8222,
+  8230,
+  8224,
+  8225,
+  710,
+  8240,
+  352,
+  8249,
+  338,
+  141,
+  381,
+  143,
+  144,
+  8216,
+  8217,
+  8220,
+  8221,
+  8226,
+  8211,
+  8212,
+  732,
+  8482,
+  353,
+  8250,
+  339,
+  157,
+  382,
+  376
+];
+function decodeWindows1252(bytes) {
+  let text = "";
+  for (const byte of bytes) {
+    text += String.fromCharCode(byte >= 128 && byte <= 159 ? WINDOWS_1252_C1[byte - 128] : byte);
+  }
+  return text;
+}
 function decodeCsvBuffer(buf) {
   let text;
   try {
     text = new TextDecoder("utf-8", { fatal: true }).decode(buf);
   } catch {
-    text = new TextDecoder("windows-1252").decode(buf);
+    text = decodeWindows1252(new Uint8Array(buf));
   }
   return text.charCodeAt(0) === 65279 ? text.slice(1) : text;
 }
@@ -5137,7 +5178,9 @@ var ErpInvoiceList = class extends i3 {
         ${this.actionError ? b2`<ok-inline-feedback tone="danger" icon="alert-circle-outline">${this.actionError}</ok-inline-feedback>` : A}
         ${this.detailError ? b2`<ok-inline-feedback tone="danger" icon="alert-circle-outline">${this.detailError}</ok-inline-feedback>` : A}
         ${this.ctrl?.error ? b2`<ok-inline-feedback tone="danger" icon="alert-circle-outline">${this.ctrl.error}</ok-inline-feedback>` : A}
-        <ok-data-table .serverSide=${true} .fill=${true} .addable=${this.canAdd} .columns=${this.columns} .views=${true} .cardTitle=${(r6) => String(r6.number ?? "\u2014")} .cardIcon=${() => "document-text-outline"} .rows=${this.ctrl?.rows ?? []} .total=${this.ctrl?.total ?? 0} .page=${this.ctrl?.state.page ?? 0} .pageSize=${this.ctrl?.state.pageSize ?? 50} .sort=${this.ctrl?.state.sort} .sortDir=${this.ctrl?.state.dir ?? "asc"} .searchable=${true} .searchPlaceholder=${erploraT("ui.searchPlaceholder")} .actions=${this.rowActions} .emptyMessage=${this.ctrl?.loading ? erploraT("ui.loading") : erploraT("ui.empty")} @rowAction=${(e5) => this.onRowAction(e5)} @pageChange=${(e5) => this.ctrl.setPage(e5.detail)} @pageSizeChange=${(e5) => this.ctrl.setPageSize(e5.detail)} @sortChange=${(e5) => this.ctrl.setSort(e5.detail.sort, e5.detail.dir)} @searchChange=${(e5) => this.ctrl.setSearch(e5.detail)} @filterChange=${(e5) => this.ctrl.setFilter(e5.detail.col, e5.detail.value)}>
+        <!-- The «View» button is not the only door: rowClickable makes the whole row open the
+             same detail (outfitkit#67 — the actions column can be off-screen at 1440 px). -->
+        <ok-data-table .serverSide=${true} .fill=${true} .addable=${this.canAdd} .columns=${this.columns} .views=${true} .cardTitle=${(r6) => String(r6.number ?? "\u2014")} .cardIcon=${() => "document-text-outline"} .rows=${this.ctrl?.rows ?? []} .total=${this.ctrl?.total ?? 0} .page=${this.ctrl?.state.page ?? 0} .pageSize=${this.ctrl?.state.pageSize ?? 50} .sort=${this.ctrl?.state.sort} .sortDir=${this.ctrl?.state.dir ?? "asc"} .searchable=${true} .searchPlaceholder=${erploraT("ui.searchPlaceholder")} .actions=${this.rowActions} .rowClickable=${true} .emptyMessage=${this.ctrl?.loading ? erploraT("ui.loading") : erploraT("ui.empty")} @rowAction=${(e5) => this.onRowAction(e5)} @rowClick=${(e5) => this.openDetail(String(e5.detail.row.id))} @pageChange=${(e5) => this.ctrl.setPage(e5.detail)} @pageSizeChange=${(e5) => this.ctrl.setPageSize(e5.detail)} @sortChange=${(e5) => this.ctrl.setSort(e5.detail.sort, e5.detail.dir)} @searchChange=${(e5) => this.ctrl.setSearch(e5.detail)} @filterChange=${(e5) => this.ctrl.setFilter(e5.detail.col, e5.detail.value)}>
           ${this.canAdd ? this.renderCreateForm() : A}
         </ok-data-table>
       </div>`;
@@ -5524,6 +5567,8 @@ var ErpInvoiceSettings = class extends i3 {
     return b2`<div class="page">
       <p class="intro">${erploraT2("ui.seriesIntro")}</p>
       ${this.listError ? b2`<ok-inline-feedback tone="danger" icon="alert-circle-outline">${this.listError}</ok-inline-feedback>` : A}
+      <!-- The «Edit» button is not the only door: rowClickable makes the whole row open the
+           same edit form (outfitkit#67 — the actions column can be off-screen at 1440 px). -->
       <ok-data-table
         .fill=${true}
         .addable=${this.canManage}
@@ -5535,8 +5580,10 @@ var ErpInvoiceSettings = class extends i3 {
         .searchable=${true}
         .searchPlaceholder=${erploraT2("ui.seriesSearchPlaceholder")}
         .actions=${this.rowActions}
+        .rowClickable=${true}
         .emptyMessage=${this.loading ? erploraT2("ui.seriesLoading") : erploraT2("ui.seriesEmpty")}
-        @rowAction=${(e5) => this.onRowAction(e5)}>
+        @rowAction=${(e5) => this.onRowAction(e5)}
+        @rowClick=${(e5) => this.onRowAction({ detail: { actionId: "edit", row: e5.detail.row } })}>
         ${this.canManage ? this.renderForm() : A}
       </ok-data-table>
     </div>`;
