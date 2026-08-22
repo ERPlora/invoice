@@ -8,12 +8,15 @@ Two silent holes, one root cause — keys the runtime does not read:
     auditor has to rule out by hand. Everything configurable in this module is the numbering
     series, and that has its own wired permission (`invoice.manage_series`).
 
-  * `navigation[].permission` (invoice#32) is not a field of the navigation contract
-    (`hub/schemas/module.schema.json`, `NAV_FIELDS` in `hub/crates/runtime/src/manifest.rs`).
-    serde drops it silently, so the Settings tab was painted for EVERYONE while the manifest read
-    as if it were protected. The real gate is inside `erp-invoice-settings` (`hasPermission(
+  * `navigation[].permission` (invoice#32) was not a field of the navigation contract yet
+    (`hub/schemas/module.schema.json`, `NAV_FIELDS` in `hub/crates/runtime/src/manifest.rs`):
+    serde dropped it silently, so the Settings tab was painted for EVERYONE while the manifest read
+    as if it were protected. The key was removed until the contract caught up. It has (hub#1052
+    filters it in `/api/navigation`; module-toolkit resynced the schema in PR #68), and invoice#47
+    re-declares it — the real gate is still inside `erp-invoice-settings` (`hasPermission(
     'invoice.manage_series')` hides the editing) and, for real, the runtime on
-    `invoice.series.create` / `.update` (`invoice.manage_series`).
+    `invoice.series.create` / `.update` (`invoice.manage_series`); the nav filter is the third
+    layer, and `tests/navigation_permission.contract.test.py` pins it.
 
 Rule under test: every declared permission is referenced by at least one query, command, or
 `provides_slots` entry; navigation entries carry only contract keys.
@@ -30,7 +33,8 @@ MANIFEST = json.loads((MODULE_DIR / "module.json").read_text())
 
 # Mirror of `NAV_FIELDS` (hub/crates/runtime/src/manifest.rs) and the closed object in
 # `hub/schemas/module.schema.json`. `actions` is accepted by the parser but dead (ADR-0048).
-NAV_FIELDS = {"id", "label", "icon", "component", "chrome", "actions"}
+# `permission` joined the contract with hub#1052 (served/filtered by `/api/navigation`).
+NAV_FIELDS = {"id", "label", "icon", "component", "chrome", "actions", "permission"}
 
 failures: list[str] = []
 
