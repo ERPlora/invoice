@@ -5,7 +5,8 @@
     "invoice.line_amount_underflow": "Una de las líneas sale a 0,00, así que no se ha emitido ninguna factura. Las cantidades se envían en millonésimas de unidad (una unidad son 1000000): revisa la cantidad de esa línea.",
     "invoice.tax_quota_mismatch": "La cuota de impuesto no se corresponde con la base y el tipo que declara, así que no se ha emitido ninguna factura. Cobrar una cosa y declarar otra rompe el cruce que hace Hacienda.",
     "invoice.totals_mismatch": "El total de la factura no cuadra con sus propias líneas, así que no se ha emitido nada.",
-    "invoice.negative_total": "Una factura ordinaria no puede sumar menos de cero. Para devolver un importe se emite una rectificativa."
+    "invoice.negative_total": "Una factura ordinaria no puede sumar menos de cero. Para devolver un importe se emite una rectificativa.",
+    "invoice.f1_requires_customer_tax_id": "Una factura completa (F1) necesita el NIF del cliente: sin él Hacienda la rechaza (error 1189) y el documento es en realidad un tique simplificado. Emítela con el NIF del cliente, o usa una serie de tiques simplificados (F2)."
   },
   "navigation": {
     "invoice": {

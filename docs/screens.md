@@ -22,7 +22,10 @@ Most invoices are created by selling. Use this when you need one that did not co
 1. Open **Invoices** and start a new invoice.
 2. Add the **lines**: description, quantity, unit price, tax rate, and optionally the product. At
    least one line is required.
-3. Fill in the issuer and the customer details if they are not defaulted.
+3. Fill in the issuer and the customer details if they are not defaulted. A **full invoice (F1)
+   needs the customer's tax ID** — without it the document is really a simplified ticket, and the
+   tax authority rejects it (error 1189), so the module refuses to issue it: give the customer's
+   tax ID or pick a ticket (F2) series.
 4. Pick the **series**; leaving it empty uses `FACT` and type F1.
 5. Save.
 
