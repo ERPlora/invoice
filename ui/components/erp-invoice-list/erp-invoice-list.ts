@@ -237,31 +237,57 @@ export class ErpInvoiceList extends LitElement {
 
   // Getter (no campo): se re-evalúa en cada render, así los textos cambian con el idioma activo
   // (ADR-0055). `connectedCallback` re-renderiza al recibir `erplora:locale-changed`.
+  //
+  // invoice#51 — ORDEN y ANCHO son contrato, no gusto: `ok-data-table` desborda POR DISEÑO
+  // (`min-width: max-content`) y sin `width` cada pista mide TODO su contenido, así que un
+  // nombre de cliente largo mandaba la tabla a 1794px y TOTAL (el importe, lo primero que se
+  // mira en un facturador) quedaba tras el scroll a 1440. Ahora:
+  //   · orden por importancia de negocio: number · customer · TOTAL · status · date · type
+  //     (type la última = la primera en ceder; reactivable en el selector «Columnas»);
+  //   · `width` acotado en TODAS (`minmax(min,max)`rem): un máximo fijo acota la contribución
+  //     max-content de la pista y el texto largo corta con ellipsis — la suma de máximos + la
+  //     columna de acciones (≈7rem) cabe en el pliegue medido a 1440 (clientWidth 1168px), y el
+  //     borde derecho de TOTAL queda a 30rem del inicio, dentro del pliegue de 834 (medido en
+  //     Chromium vía `erplora dev`: a 834 con sidebar de 240px el área útil es 562px y el borde
+  //     de TOTAL cae en 496px; a 1440 la tabla entera cabe sin scroll). En 390 manda
+  //     la vista de tarjetas, que ya pintaba el total.
+  //     Lo fija `columns.contract.test.ts`; ok-data-table 0.1.44 no fija columnas de DATOS
+  //     (solo acciones, outfitkit#67), de ahí que la fix sea de layout del módulo.
   private get columns(): DataTableColumn[] {
     const t = (k: string): string => erploraT(k);
     return [
-    { key: 'number', header: t('ui.colNumber'), sortable: true, filterable: true, filterType: 'text' },
+    { key: 'number', header: t('ui.colNumber'), sortable: true, filterable: true, filterType: 'text', width: 'minmax(9rem, 10rem)' },
     {
-      key: 'invoice_type',
-      header: t('ui.colType'),
+      key: 'customer_name',
+      header: t('ui.colCustomer'),
       sortable: true,
       filterable: true,
-      filterType: 'select',
-      options: TYPE_CODES.map((value) => ({ value, label: typeLabel(value) })),
-      format: (r) => typeLabel(r.invoice_type as string),
+      filterType: 'text',
+      width: 'minmax(10rem, 12rem)',
+      format: (r) => (r.customer_name as string) || '—',
     },
-    { key: 'issue_date', header: t('ui.colDate'), sortable: true, filterable: true, filterType: 'daterange' },
-    { key: 'customer_name', header: t('ui.colCustomer'), sortable: true, filterable: true, filterType: 'text', format: (r) => (r.customer_name as string) || '—' },
+    { key: 'total_amount', header: t('ui.colTotal'), align: 'right', sortable: true, filterable: true, filterType: 'range', width: 'minmax(7rem, 8rem)', format: (r) => fmtMoney(r.total_amount) },
     {
       key: 'status',
       header: t('ui.colStatus'),
       sortable: true,
       filterable: true,
       filterType: 'select',
+      width: 'minmax(7rem, 9rem)',
       options: STATUS_CODES.map((value) => ({ value, label: statusLabel(value) })),
       render: (r) => html`<ion-badge color=${STATUS_COLOR[r.status as string] ?? 'medium'}>${statusLabel(r.status as string)}</ion-badge>`,
     },
-    { key: 'total_amount', header: t('ui.colTotal'), align: 'right', sortable: true, filterable: true, filterType: 'range', format: (r) => fmtMoney(r.total_amount) },
+    { key: 'issue_date', header: t('ui.colDate'), sortable: true, filterable: true, filterType: 'daterange', width: 'minmax(7.5rem, 9rem)' },
+    {
+      key: 'invoice_type',
+      header: t('ui.colType'),
+      sortable: true,
+      filterable: true,
+      filterType: 'select',
+      width: 'minmax(6rem, 8rem)',
+      options: TYPE_CODES.map((value) => ({ value, label: typeLabel(value) })),
+      format: (r) => typeLabel(r.invoice_type as string),
+    },
     ];
   }
 
