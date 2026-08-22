@@ -615,6 +615,31 @@ pub fn create_invoice_pure(input: Value) -> Output {
     let items = &items[..];
     let series_code = sor(&payload, "series_code", "FACT");
     let ty = payload.get("invoice_type").map(s).filter(|x| !x.is_empty());
+
+    // invoice#52 — a document that would be sealed as F1 without `customer_tax_id` is refused
+    // BEFORE it exists. A complete invoice needs an identified recipient: without it the AEAT
+    // rejects the record with error 1189, and the VeriFactu engine covers for us by silently
+    // degrading it to F2 (hub#1104) — leaving the paper saying «complete invoice» and the
+    // register saying «simplified ticket», two truths about one document. The manual path has no
+    // operator behind it excusing the choice (ADR-0140 opción A covers the POS path; see
+    // `create_from_sale_pure` and its guard-rail test), so here the refusal is the honest answer:
+    // issue with the customer's tax id, or in a simplified F2 series. Only the MANUAL path —
+    // `substitute_from_invoice` (F3) already requires the tax id in its own schema.
+    let effective_type = ty
+        .clone()
+        .unwrap_or_else(|| series_defaults(&series_code).0.to_string());
+    let customer_tax_id = s(payload.get("customer_tax_id").unwrap_or(&Value::Null))
+        .trim()
+        .to_string();
+    if effective_type == "F1" && customer_tax_id.is_empty() {
+        return Output::new().with_error(DomainError::new(
+            "invoice.f1_requires_customer_tax_id",
+            "a complete invoice (F1) needs the customer's tax ID: without it the tax authority \
+             rejects it (error 1189) and the document is really a simplified ticket. Issue it with \
+             the customer's tax ID, or use a simplified-ticket series (F2).",
+        ));
+    }
+
     build_invoice(&new_ids, &now, &series_code, ty.as_deref(), &payload, items, &fiscal)
 }
 
@@ -737,6 +762,21 @@ mod tests {
     use super::*;
 
     fn inp(payload: Value, ids: usize) -> Value {
+        // invoice#52: the MANUAL path refuses an F1 without `customer_tax_id`. The fixtures that
+        // run through this helper exercise OTHER contracts (scale, breakdown, audit) while still
+        // meaning an ordinary full invoice — so the helper stamps the recipient's tax id unless
+        // the payload is a sale/substitution (whose own snapshots rule) or the test builds its
+        // own input to talk about the tax id itself (f1_requires_customer_tax_id_tests).
+        let mut payload = payload;
+        let manual = !payload.as_object().map_or(true, |o| {
+            o.contains_key("sale_id") || o.contains_key("original_invoice_id")
+        });
+        if manual && payload.get("customer_tax_id").is_none() {
+            payload
+                .as_object_mut()
+                .expect("payload is an object")
+                .insert("customer_tax_id".into(), json!("B12345678"));
+        }
         let new_ids: Vec<Value> = (0..ids).map(|i| json!(format!("id-{i}"))).collect();
         // Mimics the `reads` the runtime preloads: when the payload carries a `sale_id`, inject a
         // `sales.get` row (the sale exists), so the from_sale build tests do not trip over the
@@ -1540,7 +1580,7 @@ mod quantity_scale_tests {
     fn manual(items: Value, ids: usize) -> Value {
         let new_ids: Vec<Value> = (0..ids).map(|i| json!(format!("id-{i}"))).collect();
         json!({
-            "payload": { "customer_name": "Cliente QA", "items": items },
+            "payload": { "customer_name": "Cliente QA", "customer_tax_id": "B12345678", "items": items },
             "context": { "new_ids": new_ids, "now": "2026-05-31T10:00:00+00:00" }
         })
     }
@@ -1640,7 +1680,7 @@ mod arithmetic_audit_tests {
     fn manual(items: Value, ids: usize) -> Value {
         let new_ids: Vec<Value> = (0..ids).map(|i| json!(format!("id-{i}"))).collect();
         json!({
-            "payload": { "customer_name": "QA", "items": items },
+            "payload": { "customer_name": "QA", "customer_tax_id": "B12345678", "items": items },
             "context": { "new_ids": new_ids, "now": "2026-05-31T10:00:00+00:00" }
         })
     }
@@ -1834,5 +1874,114 @@ mod arithmetic_audit_tests {
             h["total_amount"].as_i64().unwrap(),
             h["base_amount"].as_i64().unwrap() + h["tax_amount"].as_i64().unwrap()
         );
+    }
+}
+
+#[cfg(test)]
+mod f1_requires_customer_tax_id_tests {
+    //! invoice#52 — a complete invoice (F1) without an identified recipient is a document the
+    //! AEAT rejects (error 1189), not an invoice.
+    //!
+    //! The MANUAL path of `invoice.create` stamped `invoice_type: "F1"` always: the series default
+    //! (FACT) decides, and `customer_tax_id` was never asked for. The VeriFactu engine knows the
+    //! rule and silently degrades the record to F2 (hub#1104) — so the business ends up with two
+    //! truths: the paper it handed out says «complete invoice» and the register it declared says
+    //! «simplified ticket». A big F1 degraded that way can also blow the 3.000 € §15.8 ceiling of
+    //! a simplified invoice (hub#297).
+    //!
+    //! The POS path is EXEMPT on purpose (ADR-0140, opción A): there the operator CHOSE a full
+    //! invoice at the till and the NIF travels in the customer snapshot; the AEAT check stays
+    //! downstream. The manual path has nobody behind it making that choice — the caller IS the
+    //! issuer — so here the document is refused BEFORE it exists, with a code the UI translates.
+    use super::*;
+
+    fn manual(payload_extra: Value, ids: usize) -> Value {
+        let new_ids: Vec<Value> = (0..ids).map(|i| json!(format!("id-{i}"))).collect();
+        let mut payload = json!({
+            "customer_name": "Cliente sin NIF",
+            "items": [{ "description": "Servicio", "quantity": 1_000_000, "unit_price": 10000,
+                        "tax_rate": 21.0, "tax_category_key": "product.generic" }]
+        });
+        payload.as_object_mut().unwrap().extend(
+            payload_extra.as_object().cloned().unwrap_or_default(),
+        );
+        json!({
+            "payload": payload,
+            "context": { "new_ids": new_ids, "now": "2026-08-21T20:46:00+00:00" }
+        })
+    }
+
+    /// invoice#52's exact reproduction: default series (FACT → F1), no `customer_tax_id`.
+    #[test]
+    fn a_manual_f1_without_customer_tax_id_is_refused() {
+        let out = create_invoice_pure(manual(json!({ "series_code": "FACT" }), 6));
+        let err = out.error.as_ref().expect("an F1 without a customer tax id must be refused");
+        assert_eq!(err.code, "invoice.f1_requires_customer_tax_id");
+        assert!(
+            out.operations.is_empty() && out.events.is_empty(),
+            "a refused invoice writes nothing: no series bump, no number, no `invoice.created`"
+        );
+    }
+
+    #[test]
+    fn an_explicit_f1_without_customer_tax_id_is_refused_too() {
+        // Saying `invoice_type: "F1"` out loud does not make a recipient-less document legal.
+        let out = create_invoice_pure(manual(json!({ "invoice_type": "F1" }), 6));
+        assert_eq!(
+            out.error.as_ref().map(|e| e.code.as_str()),
+            Some("invoice.f1_requires_customer_tax_id")
+        );
+    }
+
+    #[test]
+    fn a_whitespace_tax_id_is_as_good_as_none() {
+        let out = create_invoice_pure(manual(json!({ "series_code": "FACT", "customer_tax_id": "   " }), 6));
+        assert_eq!(
+            out.error.as_ref().map(|e| e.code.as_str()),
+            Some("invoice.f1_requires_customer_tax_id"),
+            "spaces are not a tax id"
+        );
+    }
+
+    #[test]
+    fn an_f1_with_the_customer_tax_id_still_invoices() {
+        // The guard must not overfire: a complete invoice WITH its recipient keeps going through.
+        let out = create_invoice_pure(manual(
+            json!({ "series_code": "FACT", "customer_tax_id": "87654321X" }),
+            6,
+        ));
+        assert!(out.error.is_none(), "{:?}", out.error);
+        let inv = &out.operations[2].params;
+        assert_eq!(inv["invoice_type"], json!("F1"));
+        assert_eq!(inv["customer_tax_id"], json!("87654321X"));
+    }
+
+    #[test]
+    fn a_ticket_series_without_a_tax_id_still_invoices() {
+        // The bar case is LEGAL: an anonymous sale is a simplified F2 and needs no recipient.
+        let out = create_invoice_pure(manual(json!({ "series_code": "TICKET" }), 6));
+        assert!(out.error.is_none(), "an F2 without a NIF is the normal ticket: {:?}", out.error);
+        assert_eq!(out.operations[2].params["invoice_type"], json!("F2"));
+    }
+
+    #[test]
+    fn the_pos_path_keeps_respecting_the_operators_choice() {
+        // ADR-0140 opción A: at the till the OPERATOR chose a full invoice and the AEAT check is
+        // downstream. This guard is for the manual path only — pin that it did not leak.
+        let new_ids: Vec<Value> = (0..6).map(|i| json!(format!("id-{i}"))).collect();
+        let input = json!({
+            "payload": {
+                "sale_id": "sale-f1",
+                "document_type": "invoice",
+                "customer_name": "Cliente que elige factura",
+                "items": [{ "product_name": "Servicio", "quantity": 1_000_000, "unit_price": 12100,
+                            "tax_rate": 21.0, "net_amount": 10000, "tax_amount": 2100 }]
+            },
+            "context": { "new_ids": new_ids, "now": "2026-08-21T20:46:00+00:00",
+                         "reads": { "sales.get": [{ "id": "sale-f1" }] } }
+        });
+        let out = create_from_sale_pure(input).unwrap();
+        assert!(out.error.is_none(), "the POS path is not this guard's business: {:?}", out.error);
+        assert_eq!(out.operations[2].params["invoice_type"], json!("F1"));
     }
 }

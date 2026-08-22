@@ -309,6 +309,17 @@ describe('las negativas del handler se leen traducidas', () => {
     expect(texto, 'se pintó la frase inglesa del handler en vez de la traducción').toContain('millonésimas');
   });
 
+  it('un `invoice.f1_requires_customer_tax_id` (invoice#52) se pinta traducido, con el 1189 y la salida', async () => {
+    const err = Object.assign(
+      new Error("a complete invoice (F1) needs the customer's tax ID: without it the tax authority rejects it"),
+      { code: 'invoice.f1_requires_customer_tax_id' },
+    );
+    const texto = await emitirConError(err);
+    expect(texto, 'se pintó la frase inglesa del handler en vez de la traducción').toContain('NIF del cliente');
+    expect(texto, 'el rechazo tiene que nombrar la causa AEAT').toContain('1189');
+    expect(texto, 'la traducción tiene que ofrecer la salida: serie de tiques F2').toContain('F2');
+  });
+
   it('el código de OTRO módulo se respeta tal cual (su frase gana a cualquier invento nuestro)', async () => {
     const err = Object.assign(new Error('that sale does not exist'), { code: 'sales.sale_not_found' });
     expect(await emitirConError(err)).toBe('that sale does not exist');

@@ -108,7 +108,9 @@ def check_the_caller_does_not_state_the_amounts() -> None:
 def check_every_refusal_is_translatable() -> None:
     """A domain error is only useful if the code has a sentence in the catalogue (hub#139)."""
     handler = (MODULE_DIR / "handler" / "src" / "lib.rs").read_text()
-    codes = sorted(set(re.findall(r'DomainError::new\(\s*"(invoice\.[a-z_]+)"', handler)))
+    # [a-z0-9_]: codes carry digits too (`invoice.f1_requires_customer_tax_id`, invoice#52) —
+    # without them a code would silently escape the translatability check this battery exists for.
+    codes = sorted(set(re.findall(r'DomainError::new\(\s*"(invoice\.[a-z0-9_]+)"', handler)))
     if not codes:
         fail("no `DomainError` code found in the handler — is the guard still there?")
         return
