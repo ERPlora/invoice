@@ -1,74 +1,75 @@
--- Copia las LÍNEAS de la original a la rectificativa, con el DINERO negado (invoice#59).
+-- Copies the ORIGINAL's LINES onto the rectifying invoice, with the money negated (invoice#59).
 --
--- EL DEFECTO. `invoice.rectify` escribía cabecera y nada más: la rectificativa nacía con cero filas
--- en `invoice_invoiceitem`. `invoice.lines` devolvía vacío, y el detalle en pantalla y el documento
--- IMPRESO salían con un total sin conceptos debajo. El art. 6 + art. 15 del RD 1619/2012 piden que
--- una rectificativa lleve el contenido de una factura, no solo su cabecera.
+-- THE DEFECT. `invoice.rectify` wrote a header and nothing else, so the rectification was born with
+-- zero rows in `invoice_invoiceitem`. `invoice.lines` came back empty, and both the detail screen
+-- and the PRINTED rectifying invoice showed a total with no concepts under it. Art. 6 + art. 15 of
+-- RD 1619/2012 ask a rectifying invoice to carry the content of an invoice, not just its header.
 --
--- N FILAS SIN N IDS DEL RUNTIME. La issue prescribía pasar el command a un handler WASM porque
--- «N líneas necesitan N ids y un command declarativo recibe un solo `:new_id`». La primera mitad es
--- cierta; la segunda no se sigue: los ids NO tienen por qué venir del runtime. Un solo
--- `INSERT … SELECT` escribe N filas con ids DETERMINISTAS — exactamente el truco que
--- `_insert_allocation.sql` ya documenta en este módulo («it needs no id from the runtime»). Y
--- quedarse declarativo deja la cadena entera dentro del único gate que la ejecuta: el gate del
--- módulo no tiene checkout de ERPlora/hub, así que no compila el handler a wasm32 ni corre
--- `cargo test` de `handler/` —lo dice en voz alta, «handler WASM SIN VERIFICAR»— pero sí levanta un
--- Postgres real y corre `tests/rectify_lines.postgres.test.py`.
+-- N ROWS WITHOUT N IDS FROM THE RUNTIME. The issue prescribed moving the command to a Tier-2 WASM
+-- handler, on the grounds that "N lines need N ids and a declarative command receives exactly one
+-- `:new_id`". The first half is true; the second does not follow: the ids do NOT have to come from
+-- the runtime. A single `INSERT … SELECT` writes N rows with DETERMINISTIC ids — the very trick
+-- `_insert_allocation.sql` already documents in this module ("it needs no id from the runtime").
+-- Staying declarative also keeps the chain inside the only gate that runs it: the module gate has
+-- no checkout of ERPlora/hub, so it never compiles the handler to wasm32 nor runs `cargo test` on
+-- `handler/` — it says so out loud ("handler WASM SIN VERIFICAR") — but it DOES start a real
+-- Postgres and run `tests/rectify_lines.postgres.test.py`.
 --
--- EL ID. `<id de la rectificativa>/<id de la línea original>`. Determinista (no hace falta id del
--- runtime), único por construcción (`l.id` es PK, `r.id` es PK) y legible: el id de la línea nueva
--- lleva dentro la línea que rectifica, que es la trazabilidad que un auditor pide. No se deriva de
--- `line_number` a propósito: la columna no es única en el esquema, así que una factura heredada con
--- dos líneas con el mismo `line_number` habría colisionado en la PK y, con `transaction: true`,
--- tumbado la rectificación entera.
+-- THE ID: `<rectification id>/<original line id>`. Deterministic (no runtime id needed), unique by
+-- construction (`l.id` is a PK, `r.id` is a PK) and legible: the new line's id carries inside it the
+-- line it rectifies, which is the traceability an auditor asks for. Deliberately NOT derived from
+-- `line_number`: that column is not unique in the schema, so an inherited invoice with two lines
+-- sharing a `line_number` would have collided on the primary key and — with `transaction: true` —
+-- taken the whole rectification down with it.
 --
--- QUÉ SE NIEGA: el DINERO de la línea (`base_amount`, `tax_amount`, `total_amount`) y su
--- `quantity`. Los importes, porque es lo que una rectificativa deshace y es lo que hace que Σ
--- líneas cuadre con la cabecera negada de `rectify_insert.sql`.
+-- WHAT GETS NEGATED: the line's MONEY (`base_amount`, `tax_amount`, `total_amount`) and its
+-- `quantity`. The amounts, because undoing them is what a rectification is for, and because that is
+-- what makes Σ lines match the negated header `rectify_insert.sql` stamps.
 --
--- El RECUENTO, decidido contra el mercado (11 referencias + el XSD de Facturae), no por gusto. Los
--- productos se parten en dos campos: documento TIPADO, donde el signo vive en el tipo de documento
--- y la línea va siempre en positivo (notas de crédito de Stripe, SAP B1, Business Central, Xero,
--- Shopify), y documento FIRMADO, donde lo lleva la línea (WooCommerce, Lightspeed X-Series, la capa
--- de informes de Odoo, y lo que describen la guía Sorolla2 de la AEAT y las directrices
--- Facturae/UXXI-EC para una rectificativa). El campo tipado nos está cerrado: desde invoice#5
--- nuestra cabecera y nuestros importes de línea YA son negativos. Dentro del campo firmado el
--- mercado es unánime.
+-- The COUNT, decided against the market (11 references + the Facturae XSD), not by taste. Products
+-- fall in two camps: the TYPED document, where the sign lives in the document type and every line
+-- stays positive (Stripe credit notes, SAP Business One, Business Central, Xero, Shopify), and the
+-- SIGNED document, where the line carries it (WooCommerce, Lightspeed X-Series, Odoo's own
+-- reporting layer, and what the AEAT's Sorolla2 guide and the Facturae/UXXI-EC directives describe
+-- for a rectificativa). The typed camp is closed to us: since invoice#5 our header and our line
+-- amounts are ALREADY negative. Inside the signed camp the market is unanimous.
 --
--- Y lo que decide es mecánico: la regla FE-R005 de Facturae exige por línea
--- `TotalCost = Quantity × UnitPriceWithoutTax` (±0,01). Dejar el recuento en positivo imprime y
--- emite `1 × 12,10 = −12,10`, que incumple esa regla en TODA rectificativa. Se firma EXACTAMENTE UN
--- factor: negar también `unit_price` devolvería el producto a positivo. (VeriFactu no lo ve —el
--- `RegistroAlta` solo lleva el `Desglose`, sin líneas—; el día que emitamos Facturae, sí.)
+-- And what decides is mechanical: Facturae rule FE-R005 asks each line for
+-- `TotalCost = Quantity × UnitPriceWithoutTax` (±0.01). Leaving the count positive prints and emits
+-- `1 × 12.10 = −12.10`, which breaks that rule on EVERY rectifying invoice. Exactly ONE factor is
+-- signed: negating `unit_price` as well would flip the product back to positive. (VeriFactu never
+-- sees it — the `RegistroAlta` carries only the `Desglose`, no lines — but Facturae will, the day we
+-- emit it.)
 --
--- Es además la única opción que preserva el signo signifique lo que signifique la línea: en una
--- línea IVA-INCLUIDO nacida de una venta, `unit_price` es el precio BRUTO de display, así que lo que
--- se cumple en la original es `quantity × unit_price == total_amount` (2 × 605 == 1210) y no
--- `== base_amount`. Negar el recuento mantiene esa identidad cierta con los dos lados cambiados.
+-- It is also the only choice that preserves the sign whatever the line means: on a VAT-INCLUSIVE
+-- line born from a sale, `unit_price` is the GROSS display price, so what holds on the original is
+-- `quantity × unit_price == total_amount` (2 × 605 == 1210), NOT `== base_amount`. Negating the
+-- count keeps that identity true with both sides flipped.
 --
--- NO se niegan los descriptores: `tax_rate` y `surcharge_rate` (un 21 % rectificado sigue siendo un
--- 21 %, la misma regla que ya sigue el `tax_breakdown`) ni `unit_price` (el precio de lo vendido no
--- se vuelve negativo porque se devuelva). `surcharge_rate` se copia TAL CUAL, NULL incluido: NULL
--- marca la generación heredada cuyo `tax_rate` puede ser todavía un tipo combinado (migración 006),
--- y rellenarlo aquí falsearía la generación de una fila fiscal congelada.
+-- The DESCRIPTORS are not negated: `tax_rate` and `surcharge_rate` (a rectified 21 % is still a
+-- 21 %, the same rule `tax_breakdown` already follows) nor `unit_price` (the price of what was sold
+-- does not turn negative because it came back). `surcharge_rate` is copied AS IS, NULL included:
+-- NULL marks the legacy generation whose `tax_rate` may still be a combined rate (migration 006),
+-- and filling it in here would falsify the generation of a frozen fiscal row.
 --
--- ⚠️ EL DESGLOSE NO SE RE-DERIVA DE AQUÍ. `tax_breakdown` lo copia negado del snapshot de la
--- original `rectify_insert.sql`, y así se queda: la base fiscal es la de la TARIFA del documento
--- (ADR-0210) y el desglose se cierra una vez por TIPO, no por línea (ADR-0123 §4). Estas líneas
--- SUMAN ese desglose; no lo mandan. El test lo cruza en los dos sentidos.
+-- ⚠️ THE BREAKDOWN IS NOT RE-DERIVED FROM HERE. `tax_breakdown` is copied negated from the
+-- original's snapshot by `rectify_insert.sql`, and it stays that way: the tax basis is the one of
+-- the document's own price list (ADR-0210) and the breakdown closes once per RATE, not per line
+-- (ADR-0123 §4). These lines ADD UP to that breakdown; they do not drive it. The test cross-checks
+-- both directions.
 --
--- LA GUARDA es la misma que la de `_insert_allocation.sql`, y por la misma razón: se busca la
--- rectificativa **por el id que ESTA petición acuñó** (`:new_id`). Si `rectify_insert.sql` fue
--- no-op —la original no existe, ya está rectificada, o es ella misma una rectificativa— ninguna fila
--- lleva ese id, el JOIN no encuentra nada y no se copia ninguna línea (patrón ADR-0020: la misma
--- precondición en todas las puertas de la cadena). El `NOT EXISTS` final cubre además el reintento
--- que repite el MISMO `:new_id`, que la guarda por id sola no vería.
+-- THE GUARD is the same one `_insert_allocation.sql` uses, and for the same reason: the
+-- rectification is looked up **by the id THIS request minted** (`:new_id`). If `rectify_insert.sql`
+-- was a no-op — the original does not exist, is already rectified, or is itself a rectification —
+-- no row carries that id, the join finds nothing and no line is copied (guard pattern, ADR-0020:
+-- the same precondition on every door of the chain). The trailing `NOT EXISTS` additionally covers
+-- a retry that replays the SAME `:new_id`, which the id guard alone would not see.
 --
--- `l.hub_id = r.hub_id` NO es decorativo: sin él, una fila de otro hub apuntando a nuestra factura
--- —la escriba quien la escriba— aterrizaría con su concepto y su dinero en la rectificativa de
--- nuestro cliente. Va en el test, con la fila del vecino plantada a mano.
+-- `l.hub_id = r.hub_id` is not decoration: without it a row belonging to another hub but pointing at
+-- our invoice — whoever wrote it — would land its concept and its money on our customer's rectifying
+-- invoice. That case is in the test, with the neighbour's row planted by hand.
 --
--- Runtime inyecta :hub_id, :now, :new_id; el resto viaja en el payload.
+-- The runtime injects :hub_id, :now and :new_id; the rest travels in the payload.
 INSERT INTO invoice_invoiceitem (
     id, hub_id, invoice_id, line_number, description, quantity, unit_price,
     tax_rate, surcharge_rate, tax_category_key,
