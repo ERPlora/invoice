@@ -39,8 +39,76 @@ SELECT
     END,
     :issue_date,
     o.issuer_nif, o.issuer_name, o.customer_tax_id, o.customer_name, o.customer_address, :reason,
-    -o.base_amount, -o.tax_amount, -o.total_amount, '{}', o.currency,
-    o.source_type, o.source_id, :original_id, 'issued',
+    -o.base_amount, -o.tax_amount, -o.total_amount,
+    -- ── EL DESGLOSE (invoice#5 D2) ───────────────────────────────────────────────────────────
+    -- Antes iba `'{}'`, y `'{}'` NO falla de forma ruidosa: `hub/crates/verifactu/src/aeat.rs`
+    -- `desglose()` cae a un ÚNICO detalle con el tipo EFECTIVO (`cuota/base`). Una factura de tipo
+    -- único salía bien por casualidad; una MIXTA (la caña al 21 % + la tapa al 10 %) daba un
+    -- efectivo de ~19,1 %, que no es un tipo legal de IVA, y la tumbaba el guard local `xsd.rs`.
+    --
+    -- Se COPIA del snapshot congelado en la original y se NIEGAN solo los importes. Nunca se
+    -- re-deriva (ADR-0210): la base fiscal es de la TARIFA del documento, así que recalcular con
+    -- los ajustes o la tarifa de hoy haría salir la rectificativa de una factura vieja sobre otra
+    -- base que la factura que rectifica. Y el desglose se cierra una vez por TIPO, no por línea
+    -- (ADR-0123 §4), así que copiar el array es exactamente lo que hay que hacer.
+    --
+    -- El TIPO no se niega (un 21 % rectificado sigue siendo un 21 %); tampoco `surcharge_rate`.
+    -- Se niegan `base`, `quota` y, si viene, `surcharge_quota`.
+    --
+    -- Dos formatos, porque el consumidor acepta los dos y una original vieja puede llevar el
+    -- viejo: ARRAY (una entrada por clave fiscal, formato actual) y OBJETO legacy
+    -- (`{"21": {"base":…, "tax":…}}`). Lo que no sea ni una cosa ni otra —`'{}'` de las facturas
+    -- anteriores al campo, o texto ilegible— sale como `'[]'`, que es donde ya estaba: el mismo
+    -- fallback al tipo efectivo. No se inventa un desglose que nadie registró.
+    --
+    -- ⚠️ `erplora validate` avisa de `jsonb_array_elements` / `jsonb_each` como «tabla sin el
+    -- prefijo `invoice_`» (ADR-0263). Son AVISOS y son falsos positivos conocidos: no son tablas,
+    -- son funciones que devuelven filas, y el propio linter dice que no puede distinguirlas. No
+    -- hay nada que arreglar aquí — se deja escrito para que no se vuelva a investigar.
+    CASE
+      WHEN o.tax_breakdown IS NULL OR btrim(o.tax_breakdown) = '' THEN '[]'
+      WHEN left(btrim(o.tax_breakdown), 1) = '[' THEN COALESCE((
+        SELECT jsonb_agg(
+                 CASE WHEN jsonb_typeof(e.v) = 'object'
+                      THEN e.v
+                           || jsonb_build_object(
+                                'base',  (- COALESCE((e.v->>'base')::numeric, 0)),
+                                'quota', (- COALESCE((e.v->>'quota')::numeric, 0)))
+                           -- `jsonb_exists(v, k)` y no el operador `v ? k`: son la MISMA función,
+                           -- pero `?` es también el placeholder posicional del estilo portable, y
+                           -- `erplora validate` (ADR-0007) lo rechaza — con razón, porque un
+                           -- linter léxico no puede saber cuál de los dos es.
+                           || CASE WHEN jsonb_exists(e.v, 'surcharge_quota')
+                                   THEN jsonb_build_object('surcharge_quota',
+                                          (- COALESCE((e.v->>'surcharge_quota')::numeric, 0)))
+                                   ELSE '{}'::jsonb END
+                      ELSE e.v END
+                 ORDER BY e.ord)
+          FROM jsonb_array_elements(o.tax_breakdown::jsonb) WITH ORDINALITY AS e(v, ord)
+      ), '[]'::jsonb)::text
+      WHEN left(btrim(o.tax_breakdown), 1) = '{' THEN COALESCE((
+        SELECT jsonb_object_agg(e.k,
+                 e.v || jsonb_build_object(
+                          'base', (- COALESCE((e.v->>'base')::numeric, 0)),
+                          'tax',  (- COALESCE((e.v->>'tax')::numeric, 0))))
+          FROM jsonb_each(o.tax_breakdown::jsonb) AS e(k, v)
+         WHERE jsonb_typeof(e.v) = 'object'
+      ), '[]'::jsonb)::text
+      ELSE '[]'
+    END,
+    o.currency,
+    -- ── EL ORIGEN (invoice#5 D1) ─────────────────────────────────────────────────────────────
+    -- Antes se copiaban `o.source_type, o.source_id` VERBATIM, y ahí murió la rectificación de
+    -- todo tiquet de TPV: `uq_invoice_source (hub_id, source_type, source_id) WHERE source_id IS
+    -- NOT NULL` ya tenía esa tupla ocupada por la ORIGINAL, la unicidad reventaba y
+    -- `transaction: true` abortaba la cadena entera. Solo se podía rectificar la factura MANUAL
+    -- (`source_id NULL`, el índice parcial no aplica) — que es justo la única que probaba el e2e.
+    --
+    -- Una rectificativa no tiene origen externo del que ser idempotente: no nace de una venta, nace
+    -- de esta orden. `source_id` NULL, y el «una rectificativa por factura» lo sostiene su propio
+    -- índice sobre el enlace fiscal (`ux_invoice_rectifies`, migración 009) en vez de tomar
+    -- prestado el índice de ventas. `source_type` se queda informativo.
+    'rectification', NULL, :original_id, 'issued',
     'Rectifies ' || o.number || '. Reason: ' || :reason,
     0, :current_user_id, :current_user_id, :now, :now
 FROM invoice_invoice o

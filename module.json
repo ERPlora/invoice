@@ -1,7 +1,7 @@
 {
   "id": "invoice",
   "name": "Invoicing",
-  "version": "1.2.22",
+  "version": "1.2.23",
   "description": "Issue invoices from sales, mark them as paid, and issue rectifying invoices.",
   "agent": {
     "description": "Manages invoicing: create invoices from sales, issue rectifying invoices, mark invoices as paid, and manage invoice series.",
@@ -65,7 +65,8 @@
       "migrations/postgres/005_substitution_unique.sql",
       "migrations/postgres/006_line_surcharge_rate.sql",
       "migrations/postgres/007_number_allocation.sql",
-      "migrations/postgres/008_series_format.sql"
+      "migrations/postgres/008_series_format.sql",
+      "migrations/postgres/009_rectification_unique.sql"
     ]
   },
   "queries": {
