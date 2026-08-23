@@ -1,0 +1,40 @@
+-- Invoice · 009 — invoice#5: ONE rectifying invoice per rectified invoice, enforced by the schema.
+--
+-- Same shape and same reasoning as `005_substitution_unique.sql` (invoice#34), for the sibling
+-- fiscal link. `rectifies_invoice_id` (001) has always been a loose column: "one rectification per
+-- invoice" held only because `rectify_bump`/`rectify_insert`/`rectify_cancel` share a `NOT EXISTS`
+-- guard (invoice#39, ADR-0020). Guards protect the door they are nailed to — `invoice.rectify` —
+-- and this module is written for a runtime where a flow, the assistant, the public API or a future
+-- command can INSERT an invoice without walking through it. Two rectifications of one invoice mean
+-- two VeriFactu records for one operation, and a sent record cannot be un-sent.
+--
+-- WHY NOT REUSE `uq_invoice_source`. Until this version `rectify_insert.sql` copied
+-- `source_type, source_id` verbatim from the original, so the rectification of a sale-born invoice
+-- collided with the SALE's own idempotency row and `transaction: true` aborted everything: **every
+-- POS ticket was irrectifiable**, which is the normal path of a refund. The obvious patch — write
+-- `source_type='rectification', source_id=<original>` and let `uq_invoice_source` carry the
+-- invariant — is the very fragility invoice#34 removed for substitutions: the sales index means
+-- "one invoice per sale", it does NOT exclude soft-deleted rows, and hanging a fiscal rule on it
+-- makes the rule move whenever the sales rule moves. The rectification now carries a NULL
+-- `source_id` (it has no external origin to be idempotent about) and the invariant lives here, on
+-- the link that actually expresses it.
+--
+-- Partial, portable, additive: per hub, only live rows that carry a link.
+--
+-- ⚠️ BEFORE applying on a LIVE hub check there are no duplicates already — a unique index that
+-- cannot be built aborts the hub boot, which is worse than the hole it closes:
+--
+--   SELECT hub_id, rectifies_invoice_id, count(*)
+--     FROM invoice_invoice
+--    WHERE rectifies_invoice_id IS NOT NULL AND is_deleted = 0
+--    GROUP BY hub_id, rectifies_invoice_id
+--   HAVING count(*) > 1;
+--
+-- If it returns rows, resolve them by hand (soft-delete the spurious rectification after checking
+-- its fiscal record) before the hub picks up this version. In practice it returns nothing on any
+-- hub that only ever rectified through `invoice.rectify`: the duplicate it prevents was
+-- unreachable from the module's own door, and unreachable in the OTHER direction too, since until
+-- now a sale-born invoice could not be rectified at all.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_invoice_rectifies
+  ON invoice_invoice (hub_id, rectifies_invoice_id)
+  WHERE rectifies_invoice_id IS NOT NULL AND is_deleted = 0;

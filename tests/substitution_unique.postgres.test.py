@@ -138,12 +138,19 @@ def bind(sql: str, params: dict) -> str:
     def in_comment(pos: int) -> bool:
         return any(a <= pos < b for a, b in comments)
 
-    return PARAM.sub(
-        lambda m: (
-            m.group(0) if in_comment(m.start()) else literal(params.get(m.group(1)))
-        ),
-        sql,
-    )
+    def replace(m: re.Match) -> str:
+        # `::` is the Postgres CAST operator, never a parameter — `(x)::numeric` is not a `:numeric`
+        # bind. `hub/crates/db/src/lib.rs::translate` special-cases it as its FIRST rule; this
+        # miniature did not, so `rectify_insert.sql` (which negates a JSONB breakdown, invoice#5)
+        # came out as `(x):NULL` and every test that walked through it died with a syntax error.
+        # A miniature that is wrong where the runtime is right does not test the runtime.
+        if m.start() > 0 and sql[m.start() - 1] == ":":
+            return m.group(0)
+        if in_comment(m.start()):
+            return m.group(0)
+        return literal(params.get(m.group(1)))
+
+    return PARAM.sub(replace, sql)
 
 
 def run_command(name: str, payload: dict, hub: str = HUB) -> tuple[bool, str]:
