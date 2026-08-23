@@ -359,6 +359,7 @@
         "commands/rectify_ensure.sql",
         "commands/rectify_bump.sql",
         "commands/rectify_insert.sql",
+        "commands/rectify_lines.sql",
         "commands/_insert_allocation.sql",
         "commands/rectify_cancel.sql"
       ],

@@ -256,7 +256,30 @@ def test_the_rectification_carries_the_originals_lines_negated():
         # Traceability: what came back, and under which frozen tax category (ADR-0085).
         check(f"line {n}: `product_id` is preserved", prd, line["product_id"])
         check(f"line {n}: `tax_category_key` is preserved", cat, line["tax_category_key"])
-        check(f"line {n}: `quantity` is preserved as a count", qty, line["quantity"])
+        # `quantity` is signed too — decided against the market (11 references + the Facturae
+        # XSD), not by taste. Products split in two camps: TYPED documents, where the sign lives in
+        # the document type and every line stays positive (Stripe credit notes, SAP B1, Business
+        # Central, Xero, Shopify), and SIGNED documents, where the line carries it (WooCommerce,
+        # Lightspeed X-Series, Odoo's own reporting layer, and what the AEAT's Sorolla2 guide and
+        # the Facturae/UXXI-EC directives describe for a rectificativa). The typed camp is closed to
+        # us: since invoice#5 our header and our line amounts are ALREADY negative. Inside the
+        # signed camp the market is unanimous.
+        #
+        # And the decider is mechanical: Facturae rule FE-R005 asks each line for
+        # `TotalCost = Quantity × UnitPriceWithoutTax` (±0.01). Leaving the count positive prints
+        # and emits `1 × 12,10 = −12,10`, which fails that check on every rectificativa. Exactly ONE
+        # factor is signed — negating `unit_price` as well would flip the product back positive.
+        #
+        # It is also the only choice that is sign-preserving here whatever the line means: on a
+        # VAT-INCLUSIVE line born from a sale, `unit_price` is the GROSS display price, so what
+        # holds on the original is `quantity × unit_price == total_amount` (2 × 605 == 1210) and not
+        # `== base_amount`. Negating the count keeps that identity true with both sides flipped.
+        check(f"line {n}: `quantity` is negated", -qty, line["quantity"])
+        check(
+            f"line {n}: `quantity` × `unit_price` still equals the line total (Facturae FE-R005)",
+            line["total_amount"],
+            line["quantity"] * line["unit_price"] // UNIT,
+        )
         check(f"line {n}: the line gets its OWN id, not the original's", True,
               line["id"] != f"TCK-1-L{n}")
 

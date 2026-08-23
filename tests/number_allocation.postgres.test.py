@@ -178,10 +178,25 @@ def test_the_book_exists_and_is_declared():
         "commands/_insert_allocation.sql"
         in H.MANIFEST["commands"]["invoice._insert_invoice"]["sql"],
     )
+    # AFTER its own insert, which is the invariant: `_insert_allocation.sql` looks the invoice up
+    # by the id this request minted, so the row has to exist by the time it runs. It asserted a
+    # hardcoded slice `[2:4]` — ADJACENCY at fixed positions, which is not what the label says and
+    # not what the SQL needs. invoice#59 added a sixth step to the chain (`rectify_lines.sql`, which
+    # writes to `invoice_invoiceitem` and cannot disturb this join) and the slice went red on a
+    # chain that was still correct. Pinned by ORDER now, so a new step between them is free and a
+    # step that jumps AHEAD of the insert is still caught.
+    rectify_sql = H.MANIFEST["commands"]["invoice.rectify"]["sql"]
     check(
-        "...and to the rectify chain, after its own insert",
-        ["commands/rectify_insert.sql", "commands/_insert_allocation.sql"],
-        H.MANIFEST["commands"]["invoice.rectify"]["sql"][2:4],
+        "...and to the rectify chain",
+        True,
+        "commands/_insert_allocation.sql" in rectify_sql,
+    )
+    check(
+        "...after its own insert (the row it books must already exist)",
+        True,
+        "commands/rectify_insert.sql" in rectify_sql
+        and rectify_sql.index("commands/_insert_allocation.sql")
+        > rectify_sql.index("commands/rectify_insert.sql"),
     )
 
 
