@@ -13,7 +13,7 @@ INSERT INTO invoice_invoice (
     id, hub_id, invoice_type, series, number, issue_date,
     issuer_nif, issuer_name, customer_tax_id, customer_name, customer_address, description,
     base_amount, tax_amount, total_amount, tax_breakdown, currency,
-    source_type, source_id, rectifies_invoice_id, status, notes,
+    source_type, source_id, rectifies_invoice_id, rectifies_ref, status, notes,
     is_deleted, created_by, updated_by, created_at, updated_at
 )
 SELECT
@@ -37,7 +37,7 @@ SELECT
                 '{code}',    s.code),
                 '{prefix}',  s.prefix)
     END,
-    :issue_date,
+    COALESCE(NULLIF(CAST(:issue_date AS TEXT), ''), substr(CAST(:now AS TEXT), 1, 10)),
     o.issuer_nif, o.issuer_name, o.customer_tax_id, o.customer_name, o.customer_address, :reason,
     -o.base_amount, -o.tax_amount, -o.total_amount,
     -- ── EL DESGLOSE (invoice#5 D2) ───────────────────────────────────────────────────────────
@@ -108,16 +108,34 @@ SELECT
     -- de esta orden. `source_id` NULL, y el «una rectificativa por factura» lo sostiene su propio
     -- índice sobre el enlace fiscal (`ux_invoice_rectifies`, migración 009) en vez de tomar
     -- prestado el índice de ventas. `source_type` se queda informativo.
-    'rectification', NULL, :original_id, 'issued',
+    'rectification', NULL, o.id, NULLIF(CAST(:refund_ref AS TEXT), ''), 'issued',
     'Rectifies ' || o.number || '. Reason: ' || :reason,
     0, :current_user_id, :current_user_id, :now, :now
 FROM invoice_invoice o
 JOIN invoice_invoiceseries s
   ON s.hub_id = o.hub_id
  AND s.code = 'RECT'
- AND CAST(s.year AS TEXT) = CAST(:year AS TEXT)
+ AND CAST(s.year AS TEXT) = COALESCE(CAST(:year AS TEXT), substr(CAST(:now AS TEXT), 1, 4))
  AND s.is_deleted = 0
-WHERE o.id = :original_id AND o.hub_id = :hub_id AND o.invoice_type NOT LIKE 'R%'
+WHERE o.hub_id = :hub_id AND o.invoice_type NOT LIKE 'R%'
+  -- ── WHICH ORIGINAL (invoice#62) ────────────────────────────────────────────────────────────
+  -- Two doors walk this one chain. `invoice.rectify` names the document (`:original_id`); the
+  -- listener of `sale.refunded` cannot — an event carries the SALE, so the original is resolved
+  -- from this module's own row through the tuple `uq_invoice_source` already keeps unique per hub.
+  -- The payload therefore never names the fiscal document it is about to cancel. The value written
+  -- into `rectifies_invoice_id` is `o.id`, the row that was actually matched, not the parameter:
+  -- on the refund path the parameter is NULL, and on the manual path the two are the same thing.
+  AND (o.id = CAST(:original_id AS TEXT)
+       OR (CAST(:original_id AS TEXT) IS NULL
+           AND o.source_type = 'sale'
+           AND o.source_id = CAST(:sale_id AS TEXT)))
+  -- The refund path only issues when the WHOLE invoice came back, and only with a stable refund
+  -- reference to be idempotent about. Both conditions are spelled out in `rectify_bump.sql`, which
+  -- is the door that decides whether a NUMBER is spent; they are repeated here because a guard that
+  -- is not on every door is not a guard (ADR-0020).
+  AND (CAST(:sale_id AS TEXT) IS NULL
+       OR (COALESCE(CAST(:fully_refunded AS INTEGER), 0) = 1
+           AND NULLIF(CAST(:refund_ref AS TEXT), '') IS NOT NULL))
   -- invoice#39: la MISMA guarda que `rectify_bump.sql` (patrón ADR-0020). Sin ella, un reintento
   -- emitía una segunda rectificativa de la misma factura con un número nuevo; con la guarda solo en
   -- el bump, el insert habría escrito con un número que el contador ya no había avanzado. Las dos
@@ -126,5 +144,25 @@ WHERE o.id = :original_id AND o.hub_id = :hub_id AND o.invoice_type NOT LIKE 'R%
   AND o.is_deleted = 0
   AND NOT EXISTS (
     SELECT 1 FROM invoice_invoice r
-    WHERE r.hub_id = :hub_id AND r.rectifies_invoice_id = :original_id AND r.is_deleted = 0
-  );
+    WHERE r.hub_id = :hub_id AND r.rectifies_invoice_id = o.id AND r.is_deleted = 0
+  )
+  -- ...and the same again for the REFUND document (invoice#62). Redundant with the line above
+  -- while one invoice may carry only one rectification, and deliberately kept: the day a partial
+  -- refund gets its own rectificativa por diferencias (invoice#63) one invoice carries N of them,
+  -- one per refund, and this is the guard that still holds. Placed on all three doors so that a
+  -- redelivery spends no number, exactly like the guard above.
+  AND NOT EXISTS (
+    SELECT 1 FROM invoice_invoice rr
+    WHERE rr.hub_id = :hub_id
+      AND rr.rectifies_ref = NULLIF(CAST(:refund_ref AS TEXT), '')
+      AND rr.is_deleted = 0
+  )
+-- ── AND THE ATOMIC BACKSTOP (invoice#62) ──────────────────────────────────────────────────────
+-- Everything above is check-then-act: a `NOT EXISTS` read, then an INSERT. Two outbox relays inside
+-- the same window both read "nothing there" and both write, and the loser must not abort the
+-- transaction — `transaction: true` would take the whole fiscal act down with it, on a redelivery
+-- that was supposed to be a silent no-op. `ux_invoice_rectifies_ref` (migration 010) and
+-- `ux_invoice_rectifies` (009) are what actually decide the race; this turns their verdict into the
+-- same no-op the guards produce. No conflict target on purpose: both are PARTIAL indexes, whose
+-- inference would mean repeating their predicates here, and the primary key is worth covering too.
+ON CONFLICT DO NOTHING;
