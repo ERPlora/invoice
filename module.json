@@ -66,7 +66,8 @@
       "migrations/postgres/006_line_surcharge_rate.sql",
       "migrations/postgres/007_number_allocation.sql",
       "migrations/postgres/008_series_format.sql",
-      "migrations/postgres/009_rectification_unique.sql"
+      "migrations/postgres/009_rectification_unique.sql",
+      "migrations/postgres/010_rectifies_ref.sql"
     ]
   },
   "queries": {
@@ -370,6 +371,25 @@
         "description": "Issues a rectifying invoice that cancels or corrects an existing invoice."
       }
     },
+    "invoice._rectify_from_refund": {
+      "permission": "invoice.rectify_invoice",
+      "internal": true,
+      "transaction": true,
+      "sql": [
+        "commands/rectify_ensure.sql",
+        "commands/rectify_bump.sql",
+        "commands/rectify_insert.sql",
+        "commands/rectify_lines.sql",
+        "commands/_insert_allocation.sql",
+        "commands/rectify_cancel.sql"
+      ],
+      "emit": [
+        "invoice.rectified"
+      ],
+      "ai": {
+        "description": "Listener of `sale.refunded` (sales v2.16.4): issues the rectifying invoice for a refunded sale by itself, so the money and the fiscal document never disagree. Resolves the original from the sale, and only issues when the WHOLE invoice came back — a refund that leaves part of it standing needs a rectificativa por diferencias (invoice#63) and produces nothing here. Idempotent by the refund document reference: the same refund twice is one document, one series number and one VeriFactu record. Internal: only the runtime's outbox relay calls it."
+      }
+    },
     "invoice.mark_paid": {
       "permission": "invoice.add_invoice",
       "transaction": true,
@@ -434,6 +454,9 @@
     "listen": {
       "sale.completed": {
         "command": "invoice.create_from_sale"
+      },
+      "sale.refunded": {
+        "command": "invoice._rectify_from_refund"
       }
     },
     "emits": [

@@ -16,6 +16,13 @@
 -- performed one statement earlier (guard pattern, ADR-0020). Same for a retried rectification once
 -- `rectify_bump.sql` grew its own guard.
 --
+-- invoice#62: `:year` FALLS BACK TO `:now`. It is not a system parameter — the runtime injects
+-- `:hub_id`, `:current_user_id`, `:now` and `:new_id`, and nothing else — so it only ever arrived
+-- because a screen or a handler put it in the payload. An EVENT payload has neither, and without
+-- the fallback this join would find no series, book no number, and the numbering ledger would
+-- silently stop recording the rectifications a refund issues. Same derivation the module's own
+-- handler uses (`now.split('T')[0]`), so the three doors agree on what year it is.
+--
 -- The two id conventions are a runtime fact, not a trick: a WASM handler binds the ids it took from
 -- `context.new_ids` under its own names, while a declarative command receives exactly one
 -- runtime-injected `:new_id`. A `:param` absent from the payload binds as NULL, so COALESCE picks
@@ -38,7 +45,7 @@ FROM invoice_invoice i
 JOIN invoice_invoiceseries s
   ON s.hub_id = i.hub_id
  AND s.code = i.series
- AND CAST(s.year AS TEXT) = CAST(:year AS TEXT)
+ AND CAST(s.year AS TEXT) = COALESCE(CAST(:year AS TEXT), substr(CAST(:now AS TEXT), 1, 4))
  AND s.is_deleted = 0
 WHERE i.hub_id = :hub_id
   AND i.id = COALESCE(CAST(:invoice_id AS TEXT), CAST(:new_id AS TEXT))
