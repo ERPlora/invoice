@@ -80,6 +80,12 @@ MANIFEST = H.MANIFEST
 
 LISTENER = "invoice._rectify_from_refund"
 
+# A tenant that has never rectified anything. §3 needs one: on a hub whose RECT counter is
+# already past 0, an insert that slipped its gate would collide with `uq_invoice_series_number`
+# and be swallowed by `ON CONFLICT DO NOTHING` — the right outcome for the WRONG reason, and a
+# gate that is only ever load-bearing by accident is a gate nobody notices losing.
+FRESH_HUB = "hub-fresh"
+
 # The mixed-rate ticket of a real till: a drink at 21 % and food at 10 %. CENTS (ADR-0007).
 BREAKDOWN = [
     {
@@ -407,6 +413,32 @@ def test_a_partial_refund_issues_nothing():
         ),
     )
 
+    # THE SAME CASE ON A HUB THAT HAS NEVER RECTIFIED. Above, `rectify_bump` refuses and the RECT
+    # counter stays where the previous rectification left it, so an insert that had lost its own
+    # gate would land on a number that is already taken and be swallowed. Here the counter is at
+    # zero, nothing collides, and the ONLY thing standing between a partial refund and a rectifying
+    # invoice for the FULL amount is the gate on `rectify_insert.sql` itself.
+    ok, _ = issue("FR-1", source_id="sale-f1", hub=FRESH_HUB)
+    check("a hub that has never rectified issues its first ticket", True, ok)
+    add_line("FR-1", "FR-1/L1", hub=FRESH_HUB)
+    ok, err = on_refund(
+        refunded_event("sale-f1", refund_ref="rf-f1", total=500, fully_refunded=False),
+        hub=FRESH_HUB,
+    )
+    check("its first ever refund is a partial one, and it runs", True, ok)
+    if not ok:
+        print(f"       ↳ {err.splitlines()[0] if err else ''}")
+    check("no rectification is issued", 0, rectifications_of("FR-1", FRESH_HUB))
+    check("the original still stands", "issued", status_of("FR-1", FRESH_HUB))
+    check(
+        "and no RECT series was even created for it",
+        0,
+        qi(
+            "SELECT count(*) FROM invoice_invoiceseries WHERE hub_id = "
+            f"{literal(FRESH_HUB)} AND code = 'RECT'"
+        ),
+    )
+
 
 # ── 4. Returned in two acts: the document comes out when the last cent goes back ─────────
 
@@ -484,36 +516,93 @@ def test_a_refund_without_a_reference_is_refused():
 def test_the_listener_never_leaves_its_hub():
     print("\n== 6. a sale id repeats across hubs; a rectification must not ==")
 
-    # `sale-1` is our fully-refunded ticket. The neighbour issues its own invoice for a sale with
-    # the SAME id — ids are per-tenant, so this is the ordinary case, not a contrived one.
+    # ORDER MATTERS HERE, and it is not decoration. The neighbour rectifies something of its own
+    # FIRST, so that by the time the interesting case runs BOTH hubs already carry a live RECT
+    # series with a counter of their own. Without that, a chain that had lost its `hub_id` filter
+    # still came out right by accident — the neighbour's series did not exist yet when the insert
+    # chose a row — and the mutant that removes the tenancy filter survived the whole suite. A test
+    # that only catches a bug in one of the two orderings is a test that reports the other as safe.
     ok, _ = issue("NB-1", source_id="sale-1", hub=OTHER_HUB)
     check("the neighbour issues its own ticket for its own `sale-1`", True, ok)
     add_line("NB-1", "NB-1/L1", hub=OTHER_HUB)
-
-    before_ours = rectifications_of("TCK-1")
     ok, err = on_refund(refunded_event("sale-1", refund_ref="rf-1"), hub=OTHER_HUB)
-    check("the neighbour's refund runs", True, ok)
+    check("the neighbour may reuse a reference we already used", True, ok)
     if not ok:
         print(f"       ↳ {err.splitlines()[0] if err else ''}")
     check(
-        "the neighbour gets its own rectification",
-        1,
-        rectifications_of("NB-1", OTHER_HUB),
-    )
-    check("ours is untouched", before_ours, rectifications_of("TCK-1"))
-    check(
         "the same `refund_ref` in two hubs is two documents, not a collision",
         2,
+        qi("SELECT count(*) FROM invoice_invoice WHERE rectifies_ref = 'rf-1' AND is_deleted = 0"),
+    )
+    check("and ours is still the one it always was", 1, rectifications_of("TCK-1", HUB))
+
+    # NOW the case the scoping is for: both hubs carry a live, UNRECTIFIED invoice for a sale with
+    # the same id — ids are per tenant, so this is the ordinary case and not a contrived one — and
+    # the NEIGHBOUR refunds it. If the chain resolved the original without `hub_id`, our ticket
+    # would qualify too, and the neighbour's refund would write a rectifying invoice into OUR books
+    # and cancel a document we never returned.
+    ok, _ = issue("TCK-9", source_id="sale-9", hub=HUB)
+    check("we issue a ticket for `sale-9` and do NOT refund it", True, ok)
+    add_line("TCK-9", "TCK-9/L1", hub=HUB)
+    ok, _ = issue("NB-9", source_id="sale-9", hub=OTHER_HUB)
+    check("the neighbour issues its own ticket for its own `sale-9`", True, ok)
+    add_line("NB-9", "NB-9/L1", hub=OTHER_HUB)
+
+    ours_before = rect_counter(HUB)
+    ok, err = on_refund(refunded_event("sale-9", refund_ref="rf-9"), hub=OTHER_HUB)
+    check("the neighbour's refund runs", True, ok)
+    if not ok:
+        print(f"       ↳ {err.splitlines()[0] if err else ''}")
+    check("the neighbour gets its own rectification", 1, rectifications_of("NB-9", OTHER_HUB))
+    check(
+        "the document it issued belongs to the neighbour, not to us",
+        OTHER_HUB,
+        q("SELECT COALESCE(string_agg(hub_id, ','), '<none>') FROM invoice_invoice "
+          "WHERE rectifies_ref = 'rf-9' AND is_deleted = 0"),
+    )
+    check("OUR ticket for the same sale is NOT rectified", 0, rectifications_of("TCK-9", HUB))
+    check("...and NOT cancelled", "issued", status_of("TCK-9", HUB))
+    check(
+        "no row in ANY hub rectifies our ticket",
+        0,
+        qi("SELECT count(*) FROM invoice_invoice WHERE rectifies_invoice_id = 'TCK-9'"),
+    )
+    check("our RECT counter did not move for the neighbour's refund", ours_before, rect_counter(HUB))
+    check(
+        "and no number of ours was booked for it",
+        0,
         qi(
-            "SELECT count(*) FROM invoice_invoice WHERE rectifies_ref = 'rf-1' AND is_deleted = 0"
+            "SELECT count(*) FROM invoice_number_allocation a JOIN invoice_invoice r ON "
+            f"r.id = a.invoice_id WHERE a.hub_id = {literal(HUB)} AND r.rectifies_ref = 'rf-9'"
         ),
     )
     check(
-        "and nothing of the neighbour's landed on our books",
+        "and no line of ours was copied onto anybody's document",
         0,
         qi(
-            "SELECT count(*) FROM invoice_invoice WHERE hub_id = "
-            f"{literal(HUB)} AND rectifies_invoice_id = 'NB-1'"
+            "SELECT count(*) FROM invoice_invoiceitem WHERE hub_id = "
+            f"{literal(OTHER_HUB)} AND id LIKE '%/TCK-9/%'"
+        ),
+    )
+
+    # The invariant, asked of the WHOLE database rather than of one case: no rectifying invoice
+    # anywhere points at an original belonging to a different tenant, and no copied line belongs to
+    # a different tenant than the document it sits on. Cheap, and it catches a leak this suite did
+    # not think to build a case for.
+    check(
+        "no rectifying invoice in the database crosses a tenant boundary",
+        0,
+        qi(
+            "SELECT count(*) FROM invoice_invoice r JOIN invoice_invoice o "
+            "ON o.id = r.rectifies_invoice_id WHERE r.hub_id <> o.hub_id"
+        ),
+    )
+    check(
+        "no invoice line sits on a document of another tenant",
+        0,
+        qi(
+            "SELECT count(*) FROM invoice_invoiceitem l JOIN invoice_invoice i "
+            "ON i.id = l.invoice_id WHERE l.hub_id <> i.hub_id"
         ),
     )
 
