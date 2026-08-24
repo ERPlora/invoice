@@ -157,12 +157,28 @@ WHERE o.hub_id = :hub_id AND o.invoice_type NOT LIKE 'R%'
       AND rr.rectifies_ref = NULLIF(CAST(:refund_ref AS TEXT), '')
       AND rr.is_deleted = 0
   )
--- ── AND THE ATOMIC BACKSTOP (invoice#62) ──────────────────────────────────────────────────────
--- Everything above is check-then-act: a `NOT EXISTS` read, then an INSERT. Two outbox relays inside
--- the same window both read "nothing there" and both write, and the loser must not abort the
--- transaction — `transaction: true` would take the whole fiscal act down with it, on a redelivery
--- that was supposed to be a silent no-op. `ux_invoice_rectifies_ref` (migration 010) and
--- `ux_invoice_rectifies` (009) are what actually decide the race; this turns their verdict into the
--- same no-op the guards produce. No conflict target on purpose: both are PARTIAL indexes, whose
--- inference would mean repeating their predicates here, and the primary key is worth covering too.
-ON CONFLICT DO NOTHING;
+-- ── THE ATOMIC BACKSTOP, AND ONLY FOR WHAT IT IS NAMED FOR (invoice#62) ───────────────────────
+-- Everything above is check-then-act: a `NOT EXISTS` read, then an INSERT. Only a unique index can
+-- decide a race, and `ux_invoice_rectifies_ref` (migration 010) is the one that says «one document
+-- per refund». This clause turns its verdict into the same silent no-op the guards produce, instead
+-- of an abort that `transaction: true` would spread over the whole fiscal act — on a redelivery
+-- that was supposed to be uneventful.
+--
+-- THE TARGET IS NARROW ON PURPOSE, and it was a bare `ON CONFLICT DO NOTHING` until a mutation run
+-- showed what that costs: with no target it also swallowed a duplicate SERIES NUMBER, and a
+-- deliberately broken tenancy filter — a neighbouring hub's refund reaching into our books — came
+-- out of the test suite GREEN, because the stray row happened to collide on the number and vanish.
+-- A conflict this chain cannot explain must abort loudly: `uq_invoice_series_number` firing means
+-- the counter and the document have gone out of step, which is the one thing a correlative fiscal
+-- series may never hide. Naming the index requires repeating its predicate — that is how Postgres
+-- infers a PARTIAL index — and the repetition is checked by `tests/rectify_from_refund…` §8, which
+-- reaches the index by a raw INSERT past every guard above.
+--
+-- Honest about its reach: walking THIS chain twice never gets here. `transaction: true` plus the
+-- row lock `rectify_bump` takes on the series serialises two relays, so the second re-evaluates its
+-- guards after the first commits and refuses before reaching the insert (asserted in §2). What this
+-- covers is the other direction — a concurrent writer that reaches `invoice_invoice` without
+-- walking the bump, which is the runtime this module is written for (see migration 009).
+ON CONFLICT (hub_id, rectifies_ref)
+  WHERE rectifies_ref IS NOT NULL AND rectifies_ref <> '' AND is_deleted = 0
+  DO NOTHING;
