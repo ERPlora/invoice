@@ -210,6 +210,68 @@ describe('printing goes through the sdk.print cascade, never window.print() dire
   });
 });
 
+// invoice#66 / ADR-0400 — the printed / PDF invoice. `<ok-invoice>` (OutfitKit ≥ 0.1.48) receives
+// INTEGER amounts in the minor unit plus `decimals`, and cuts the text by string: 4800 cents with
+// `decimals: 2` paint «48,00 €». The module already sent cents; what was missing was `decimals`
+// (JPY prints 0, KWD 3 — the hub's currency decides, `erplora().currencyDecimals`), and the
+// thermal job was sending this same object to a renderer that reads another shape (see
+// `lib/print-document.test.ts`).
+describe('the printable invoice speaks ADR-0400: integers in the minor unit + decimals', () => {
+  const DETAIL = {
+    ...FACTURA, base_amount: 3967, tax_amount: 833, total_amount: 4800, number: 'FACT-2026-000001',
+    issuer_nif: 'B00000000', issuer_name: 'Emisora SL', customer_address: '',
+    description: '', tax_breakdown: '[{"tax":"vat","regime":"01","class":"subject","rate":21,"base":3967,"quota":833}]',
+    currency: 'EUR', source_id: null, rectifies_invoice_id: null, paid_at: null, notes: '',
+  };
+  const LINE = { id: 'l1', line_number: 1, description: 'Corte', quantity: 1_000_000, unit_price: 4800,
+    tax_rate: 21, base_amount: 3967, tax_amount: 833, total_amount: 4800, product_id: null };
+
+  async function docOf(decimals: number) {
+    (globalThis.erplora as unknown as Record<string, unknown>).currencyDecimals = decimals;
+    const el = await montar();
+    const wc = el as unknown as { detail: unknown; detailLines: unknown[]; updateComplete: Promise<unknown>; invoiceDocData: () => Record<string, unknown> };
+    wc.detail = DETAIL;
+    wc.detailLines = [LINE];
+    await wc.updateComplete;
+    return wc.invoiceDocData();
+  }
+
+  it('carries `decimals` from the hub currency and keeps every amount an INTEGER in cents', async () => {
+    const doc = await docOf(2);
+    expect(doc.decimals, 'without `decimals` OutfitKit cannot cut the integer').toBe(2);
+    expect(doc.total, 'cents travel as they are — never divided in the module').toBe(4800);
+    expect(doc.subtotal).toBe(3967);
+    expect(doc.tax_total).toBe(833);
+    const lines = doc.lines as Array<{ unit_price: number; total: number }>;
+    expect(lines[0].unit_price).toBe(4800);
+    expect(lines[0].total).toBe(4800);
+    const taxes = doc.taxes as Array<{ base: number; amount: number }>;
+    expect(taxes[0]).toMatchObject({ base: 3967, amount: 833 });
+  });
+
+  it('a JPY hub says `decimals: 0` (the scale is the currency\'s, not a fixed 2)', async () => {
+    const doc = await docOf(0);
+    expect(doc.decimals).toBe(0);
+  });
+
+  it('the thermal job hands the renderer ITS shape in major units, not the ok-invoice object', async () => {
+    (globalThis.erplora as unknown as Record<string, unknown>).currencyDecimals = 2;
+    const printed: Record<string, unknown>[] = [];
+    (globalThis.erplora as unknown as Record<string, unknown>).print =
+      async (req: Record<string, unknown>) => { printed.push(req); return { via: 'bridge' }; };
+    const el = await montar();
+    const wc = el as unknown as { detail: unknown; detailLines: unknown[]; updateComplete: Promise<unknown> };
+    wc.detail = DETAIL;
+    wc.detailLines = [LINE];
+    await wc.updateComplete;
+    (el.shadowRoot.querySelector('header ion-button.print') as HTMLElement).click();
+    const data = printed[0].data as { items: Array<{ name: string; total: number }>; total: number; receipt_id: string };
+    expect(data.total, 'TOTAL on the thermal paper is 48.00, not 4800.00').toBe(48);
+    expect(data.items[0]).toMatchObject({ name: 'Corte', total: 48 });
+    expect(data.receipt_id).toBe('FACT-2026-000001');
+  });
+});
+
 // invoice#14 — touch targets of the module's OWN buttons. `ion-button size="small"` renders ~27 px
 // high; a finger needs 44×44 (WCAG 2.5.5, Ionic default size). The row actions, the toolbar and the
 // pager of `ok-data-table` already got their 44 px centrally in OutfitKit (`9927a4c`), so what is

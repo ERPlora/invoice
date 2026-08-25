@@ -79,12 +79,19 @@ describe('the invoice document is minor units + decimals (invoice#66, ADR-0400)'
     expect(doc.invoice!.decimals).toBe(0);
   });
 
-  it('the print job carries the same document (cents + decimals)', async () => {
-    const printed: Record<string, unknown>[] = [];
-    (globalThis.erplora as Record<string, unknown>).print = async (req: Record<string, unknown>) => { printed.push(req); return {}; };
+  // invoice#66 (verified against `hub/crates/peripherals/src/escpos.rs`): the thermal job does NOT
+  // carry this document. `DocumentType::Invoice` goes through `render_receipt`, which reads
+  // `items[]`/`subtotal`/`total` as floats in MAJOR units (`{:.2}`); handing it cents printed
+  // «TOTAL 4800.00» and no lines. The job is built by `lib/print-document.ts` (tests there).
+  it('the print job carries the ESC/POS shape in major units, not this document', async () => {
+    const printed: Array<{ data?: unknown }> = [];
+    (globalThis.erplora as Record<string, unknown>).print = async (req: { data?: unknown }) => { printed.push(req); return { via: 'bridge' }; };
     const el = await mountDetail();
-    (el.shadowRoot.querySelector('header ion-button.print') as HTMLElement).click();
-    const data = printed[0]?.data as { total: number; decimals?: number };
-    expect(data).toMatchObject({ total: 4800, decimals: 2 });
+    (el.shadowRoot!.querySelector('header ion-button.print') as HTMLElement).click();
+    const data = printed[0]?.data as { total: number; items: Array<{ total: number }> };
+    expect(data.total).toBe(48);
+    expect(data.items[0].total).toBe(48);
+  });
+
   });
 });
