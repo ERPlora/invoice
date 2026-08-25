@@ -379,11 +379,39 @@ def test_a_redelivered_refund_emits_no_second_document():
     check("...still no number burned", before_counter, rect_counter())
 
 
-# ── 3. A PARTIAL refund writes nothing — and says so by leaving everything where it was ──
+# ── 3. A PARTIAL refund gets its own rectificativa POR DIFERENCIAS (invoice#63) ──────────
 
 
-def test_a_partial_refund_issues_nothing():
-    print("\n== 3. a partial refund is not a full rectification, so it is not one ==")
+def rect_rows(original_id: str, hub: str = HUB) -> list[tuple[str, int, int, int, str, str]]:
+    """(rectifies_ref, base, tax, total, status, tax_breakdown) of every live rectification."""
+    raw = q(
+        "SELECT string_agg(rectifies_ref || '|' || base_amount || '|' || tax_amount || '|' || "
+        "total_amount || '|' || status || '|' || tax_breakdown, E'\\n' ORDER BY number) "
+        f"FROM invoice_invoice WHERE hub_id = {literal(hub)} AND rectifies_invoice_id = "
+        f"{literal(original_id)} AND is_deleted = 0"
+    )
+    out = []
+    for line in raw.splitlines():
+        ref, base, tax, total, status, tb = line.split("|", 5)
+        out.append((ref, int(base), int(tax), int(total), status, tb))
+    return out
+
+
+def breakdown_of(ref: str, hub: str = HUB) -> list[dict]:
+    tb = q(
+        f"SELECT tax_breakdown FROM invoice_invoice WHERE hub_id = {literal(hub)} AND "
+        f"rectifies_ref = {literal(ref)} AND is_deleted = 0"
+    )
+    parsed = json.loads(tb) if tb else []
+    return parsed if isinstance(parsed, list) else [parsed]
+
+
+def entry(bd: list[dict], rate: float) -> dict:
+    return next(e for e in bd if float(e["rate"]) == rate)
+
+
+def test_a_partial_refund_issues_a_rectification_by_differences():
+    print("\n== 3. a partial refund: ONE rectificativa `I` for the amount returned, original standing ==")
 
     ok, _ = issue("TCK-2", source_id="sale-2")
     check("a second ticket is issued", True, ok)
@@ -393,31 +421,67 @@ def test_a_partial_refund_issues_nothing():
     ok, err = on_refund(
         refunded_event("sale-2", refund_ref="rf-3", total=500, fully_refunded=False)
     )
-    check("the listener runs without failing", True, ok)
+    check("the listener runs", True, ok)
     if not ok:
         print(f"       ↳ {err.splitlines()[0] if err else ''}")
-    check("no rectification is issued", 0, rectifications_of("TCK-2"))
-    check("no number is burned", before_counter, rect_counter())
-    check("no allocation is booked", before_allocs, allocations())
+    check("exactly one rectification for the partial refund", 1, rectifications_of("TCK-2"))
+    check("one number is spent", before_counter + 1, rect_counter())
+    check("one allocation is booked", before_allocs + 1, allocations())
     check(
-        "the original is NOT cancelled: part of it still stands",
+        "the original is NOT cancelled: part of it still stands (por diferencias, the two coexist)",
         "issued",
         status_of("TCK-2"),
     )
+
+    rows = rect_rows("TCK-2")
+    check("the document carries the refund reference", "rf-3", rows[0][0])
+    check("its total is the amount RETURNED, negated — not the whole invoice", -500, rows[0][3])
+    check("total = base + tax", rows[0][1] + rows[0][2], rows[0][3])
+
+    # THE PRORATION, entry by entry, over the ORIGINAL's frozen breakdown (ADR-0210): the 500 cents
+    # split by largest remainder over the gross of each key (1210 and 550 of 1760 → 343,75 and
+    # 156,25 → 344 and 156), the base by proportion (HALF_UP), the quota BY DIFFERENCE so that
+    # Σ (base + quota) is exactly the money returned — and each quota still cross-checks against
+    # its rate to the cent (284 × 21 % = 59,64 → 60 · 142 × 10 % = 14,2 → 14).
+    bd = breakdown_of("rf-3")
+    check("the breakdown keeps one entry per fiscal key of the original", 2, len(bd))
+    check("21 %: base", -284, int(entry(bd, 21.0)["base"]))
+    check("21 %: quota", -60, int(entry(bd, 21.0)["quota"]))
+    check("10 %: base", -142, int(entry(bd, 10.0)["base"]))
+    check("10 %: quota", -14, int(entry(bd, 10.0)["quota"]))
     check(
-        "and no line was copied onto a document that does not exist",
-        0,
-        qi(
-            "SELECT count(*) FROM invoice_invoiceitem l JOIN invoice_invoice r ON r.id = "
-            f"l.invoice_id WHERE l.hub_id = {literal(HUB)} AND r.rectifies_invoice_id = 'TCK-2'"
+        "Σ breakdown == the amount returned, to the cent",
+        -500,
+        sum(int(e["base"]) + int(e["quota"]) for e in bd),
+    )
+    check("the header IS the breakdown: base", -426, rows[0][1])
+    check("the header IS the breakdown: tax", -74, rows[0][2])
+    check(
+        "the rate is not negated (a rectified 21 % is still a 21 %) and the key travels intact",
+        "IVA|01|S1",
+        f"{entry(bd, 21.0)['tax']}|{entry(bd, 21.0)['regime']}|{entry(bd, 21.0)['class']}",
+    )
+
+    # THE LINE: the concept is the refund itself (art. 15.2 RD 1619/2012 asks for «la rectificación
+    # efectuada»), not a negated copy of the original — that copy would sum the whole ticket.
+    check(
+        "one line, the refund, for the amount returned",
+        "Refund rf-3|-500",
+        q(
+            "SELECT string_agg(l.description || '|' || l.total_amount, ',') FROM invoice_invoiceitem l "
+            f"JOIN invoice_invoice r ON r.id = l.invoice_id WHERE l.hub_id = {literal(HUB)} "
+            "AND r.rectifies_ref = 'rf-3'"
         ),
     )
 
-    # THE SAME CASE ON A HUB THAT HAS NEVER RECTIFIED. Above, `rectify_bump` refuses and the RECT
-    # counter stays where the previous rectification left it, so an insert that had lost its own
-    # gate would land on a number that is already taken and be swallowed. Here the counter is at
-    # zero, nothing collides, and the ONLY thing standing between a partial refund and a rectifying
-    # invoice for the FULL amount is the gate on `rectify_insert.sql` itself.
+    # A REDELIVERY of the partial refund is one document, still.
+    before_counter = rect_counter()
+    ok, _ = on_refund(refunded_event("sale-2", refund_ref="rf-3", total=500, fully_refunded=False))
+    check("the same partial refund twice does not fail", True, ok)
+    check("...and is still one document", 1, rectifications_of("TCK-2"))
+    check("...and burns no number", before_counter, rect_counter())
+
+    # THE SAME CASE ON A HUB THAT HAS NEVER RECTIFIED: its RECT series is born by the partial.
     ok, _ = issue("FR-1", source_id="sale-f1", hub=FRESH_HUB)
     check("a hub that has never rectified issues its first ticket", True, ok)
     add_line("FR-1", "FR-1/L1", hub=FRESH_HUB)
@@ -428,64 +492,93 @@ def test_a_partial_refund_issues_nothing():
     check("its first ever refund is a partial one, and it runs", True, ok)
     if not ok:
         print(f"       ↳ {err.splitlines()[0] if err else ''}")
-    check("no rectification is issued", 0, rectifications_of("FR-1", FRESH_HUB))
+    check("it gets its rectification", 1, rectifications_of("FR-1", FRESH_HUB))
     check("the original still stands", "issued", status_of("FR-1", FRESH_HUB))
     check(
-        "and no RECT series was even created for it",
-        0,
+        "the RECT series was created for it, at 1",
+        1,
         qi(
-            "SELECT count(*) FROM invoice_invoiceseries WHERE hub_id = "
+            "SELECT current_number FROM invoice_invoiceseries WHERE hub_id = "
             f"{literal(FRESH_HUB)} AND code = 'RECT'"
         ),
     )
 
 
-# ── 4. Returned in two acts: the document comes out when the last cent goes back ─────────
+# ── 4. Returned in two acts: the second document is for WHAT IS LEFT, and closes the invoice ──
 
 
-def test_a_sale_returned_in_two_acts_is_rectified_once_at_the_end():
-    print("\n== 4. two refunds that add up: ONE rectification, and only at the end ==")
+def test_a_sale_returned_in_two_acts_is_rectified_twice_and_adds_up_to_the_cent():
+    print("\n== 4. two refunds that add up: TWO rectifications that add up to the original exactly ==")
 
     # `sales` computes `fully_refunded` against the SALE TOTAL and everything already returned
-    # (`already + total >= sale_total`), so the closing act arrives with the flag set even though
-    # its own `total` is only part of the invoice. That is why fullness cannot be re-derived from
-    # `:total` alone here, and why this case has to be pinned.
-    check(
-        "after the first, partial act there is still no document",
-        0,
-        rectifications_of("TCK-2"),
-    )
-
+    # (`already + total >= sale_total`), so the closing act arrives with the flag set. What the
+    # closing act rectifies is NOT its own `total` but what is LEFT of the invoice: proration over
+    # the original again would leave a ±1 cent residue in the VeriFactu chain that nobody finds.
     ok, err = on_refund(
-        refunded_event(
-            "sale-2", refund_ref="rf-4", total=TOTAL - 500, fully_refunded=True
-        )
+        refunded_event("sale-2", refund_ref="rf-4", total=TOTAL - 500, fully_refunded=True)
     )
     check("the closing act runs", True, ok)
     if not ok:
         print(f"       ↳ {err.splitlines()[0] if err else ''}")
-    check(
-        "exactly one rectification, now that the whole ticket came back",
-        1,
-        rectifications_of("TCK-2"),
+    check("two rectifications now, one per refund document", 2, rectifications_of("TCK-2"))
+    rows = {r[0]: r for r in rect_rows("TCK-2")}
+    check("the closing act is on its own document", True, "rf-4" in rows)
+    check("it rectifies what was LEFT, not the whole invoice", -(TOTAL - 500), rows["rf-4"][3])
+    check("the two documents add up to the original, to the cent", -TOTAL, rows["rf-3"][3] + rows["rf-4"][3])
+    check("...and so do the bases", -BASE, rows["rf-3"][1] + rows["rf-4"][1])
+    check("...and the quotas", -TAX, rows["rf-3"][2] + rows["rf-4"][2])
+    # Per fiscal key too — on a MIXED ticket (21 % + 10 %), which is where a proration residue hides.
+    b3, b4 = breakdown_of("rf-3"), breakdown_of("rf-4")
+    for rate, base, quota in ((21.0, 1000, 210), (10.0, 500, 50)):
+        check(
+            f"{rate:g} %: the two prorated bases add up to the original's",
+            -base,
+            int(entry(b3, rate)["base"]) + int(entry(b4, rate)["base"]),
+        )
+        check(
+            f"{rate:g} %: the two prorated quotas add up to the original's",
+            -quota,
+            int(entry(b3, rate)["quota"]) + int(entry(b4, rate)["quota"]),
+        )
+    check("the original is cancelled now: nothing of it stands", "cancelled", status_of("TCK-2"))
+
+    # THE TOTAL IS NEVER DECLARED TWICE: a third act on a closed invoice has nothing left to rectify.
+    before_counter = rect_counter()
+    ok, _ = on_refund(refunded_event("sale-2", refund_ref="rf-5", total=100, fully_refunded=True))
+    check("a refund on an invoice with nothing left does not fail", True, ok)
+    check("...and issues nothing", 2, rectifications_of("TCK-2"))
+    check("...and burns no number", before_counter, rect_counter())
+
+
+# ── 4b. A partial refund of an invoice with the LEGACY breakdown (object by rate) ───────────
+
+
+def test_a_partial_refund_prorates_the_legacy_object_breakdown_too():
+    print("\n== 4b. an old invoice (`{\"21\": {base, tax}}`) is prorated in its own format ==")
+
+    ok, _ = issue("OLD-1", source_id="sale-old")
+    check("a ticket with a legacy breakdown is issued", True, ok)
+    psql(
+        [
+            "-c",
+            "UPDATE invoice_invoice SET tax_breakdown = "
+            "'{\"21.00\": {\"base\": 1000, \"tax\": 210}}', base_amount = 1000, tax_amount = 210, "
+            f"total_amount = 1210 WHERE id = 'OLD-1' AND hub_id = {literal(HUB)}",
+        ],
+        db=H.DB,
     )
+    ok, err = on_refund(refunded_event("sale-old", refund_ref="rf-old", total=605, fully_refunded=False))
+    check("the listener runs", True, ok)
+    if not ok:
+        print(f"       ↳ {err.splitlines()[0] if err else ''}")
+    rows = rect_rows("OLD-1")
+    check("one rectification for half the ticket", 1, len(rows))
+    check("half the base (HALF_UP), the quota by difference", "-500|-105|-605", f"{rows[0][1]}|{rows[0][2]}|{rows[0][3]}")
     check(
-        "it is the closing act that is on the document",
-        "rf-4",
-        q(
-            "SELECT rectifies_ref FROM invoice_invoice WHERE hub_id = "
-            f"{literal(HUB)} AND rectifies_invoice_id = 'TCK-2'"
-        ),
+        "the breakdown keeps the legacy shape, prorated and negated",
+        {"21.00": {"base": -500, "tax": -105}},
+        json.loads(rows[0][5]),
     )
-    check(
-        "and it rectifies the WHOLE invoice, not the closing act's amount",
-        -TOTAL,
-        qi(
-            "SELECT total_amount FROM invoice_invoice WHERE hub_id = "
-            f"{literal(HUB)} AND rectifies_invoice_id = 'TCK-2'"
-        ),
-    )
-    check("the original is cancelled now", "cancelled", status_of("TCK-2"))
 
 
 # ── 5. A refund with no document reference gets no document ──────────────────────────────
@@ -696,6 +789,18 @@ def test_the_refund_reference_is_unique_in_the_database():
         True,
         any("010_" in m and "rectifies_ref" in m for m in declared),
     )
+    # invoice#63: one invoice carries N rectifications (one per refund), so the index that said
+    # «one per invoice» (009) is retired by 011 — and 010 is the invariant that still holds.
+    check(
+        "migration 011 (retire `ux_invoice_rectifies`) is declared in the manifest",
+        True,
+        any("011_" in m for m in declared),
+    )
+    check(
+        "`ux_invoice_rectifies` is gone from the database",
+        0,
+        qi("SELECT count(*) FROM pg_indexes WHERE indexname = 'ux_invoice_rectifies'"),
+    )
 
     # Bypassing every guard, the way a flow, the assistant or a future command could: a raw INSERT
     # reusing a reference that is already on a live document.
@@ -766,8 +871,9 @@ def main() -> int:
         H.load_migrations()
         test_a_full_refund_issues_the_rectification_by_itself()
         test_a_redelivered_refund_emits_no_second_document()
-        test_a_partial_refund_issues_nothing()
-        test_a_sale_returned_in_two_acts_is_rectified_once_at_the_end()
+        test_a_partial_refund_issues_a_rectification_by_differences()
+        test_a_sale_returned_in_two_acts_is_rectified_twice_and_adds_up_to_the_cent()
+        test_a_partial_refund_prorates_the_legacy_object_breakdown_too()
         test_a_refund_without_a_reference_is_refused()
         test_the_listener_never_leaves_its_hub()
         test_the_manual_rectify_still_works_unchanged()
@@ -782,7 +888,7 @@ def main() -> int:
             print(f"  - {f}")
         return 1
     print(
-        "PASS — a full refund rectifies itself, once; a partial one waits for invoice#63"
+        "PASS — every refund rectifies itself, once: the whole invoice or the share returned (invoice#63)"
     )
     return 0
 

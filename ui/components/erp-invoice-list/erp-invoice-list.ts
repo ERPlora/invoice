@@ -11,6 +11,7 @@ import type { ListController, ListClient, ListParams, ListPage } from '@erplora/
 // Aduana de la escala de cantidades (ADR-0147): la UI habla lógico (0,5), el cable habla µ (500000).
 import { QUANTITY_SCALE, parseQuantity, formatQuantity, fromMicro } from '../../lib/quantity';
 import { lineTaxLabel } from '../../lib/line-tax';
+import { invoiceToPrintDocument } from '../../lib/print-document';
 // Catálogo i18n del módulo (ADR-0055): esbuild inlinea estos JSON en el `dist` del WC. Los textos
 // internos se resuelven con `erplora.t(CATALOG, 'ui.clave')` (idioma activo, fallback locale→en→clave).
 import esLocale from '../../../locales/es.json';
@@ -66,7 +67,8 @@ interface ErploraClientLike extends ListClient {
    *  `formatMoney` recibe CÉNTIMOS y divide; `formatAmount` recibe unidades mayores y NO divide.
    *  Los importes de factura son céntimos (ADR-0123) → SIEMPRE `formatMoney`. */
   currency: string;
-  /** Scale of the hub currency (ADR-0123 §7): EUR 2, JPY 0. Older shells do not inject it → 2. */
+  /** Decimals of the hub currency (ADR-0123 §7): EUR 2, JPY 0, KWD 3. The printable documents
+   *  carry integers in the minor unit and need this scale to cut them (ADR-0400). */
   currencyDecimals?: number;
   formatMoney(cents: number, opts?: { currency?: string; locale?: string }): string;
   formatAmount(units: number, opts?: { currency?: string; locale?: string }): string;
@@ -140,6 +142,12 @@ const STATUS_COLOR: Record<string, string> = {
 // como «23100,00 €» (bug ×100, el mismo que inventory ya corrigió). `fmtDoc` usa la moneda propia
 // de la factura; `num` es para valores NO monetarios (% de impuesto) que solo quieren 2 decimales.
 const fmtMoney = (v: unknown) => erplora().formatMoney(Number(v || 0));
+/** Scale of the hub currency for the papers (ADR-0400). An SDK that does not expose it is a
+ *  two-decimal hub — the same default `<ok-invoice>` applies. */
+const currencyDecimals = (): number => {
+  const d = erplora().currencyDecimals;
+  return typeof d === 'number' && Number.isFinite(d) ? d : 2;
+};
 const fmtDoc = (v: unknown, currency: string) => erplora().formatMoney(Number(v || 0), { currency });
 const num = (v: unknown) => Number(v || 0).toFixed(2);
 const emptyItem = (): DraftItem => ({ description: '', quantity: '1', unit_price: '', tax_rate: '21' });
@@ -571,7 +579,12 @@ export class ErpInvoiceList extends LitElement {
     return out.length ? out : [{ label: 'IVA', base: d.base_amount, amount: d.tax_amount }];
   }
 
-  /** Factura → contrato ok-invoice (layout PDF/print) con el QR de VeriFactu. */
+  /** Factura → contrato ok-invoice (layout PDF/print) con el QR de VeriFactu.
+   *
+   *  invoice#66 / ADR-0400: every amount is an INTEGER in the minor unit, exactly as the row
+   *  carries it (`d.total_amount`, `l.unit_price`…), plus `decimals` so OutfitKit cuts the text
+   *  by string. The module never divides: with the previous contract (units, `toFixed(2)`) a
+   *  48,00 € invoice printed «4800.00 EUR». */
   private invoiceDocData(): InvoiceData {
     const d = this.detail!;
     const qr = this.aeat?.qr || '';
@@ -586,11 +599,8 @@ export class ErpInvoiceList extends LitElement {
       taxes: this.parseTaxes(d),
       tax_total: d.tax_amount,
       total: d.total_amount,
+      decimals: currencyDecimals(),
       currency: d.currency || erplora().currency,
-      // invoice#66 / ADR-0400: every amount above is the row's MINOR UNITS (ADR-0123), and
-      // <ok-invoice> (outfitkit >= 0.1.48) cuts the integer by this scale instead of dividing. Without
-      // it the old float contract printed «4800.00 EUR» for a 48,00 € invoice.
-      decimals: erplora().currencyDecimals ?? 2,
       qr: qr || undefined,
       qr_note: csv ? `CSV: ${csv}` : (qr ? erploraT('ui.qrValidateNote') : undefined),
       footer: d.notes || undefined,
@@ -650,7 +660,9 @@ export class ErpInvoiceList extends LitElement {
         role: 'receipt',
         documentType: 'invoice',
         format: 'a4',
-        data: this.invoiceDocData() as unknown as Record<string, unknown>,
+        // The thermal renderer reads ANOTHER shape, in major units (`lib/print-document.ts`):
+        // the ok-invoice object is for the A4 path only.
+        data: invoiceToPrintDocument(d, this.detailLines, currencyDecimals(), { qr: this.aeat?.qr || undefined }),
         jobId: `invoice-${d.id}`,
       });
     } else {

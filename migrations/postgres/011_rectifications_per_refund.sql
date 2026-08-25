@@ -1,0 +1,26 @@
+-- Invoice · 011 — invoice#63: ONE rectifying invoice per REFUND, so N per rectified invoice.
+DROP INDEX IF EXISTS ux_invoice_rectifies;
+
+-- (Prose at the end on purpose: a `;` inside a leading `--` block is what splits a migration in the
+-- wrong place, and a chunk that starts mid-sentence is the failure that is hardest to read.)
+--
+-- WHAT CHANGES. Since this version a refund that leaves part of the invoice standing issues its
+-- own rectificativa por diferencias (`I`) for the amount returned, and the act that closes the
+-- return issues another for what was left. One invoice therefore legitimately carries several
+-- rectifications, one per refund document, and «one rectification per rectified invoice» (009)
+-- stops being an invariant. The invariant that still holds — and the one a race needs, see 010 —
+-- is «one rectification per REFUND»: `ux_invoice_rectifies_ref` stays.
+--
+-- WHAT STILL GUARDS THE MANUAL DOOR. `invoice.rectify` negates the whole original in one act, and
+-- its chain refuses when ANY live rectification already points at it (`rectify_bump.sql`), so a
+-- whole negation on top of a partial one — money declared twice — cannot come through the module.
+-- What 009 protected against beyond that (a flow, the assistant or a future command writing a
+-- second whole rectification past the guards) is now the price of partial refunds, and it is paid
+-- knowingly: the alternative was leaving art. 80.Dos LIVA unmet on every partial return.
+--
+-- REVERSIBLE. `CREATE UNIQUE INDEX ux_invoice_rectifies ON invoice_invoice (hub_id,
+-- rectifies_invoice_id) WHERE rectifies_invoice_id IS NOT NULL AND is_deleted = 0` restores 009 —
+-- only on a hub that has issued no partial rectification, or the index cannot be built and the
+-- boot aborts. Check first with the duplicate query written in 009.
+--
+-- Re-entrant: `DROP INDEX IF EXISTS` on every boot is a no-op once it is gone.

@@ -18,7 +18,7 @@
 use erplora_guest_sdk::money;
 use erplora_guest_sdk::tax;
 use erplora_guest_sdk::units::QUANTITY_SCALE;
-use rust_decimal::prelude::FromPrimitive;
+use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use rust_decimal::Decimal;
 use erplora_guest_sdk::{DomainError, Event, Operation, Output};
 use serde_json::{json, Map, Value};
@@ -222,9 +222,10 @@ const NON_NEGATIVE_TYPES: [&str; 3] = ["F1", "F2", "F3"];
 ///
 ///   * **la cuota contra SU tipo declarado** — sí, y es la comprobación que faltaba: el desglose
 ///     dice `rate: 21.0` y `quota: 9999` sobre una base de 545 en la misma fila. La tolerancia es
-///     de UN CÉNTIMO POR LÍNEA agregada, porque con precios IVA-incluido la cuota es
-///     `bruto − base` (la regla de redondeo de `taxes`) y esa cuota difiere hasta un céntimo de
-///     `base × tipo`. Ni un céntimo fijo (rechazaría un tiquet largo) ni un porcentaje.
+///     de UN CÉNTIMO FIJO por clave (invoice#65): la cuota se cierra una vez por clave, y con
+///     precios IVA-incluido va por diferencia (`bruto − base`), que difiere como mucho un céntimo
+///     de `base × tipo`. Solo la copia VERBATIM de un tiquet antiguo (F3) conserva el céntimo por
+///     línea que aquel redondeo necesitaba.
 ///
 ///   * **la cuota contra el PRECIO de la línea** (`quantity × unit_price`) — NO, y no es un olvido:
 ///     cuando la factura viene de una venta, `sales` prorratea el descuento DENTRO de la línea
@@ -239,7 +240,7 @@ const NON_NEGATIVE_TYPES: [&str; 3] = ["F1", "F2", "F3"];
 ///
 ///   * **el total negativo en un tipo que no lo admite** — sí. «≤ 0» no, deliberadamente: un
 ///     tiquet 100 % invitado suma 0,00 € honestamente y sigue siendo una venta que necesita su F2.
-fn audit(breakdown: &[DesgloseLine], base_total: i64, tax_total: i64, inv_type: &str) -> Option<DomainError> {
+fn audit(breakdown: &[DesgloseLine], base_total: i64, tax_total: i64, inv_type: &str, closing: Closing) -> Option<DomainError> {
     let mut declared_base: i64 = 0;
     let mut declared_quota: i64 = 0;
 
@@ -247,7 +248,14 @@ fn audit(breakdown: &[DesgloseLine], base_total: i64, tax_total: i64, inv_type: 
         declared_base += e.base;
         declared_quota += e.quota + e.surcharge_quota;
 
-        let tolerance = e.lines.max(1);
+        // invoice#65: with the key closed once per rate the tolerance is ONE cent, fixed — the
+        // same criterion the downstream gates apply (verifactu#60 `013`, hub#1180). Only a
+        // verbatim copy (an F3 of a ticket sealed per line) keeps the cent-per-line allowance the
+        // old rounding needed: its figures are the ticket's, not this handler's.
+        let tolerance = match closing {
+            Closing::Verbatim => e.lines.max(1),
+            Closing::PerKey { .. } => 1,
+        };
         let expected = money::percent_of(e.base, Decimal::from_f64(e.key.rate).unwrap_or(Decimal::ZERO));
         if (e.quota - expected).abs() > tolerance {
             return Some(DomainError::new(
@@ -302,6 +310,72 @@ fn audit(breakdown: &[DesgloseLine], base_total: i64, tax_total: i64, inv_type: 
     None
 }
 
+/// How the quota of each fiscal key is CLOSED (invoice#65, ADR-0123 §4).
+#[derive(Clone, Copy, PartialEq)]
+enum Closing {
+    /// The quota is computed ONCE per fiscal key, from the key's aggregate — never by summing
+    /// per-line rounded quotas. `tax_included` picks the aggregate (art. 88.Uno LIVA):
+    ///   * `false` (VAT on top: manual invoice, B2B till): `base = Σ line bases`,
+    ///     `quota = round(base × rate)`; the key's quota is then handed back to its lines by largest
+    ///     remainder so the printed concepts add up to the printed total;
+    ///   * `true` (VAT inside, the B2C till): `gross = Σ (base + tax)` of the key — exactly what the
+    ///     customer paid — `base = round(gross / (1 + rate))`, `quota = gross − base` by difference,
+    ///     so `base + quota` IS the money in the drawer. The lines keep the sale's own figures
+    ///     (they already add up to the gross).
+    PerKey { tax_included: bool },
+    /// The amounts are COPIED, quota per line included: an F3 substitutes an F2 and is the same
+    /// operation, so its figures are the ticket's to the cent — even for a ticket sealed before the
+    /// key was closed per rate. Recomputing here would make the F3 disagree with what it replaces.
+    Verbatim,
+}
+
+/// A line once its money is settled; what `_insert_line` will persist.
+struct LineCalc {
+    qty: i64,
+    unit_price: i64,
+    base: i64,
+    tax: i64,
+    key: usize,
+    line_rate: f64,
+    line_surcharge_rate: f64,
+}
+
+/// Per-key aggregate while the lines are walked (invoice#65): nothing is rounded here.
+struct KeyAcc {
+    key: FiscalKey,
+    base: i64,
+    /// Σ (base + tax) of the key's lines: the money charged for that key.
+    gross: i64,
+    /// Σ of the lines' own quotas, for the `Verbatim` closing.
+    tax: i64,
+    lines: i64,
+}
+
+/// Splits `total` over `exact` shares (the unrounded per-line quota) by LARGEST REMAINDER: floor
+/// every share, hand the leftover cents one by one to the biggest fractional parts, ties by
+/// position. Deterministic, and Σ result == total by construction. Same rule `sales` applies to a
+/// fixed-amount discount (34 + 34 + 33, not 3 × HALF_UP(33,67)).
+fn largest_remainder(total: i64, exact: &[Decimal]) -> Vec<i64> {
+    let floors: Vec<i64> = exact.iter().map(|d| d.floor().to_i64().unwrap_or(0)).collect();
+    let mut out = floors.clone();
+    let mut residue = total - floors.iter().sum::<i64>();
+    let mut order: Vec<usize> = (0..exact.len()).collect();
+    order.sort_by(|&a, &b| {
+        let fa = exact[a] - Decimal::from(floors[a]);
+        let fb = exact[b] - Decimal::from(floors[b]);
+        fb.partial_cmp(&fa).unwrap_or(std::cmp::Ordering::Equal).then(a.cmp(&b))
+    });
+    // A negative residue (only reachable with negative shares) is handed back the same way.
+    let step = if residue >= 0 { 1 } else { -1 };
+    let mut i = 0;
+    while residue != 0 && !order.is_empty() {
+        out[order[i % order.len()]] += step;
+        residue -= step;
+        i += 1;
+    }
+    out
+}
+
 /// Construye las intenciones de una factura a partir de líneas ya normalizadas
 /// (description, quantity, unit_price, tax_rate, product_id).
 fn build_invoice(
@@ -312,6 +386,7 @@ fn build_invoice(
     header: &Value,
     items: &[Value],
     fiscal: &FiscalContext,
+    closing: Closing,
 ) -> Output {
     let invoice_id = new_ids.first().map(s).unwrap_or_default();
     let year = year_from(now);
@@ -319,9 +394,8 @@ fn build_invoice(
     let (def_type, def_name) = series_defaults(series_code);
     let inv_type = invoice_type_override.unwrap_or(def_type).to_string();
 
-    let mut base_total: i64 = 0; // céntimos
-    let mut tax_total: i64 = 0;  // céntimos
-    let mut breakdown: Vec<DesgloseLine> = Vec::new(); // una entrada por clave fiscal
+    let mut keys: Vec<KeyAcc> = Vec::new(); // una entrada por clave fiscal
+    let mut calc: Vec<LineCalc> = Vec::with_capacity(items.len());
     let mut ops: Vec<Operation> = Vec::new();
     let rules: Vec<&Value> = fiscal.rules.iter().collect();
 
@@ -350,7 +424,8 @@ fn build_invoice(
     let header_idx = ops.len();
     ops.push(Operation::sql("invoice._insert_invoice", Map::new())); // placeholder
 
-    // 3) líneas (ids new_ids[2..]).
+    // 3) líneas: el dinero de cada una y su clave fiscal. La CUOTA de la clave se cierra después,
+    //    una sola vez (invoice#65) — aquí no se acumula nada redondeado por línea.
     for (i, item) in items.iter().enumerate() {
         // Punto fijo entero escala 10⁶ (ADR-0147): `500000` = 0,5. Ausente → 1 unidad.
         let qty = item.get("quantity").map(|v| as_qty(v, QUANTITY_SCALE)).unwrap_or(QUANTITY_SCALE);
@@ -364,13 +439,40 @@ fn build_invoice(
         // catálogo por la categoría fiscal congelada en la línea; sin catálogo/categoría/regla cae
         // a venta nacional sujeta y no exenta, que es lo que declaraban las facturas de antes.
         let resolved = resolved_fiscal_key(item, &rules, &fiscal.country, &fiscal.region, &fiscal.date, rate_hint);
+        let key = resolved.unwrap_or_else(|| FiscalKey::nacional(rate_hint, surcharge_hint));
+        let charged_rate = key.rate + key.surcharge_rate;
         // Base/IVA por línea (céntimos). Si el origen ya extrajo la base y el IVA
         // (p.ej. `sale.completed` con precios IVA-INCLUIDO: net_amount/tax_amount ya
         // calculados por sales.calc_line), se RESPETAN — NO se vuelve a sumar IVA
         // sobre el bruto (bug D1). Solo cuando NO vienen (factura manual,
         // precios IVA-EXCLUIDO) se calcula base = qty*unit_price y tax = base*rate.
         let (base, tax) = match (item.get("base_amount"), item.get("tax_amount")) {
-            (Some(b), Some(t)) => (money::from_json(b, 0), money::from_json(t, 0)),
+            (Some(b), Some(t)) => {
+                let (base, tax) = (money::from_json(b, 0), money::from_json(t, 0));
+                // invoice#65: an external line is checked against ITS OWN rate, to the cent. With
+                // the key closed by this handler the header can no longer carry a forged quota —
+                // but a line still can, and a line is what an F3 copies verbatim and what the paper
+                // prints. One cent is honest rounding (a VAT-included line is split by difference);
+                // two is a figure nobody charged.
+                let expected = money::percent_of(base, Decimal::from_f64(charged_rate).unwrap_or(Decimal::ZERO));
+                if (tax - expected).abs() > 1 {
+                    return Output::new().with_error(DomainError::new(
+                        "invoice.tax_quota_mismatch",
+                        format!(
+                            "line {} `{}` declares {} of quota over a base of {} at {} %, and that \
+                             rate justifies {} (tolerance 1 cent of rounding). Charging one amount \
+                             and declaring another is what breaks the AEAT cross-check.",
+                            i + 1,
+                            s(item.get("description").unwrap_or(&Value::Null)),
+                            tax,
+                            base,
+                            charged_rate,
+                            expected
+                        ),
+                    ));
+                }
+                (base, tax)
+            }
             _ => {
                 // Factura MANUAL (IVA no incluido): base = precio × cantidad, IVA encima.
                 //
@@ -379,20 +481,11 @@ fn build_invoice(
                 // `tax_rate: 21` used to charge 21 % and declare `exempt` with no quota, so
                 // `CuotaTotal` no longer matched the declared quotas. Without a rule the hint is
                 // all there is and it is honoured as before.
-                let rate = match &resolved {
-                    Some(k) => k.rate + k.surcharge_rate,
-                    None => rate_hint + surcharge_hint,
-                };
                 //
-                // OJO: aquí la cuota se sigue redondeando POR LÍNEA, no por tipo — y es DELIBERADO.
-                // Cuando la factura viene de una venta, `base`/`tax` llegan YA calculados por
-                // `sales` y este handler los RESPETA (contrato explícito, bug D1). Unificar esto al
-                // desglose por tipo exige garantizar que NO diverja de lo que la venta ya declaró a
-                // la AEAT → es un paso aparte, con su propio test (ADR-0123, seguimiento).
                 // El dinero se calcula con la cantidad LÓGICA exacta (raw/10⁶) — división de
                 // enteros en Decimal, sin pasar por f64 (ADR-0123 §2 + ADR-0147 §2.3).
                 let qd = Decimal::from(qty) / Decimal::from(QUANTITY_SCALE);
-                let rd = Decimal::from_f64(rate).unwrap_or(Decimal::ZERO);
+                let rd = Decimal::from_f64(charged_rate).unwrap_or(Decimal::ZERO);
                 let base = money::mul_qty(unit_price, qd);
                 // invoice#49: a priced line that ends up costing NOTHING is not a line, it is a
                 // payload sent in the wrong scale. `quantity` travels as a fixed-point integer of
@@ -420,56 +513,108 @@ fn build_invoice(
                         ),
                     ));
                 }
+                // The line's own quota is provisional: the key closes it (invoice#65) and, with
+                // VAT on top, hands it back to the lines by largest remainder.
                 let tax = money::percent_of(base, rd);
                 (base, tax)
             }
         };
-        let total = base + tax;
-        base_total += base;
-        tax_total += tax;
 
-        let key = resolved.unwrap_or_else(|| FiscalKey::nacional(rate_hint, surcharge_hint));
-        // Frozen on the line BEFORE `key` moves into the breakdown (invoice#21, see the insert below).
+        // Frozen on the line BEFORE `key` moves into the aggregate (invoice#21, see the insert).
         let (line_rate, line_surcharge_rate) = (key.rate, key.surcharge_rate);
-        // El recargo se separa de la cuota SIN recalcular el total: la cuota de la línea es la que
-        // se cobró (contrato D1), y de ella sale el recargo por su tipo; el resto es el impuesto
-        // principal. Así 2100 + 520 siguen sumando exactamente los 2620 cobrados.
-        let surcharge_quota = if key.has_surcharge {
-            money::percent_of(base, Decimal::from_f64(key.surcharge_rate).unwrap_or(Decimal::ZERO))
-        } else {
-            0
+        let key_idx = match keys.iter().position(|k| k.key == key) {
+            Some(idx) => {
+                let k = &mut keys[idx];
+                k.base += base;
+                k.gross += base + tax;
+                k.tax += tax;
+                k.lines += 1;
+                idx
+            }
+            None => {
+                keys.push(KeyAcc { key, base, gross: base + tax, tax, lines: 1 });
+                keys.len() - 1
+            }
         };
-        let main_quota = tax - surcharge_quota;
+        calc.push(LineCalc { qty, unit_price, base, tax, key: key_idx, line_rate, line_surcharge_rate });
+    }
 
-        if let Some(e) = breakdown.iter_mut().find(|e| e.key == key) {
-            e.base += base;
-            e.quota += main_quota;
-            e.surcharge_quota += surcharge_quota;
-            e.lines += 1;
-        } else {
-            breakdown.push(DesgloseLine { key, base, quota: main_quota, surcharge_quota, lines: 1 });
+    // 4) EL CIERRE (invoice#65, ADR-0123 §4): una base y una cuota por clave fiscal, redondeadas
+    //    UNA vez. Es lo único que el XML de VeriFactu sabe representar (`DetalleDesglose` es por
+    //    tipo, máx. 12) y lo que la AEAT cruza (`cuota = base × tipo`); sumar cuotas ya redondeadas
+    //    por línea acumula el error que censura el TEAC (RG 2233/2022): 4 líneas de 0,50 € al 21 %
+    //    declaraban 44 sobre 200, que ningún tipo justifica.
+    let mut breakdown: Vec<DesgloseLine> = Vec::with_capacity(keys.len());
+    for (idx, k) in keys.iter().enumerate() {
+        let rate = Decimal::from_f64(k.key.rate).unwrap_or(Decimal::ZERO);
+        let surcharge_rate = Decimal::from_f64(k.key.surcharge_rate).unwrap_or(Decimal::ZERO);
+        let (base, main_quota, surcharge_quota) = match closing {
+            Closing::Verbatim => {
+                // El recargo se separa de la cuota SIN recalcular el total: la cuota es la que se
+                // cobró, y de ella sale el recargo por su tipo; el resto es el impuesto principal.
+                // Así 2100 + 520 siguen sumando exactamente los 2620 cobrados.
+                let sq = if k.key.has_surcharge { money::percent_of(k.base, surcharge_rate) } else { 0 };
+                (k.base, k.tax - sq, sq)
+            }
+            Closing::PerKey { tax_included: true } => {
+                // Lo cobrado por esta clave no se mueve ni un céntimo: base por división, cuota
+                // por diferencia (`money::split_tax_included`). Con recargo, el principal cierra
+                // por su tipo sobre esa base y el recargo se lleva el resto.
+                let (base, taxsum) = money::split_tax_included(k.gross, rate + surcharge_rate);
+                if k.key.has_surcharge {
+                    let main = money::percent_of(base, rate);
+                    (base, main, taxsum - main)
+                } else {
+                    (base, taxsum, 0)
+                }
+            }
+            Closing::PerKey { tax_included: false } => {
+                let main = money::percent_of(k.base, rate);
+                let sq = if k.key.has_surcharge { money::percent_of(k.base, surcharge_rate) } else { 0 };
+                (k.base, main, sq)
+            }
+        };
+        if closing == (Closing::PerKey { tax_included: false }) {
+            // La cuota de la clave vuelve a sus líneas por RESTO MAYOR sobre la cuota exacta de
+            // cada una, para que los conceptos impresos sumen el total impreso (61 + 61 + 60 + 60 =
+            // 242, no 4 × 61 = 244 bajo un total de 242).
+            let pct = rate + surcharge_rate;
+            let members: Vec<usize> = calc.iter().enumerate().filter(|(_, l)| l.key == idx).map(|(i, _)| i).collect();
+            let exact: Vec<Decimal> = members
+                .iter()
+                .map(|&i| Decimal::from(calc[i].base) * pct / Decimal::from(100))
+                .collect();
+            for (m, share) in members.iter().zip(largest_remainder(main_quota + surcharge_quota, &exact)) {
+                calc[*m].tax = share;
+            }
         }
+        breakdown.push(DesgloseLine { key: k.key.clone(), base, quota: main_quota, surcharge_quota, lines: k.lines });
+    }
+    let base_total: i64 = breakdown.iter().map(|l| l.base).sum(); // céntimos
+    let tax_total: i64 = breakdown.iter().map(|l| l.quota + l.surcharge_quota).sum(); // céntimos
 
+    // 5) las líneas, ya cerradas (ids new_ids[2..]).
+    for (i, (item, l)) in items.iter().zip(calc.iter()).enumerate() {
         let line_id = new_ids.get(i + 2).map(s).unwrap_or_default();
         let mut p = Map::new();
         p.insert("line_id".into(), json!(line_id));
         p.insert("invoice_id".into(), json!(invoice_id));
         p.insert("line_number".into(), json!(i as i64 + 1));
         p.insert("description".into(), json!(s(item.get("description").unwrap_or(&Value::Null))));
-        p.insert("quantity".into(), json!(qty)); // punto fijo 10⁶ (INTEGER, ADR-0147)
-        p.insert("unit_price".into(), json!(unit_price)); // céntimos
+        p.insert("quantity".into(), json!(l.qty)); // punto fijo 10⁶ (INTEGER, ADR-0147)
+        p.insert("unit_price".into(), json!(l.unit_price)); // céntimos
         // invoice#21: the line freezes the MAIN rate and the surcharge apart. Under equivalence
         // surcharge the sale sends the combined 26.2 (21 + 5.2) — that is a sum, not a rate that
         // exists, and grouping by it reproduced the bug ADR-0186 fixed in the breakdown. What is
         // charged (`tax_amount`) does not move. `surcharge_rate` is ALWAYS written (0 when none):
         // NULL marks the legacy generation, whose `tax_rate` may still be a combined sum.
-        p.insert("tax_rate".into(), json!(line_rate));                 // tasa % del impuesto principal (REAL)
-        p.insert("surcharge_rate".into(), json!(line_surcharge_rate)); // tasa % del recargo (REAL, 0 = sin recargo)
+        p.insert("tax_rate".into(), json!(l.line_rate));                 // tasa % del impuesto principal (REAL)
+        p.insert("surcharge_rate".into(), json!(l.line_surcharge_rate)); // tasa % del recargo (REAL, 0 = sin recargo)
         // Categoría fiscal congelada de la línea (ADR-0085); NULL en factura manual sin categoría.
         p.insert("tax_category_key".into(), item.get("tax_category_key").cloned().unwrap_or(Value::Null));
-        p.insert("base_amount".into(), json!(base));      // céntimos
-        p.insert("tax_amount".into(), json!(tax));        // céntimos
-        p.insert("total_amount".into(), json!(total));    // céntimos
+        p.insert("base_amount".into(), json!(l.base));          // céntimos
+        p.insert("tax_amount".into(), json!(l.tax));            // céntimos
+        p.insert("total_amount".into(), json!(l.base + l.tax)); // céntimos
         p.insert("product_id".into(), item.get("product_id").cloned().unwrap_or(Value::Null));
         ops.push(Operation::sql("invoice._insert_line", p));
     }
@@ -512,7 +657,7 @@ fn build_invoice(
     // lo copia `verifactu.records.ingest_invoice` VERBATIM en `BaseImponibleOimporteNoSujeto` /
     // `CuotaRepercutida` / `CuotaTotal`, y su `chain.validate` comprueba el ENCADENADO de hashes,
     // no la aritmética de lo que encadena. Si no cuadra aquí, no cuadra en ninguna parte.
-    if let Some(err) = audit(&breakdown, base_total, tax_total, &inv_type) {
+    if let Some(err) = audit(&breakdown, base_total, tax_total, &inv_type, closing) {
         return Output::new().with_error(err);
     }
 
@@ -640,7 +785,7 @@ pub fn create_invoice_pure(input: Value) -> Output {
         ));
     }
 
-    build_invoice(&new_ids, &now, &series_code, ty.as_deref(), &payload, items, &fiscal)
+    build_invoice(&new_ids, &now, &series_code, ty.as_deref(), &payload, items, &fiscal, Closing::PerKey { tax_included: false })
 }
 
 /// create_from_sale: adapta el evento sale.completed (líneas) a una F2 serie TICKET.
@@ -722,7 +867,11 @@ pub fn create_from_sale_pure(input: Value) -> Result<Output, String> {
     } else {
         ("TICKET", "F2")
     };
-    Ok(build_invoice(&new_ids, &now, series_code, Some(inv_type), &Value::Object(header), &items, &fiscal))
+    // invoice#65: the sale says whether its prices carried the VAT inside (`tax_included`, art.
+    // 88.Uno LIVA); that decides how each fiscal key is closed. An event without it (a `sales`
+    // older than the flag) is VAT on top, which is what its per-line figures then mean.
+    let tax_included = payload.get("tax_included").and_then(|v| v.as_bool()).unwrap_or(false);
+    Ok(build_invoice(&new_ids, &now, series_code, Some(inv_type), &Value::Object(header), &items, &fiscal, Closing::PerKey { tax_included }))
 }
 
 /// substitute_from_invoice: "el cliente pide factura de un tiquet" (ADR-0140). Emite una F3
@@ -754,7 +903,7 @@ pub fn substitute_from_invoice_pure(input: Value) -> Output {
     // Enlace fiscal explícito F3→F2 (ADR-0140): lo lee verifactu para el bloque FacturasSustituidas.
     header.insert("substitutes_invoice_id".into(), json!(original_id));
     // F3 en la serie de facturas COMPLETAS (FACT); comparte numeración con las F1 (legal en ES).
-    build_invoice(&new_ids, &now, "FACT", Some("F3"), &Value::Object(header), &items, &fiscal)
+    build_invoice(&new_ids, &now, "FACT", Some("F3"), &Value::Object(header), &items, &fiscal, Closing::Verbatim)
 }
 
 #[cfg(test)]
@@ -1812,13 +1961,16 @@ mod arithmetic_audit_tests {
     fn a_tax_included_ticket_still_invoices() {
         // With VAT-included prices the quota is `gross − base` (6,60 − 5,45 = 1,15), which differs
         // by one cent from `base × rate` (114,45 → 114). That cent is the rounding rule, not an
-        // error: the tolerance is one cent per line aggregated into the breakdown row.
-        let out = create_from_sale_pure(from_sale(
+        // error: the line is accepted within one cent, and the key closes by difference over the
+        // gross (invoice#65) — so the total IS the 6,60 € the till took. The sale says so with
+        // `tax_included`, exactly as `sales` emits it.
+        let mut inp = from_sale(
             json!([{ "product_name": "Café", "quantity": 1_000_000, "unit_price": 660, "tax_rate": 21,
                      "net_amount": 545, "tax_amount": 115 }]),
             6,
-        ))
-        .unwrap();
+        );
+        inp["payload"]["tax_included"] = json!(true);
+        let out = create_from_sale_pure(inp).unwrap();
         assert!(out.error.is_none(), "{:?}", out.error);
         assert_eq!(header(&out)["total_amount"], json!(660));
     }
@@ -1840,12 +1992,16 @@ mod arithmetic_audit_tests {
 
     #[test]
     fn many_lines_of_the_same_rate_get_one_cent_of_slack_each() {
-        // Three VAT-included lines aggregate into ONE breakdown row, each contributing up to a cent
-        // of rounding. The tolerance follows the number of lines; it is not a flat cent that would
-        // refuse a long ticket.
+        // Three VAT-included lines aggregate into ONE breakdown row. Before invoice#65 the quota
+        // was Σ of the lines' cents (345 over 1635, which 21 % does not justify) and the audit
+        // needed a cent of slack PER LINE to let it through; now the key closes once over the
+        // gross (1980 → base 1636, quota 344) and the tolerance is a flat cent — and a long ticket
+        // still goes through, because the cent no longer accumulates.
         let line = json!({ "product_name": "Café", "quantity": 1_000_000, "unit_price": 660,
                            "tax_rate": 21, "net_amount": 545, "tax_amount": 115 });
-        let out = create_from_sale_pure(from_sale(json!([line, line, line]), 8)).unwrap();
+        let mut inp = from_sale(json!([line, line, line]), 8);
+        inp["payload"]["tax_included"] = json!(true);
+        let out = create_from_sale_pure(inp).unwrap();
         assert!(out.error.is_none(), "three legal lines must not add up to a refusal: {:?}", out.error);
         assert_eq!(header(&out)["total_amount"], json!(1980));
     }
@@ -1983,5 +2139,164 @@ mod f1_requires_customer_tax_id_tests {
         let out = create_from_sale_pure(input).unwrap();
         assert!(out.error.is_none(), "the POS path is not this guard's business: {:?}", out.error);
         assert_eq!(out.operations[2].params["invoice_type"], json!("F1"));
+    }
+}
+
+// ── invoice#65 — the quota closes ONCE per fiscal key, never per line (ADR-0123 §4) ──────────────
+//
+// `DetalleDesglose` is per rate, so the register can only carry one base and one quota per key,
+// and the AEAT cross-checks `cuota = base × tipo` on THAT row. Summing per-line rounded quotas
+// declared 44 on a base of 200 at 21 % (4 × HALF_UP(10,5)), which no rate justifies — and the
+// downstream gates (verifactu#60 `013`, hub#1180) rightly refuse it. `sales` already closes per
+// rate; this is the same rule applied where the document is actually sealed.
+#[cfg(test)]
+mod closing_per_key {
+    use super::*;
+
+    fn ctx(payload: Value, ids: usize, reads: Value) -> Value {
+        let new_ids: Vec<Value> = (0..ids).map(|i| json!(format!("id-{i}"))).collect();
+        json!({
+            "payload": payload,
+            "context": { "new_ids": new_ids, "now": "2026-08-25T10:00:00+00:00", "reads": reads }
+        })
+    }
+
+    fn header(out: &Output) -> &Map<String, Value> {
+        assert!(out.error.is_none(), "unexpected refusal: {:?}", out.error);
+        &out.operations[2].params
+    }
+
+    fn breakdown(out: &Output) -> Vec<Value> {
+        serde_json::from_str(header(out)["tax_breakdown"].as_str().unwrap()).unwrap()
+    }
+
+    fn lines(out: &Output) -> Vec<&Map<String, Value>> {
+        out.operations.iter().filter(|o| o.command == "invoice._insert_line").map(|o| &o.params).collect()
+    }
+
+    #[test]
+    fn four_lines_at_one_rate_close_the_quota_once_per_key_and_the_lines_add_up() {
+        // 4 × 0,50 € at 21 %: per line 10,5 → 11 each = 44; per key 200 × 21 % = 42.
+        let items: Vec<Value> = (0..4)
+            .map(|i| json!({ "description": format!("L{i}"), "quantity": 1_000_000, "unit_price": 50, "tax_rate": 21.0 }))
+            .collect();
+        let out = create_invoice_pure(ctx(json!({ "series_code": "FACT", "customer_tax_id": "B1", "items": items }), 8, json!({})));
+        let d = breakdown(&out);
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0]["base"], json!(200));
+        assert_eq!(d[0]["quota"], json!(42), "200 × 21 % = 42, not 4 × HALF_UP(10,5) = 44");
+        let h = header(&out);
+        assert_eq!(h["base_amount"], json!(200));
+        assert_eq!(h["tax_amount"], json!(42));
+        assert_eq!(h["total_amount"], json!(242));
+        // The lines carry the key's quota, split by largest remainder (deterministic), so the
+        // printed concepts add up to the printed total.
+        let taxes: Vec<i64> = lines(&out).iter().map(|l| l["tax_amount"].as_i64().unwrap()).collect();
+        assert_eq!(taxes, vec![11, 11, 10, 10]);
+        let totals: i64 = lines(&out).iter().map(|l| l["total_amount"].as_i64().unwrap()).sum();
+        assert_eq!(totals, 242, "Σ line totals == header total");
+    }
+
+    #[test]
+    fn a_sale_with_tax_included_declares_exactly_what_the_customer_paid() {
+        // The TEAC example: 7 chewing gums at 0,05 € with VAT inside. `sales` splits each line
+        // (base 4, tax 1) and the till takes 35. ADR-0123 §4 for VAT-included: base = round(35 /
+        // 1,21) = 29, quota = 35 − 29 = 6 → base + quota IS what was charged, and 29 × 21 % = 6,09
+        // → 6 cross-checks. Summing the lines declared 28 / 7, which 21 % does not justify.
+        let items: Vec<Value> = (0..7)
+            .map(|i| json!({ "product_name": format!("Chicle {i}"), "quantity": 1_000_000, "unit_price": 5,
+                             "tax_rate": 21.0, "net_amount": 4, "tax_amount": 1 }))
+            .collect();
+        let out = create_from_sale_pure(ctx(
+            json!({ "sale_id": "sale-1", "tax_included": true, "items": items }), 10,
+            json!({ "sales.get": [{ "id": "sale-1" }] }),
+        )).unwrap();
+        let d = breakdown(&out);
+        assert_eq!(d[0]["base"], json!(29));
+        assert_eq!(d[0]["quota"], json!(6));
+        let h = header(&out);
+        assert_eq!(h["base_amount"], json!(29));
+        assert_eq!(h["tax_amount"], json!(6));
+        assert_eq!(h["total_amount"], json!(35), "what the till took, to the cent");
+        // The lines are the sale's own figures (they already add up to what was charged).
+        let totals: i64 = lines(&out).iter().map(|l| l["total_amount"].as_i64().unwrap()).sum();
+        assert_eq!(totals, 35);
+    }
+
+    #[test]
+    fn a_sale_without_tax_included_closes_over_the_aggregated_base_and_the_lines_follow() {
+        // B2B till (VAT on top): `sales` sends 4 lines of base 50 with 11 of tax each.
+        let items: Vec<Value> = (0..4)
+            .map(|i| json!({ "product_name": format!("L{i}"), "quantity": 1_000_000, "unit_price": 50,
+                             "tax_rate": 21.0, "net_amount": 50, "tax_amount": 11 }))
+            .collect();
+        let out = create_from_sale_pure(ctx(
+            json!({ "sale_id": "sale-1", "tax_included": false, "items": items }), 8,
+            json!({ "sales.get": [{ "id": "sale-1" }] }),
+        )).unwrap();
+        let h = header(&out);
+        assert_eq!(h["base_amount"], json!(200));
+        assert_eq!(h["tax_amount"], json!(42));
+        assert_eq!(h["total_amount"], json!(242));
+        let taxes: Vec<i64> = lines(&out).iter().map(|l| l["tax_amount"].as_i64().unwrap()).collect();
+        assert_eq!(taxes.iter().sum::<i64>(), 42, "the lines follow the key: {taxes:?}");
+    }
+
+    #[test]
+    fn a_mixed_ticket_with_tax_included_closes_each_key_over_its_own_gross() {
+        // 3 beers at 21 % (2,00 € each, VAT inside) and 2 tapas at 10 % (3,00 € each).
+        let mut items: Vec<Value> = (0..3)
+            .map(|_| json!({ "product_name": "Caña", "quantity": 1_000_000, "unit_price": 200,
+                             "tax_rate": 21.0, "net_amount": 165, "tax_amount": 35 }))
+            .collect();
+        items.extend((0..2).map(|_| json!({ "product_name": "Tapa", "quantity": 1_000_000, "unit_price": 300,
+                                              "tax_rate": 10.0, "net_amount": 273, "tax_amount": 27 })));
+        let out = create_from_sale_pure(ctx(
+            json!({ "sale_id": "sale-1", "tax_included": true, "items": items }), 9,
+            json!({ "sales.get": [{ "id": "sale-1" }] }),
+        )).unwrap();
+        let d = breakdown(&out);
+        let at = |rate: f64| d.iter().find(|e| e["rate"] == json!(rate)).unwrap().clone();
+        // 600 / 1,21 = 495,87 → 496; quota 104. 600 / 1,10 = 545,45 → 545; quota 55.
+        assert_eq!(at(21.0)["base"], json!(496));
+        assert_eq!(at(21.0)["quota"], json!(104));
+        assert_eq!(at(10.0)["base"], json!(545));
+        assert_eq!(at(10.0)["quota"], json!(55));
+        assert_eq!(header(&out)["total_amount"], json!(1200));
+    }
+
+    #[test]
+    fn a_substitution_copies_the_ticket_verbatim_even_when_it_was_rounded_per_line() {
+        // An F3 is the SAME operation as the F2 it substitutes: its figures are the ticket's, to
+        // the cent, even for a ticket sealed before this change (4 × 11 = 44). Recomputing per
+        // key here would make the F3 disagree with the F2 it declares to replace.
+        let items: Vec<Value> = (0..4)
+            .map(|i| json!({ "description": format!("L{i}"), "quantity": 1_000_000, "unit_price": 61,
+                             "tax_rate": 21.0, "base_amount": 50, "tax_amount": 11 }))
+            .collect();
+        let out = substitute_from_invoice_pure(ctx(
+            json!({ "original_invoice_id": "f2-1", "customer_name": "ACME", "customer_tax_id": "B1", "items": items }),
+            8, json!({}),
+        ));
+        let h = header(&out);
+        assert_eq!(h["tax_amount"], json!(44), "the ticket's own quota, untouched");
+        assert_eq!(h["total_amount"], json!(244));
+        assert_eq!(breakdown(&out)[0]["quota"], json!(44));
+    }
+
+    #[test]
+    fn external_line_amounts_are_checked_against_their_own_rate_to_the_cent() {
+        // With the key closed by this handler, the header can no longer carry a forged quota —
+        // but a line still can, and a line is what the F3 will copy verbatim. One cent of rounding
+        // is honest (VAT-included lines split by difference); two is not.
+        let line = |tax: i64| json!([{ "product_name": "x", "quantity": 1_000_000, "unit_price": 660,
+                                        "tax_rate": 21.0, "net_amount": 545, "tax_amount": tax }]);
+        let ok = create_from_sale_pure(ctx(json!({ "sale_id": "s", "tax_included": true, "items": line(115) }), 6,
+                                           json!({ "sales.get": [{ "id": "s" }] }))).unwrap();
+        assert!(ok.error.is_none(), "545 × 21 % = 114,45: 115 is one cent of rounding, accepted");
+        let bad = create_from_sale_pure(ctx(json!({ "sale_id": "s", "tax_included": true, "items": line(116) }), 6,
+                                            json!({ "sales.get": [{ "id": "s" }] }))).unwrap();
+        assert_eq!(bad.error.as_ref().map(|e| e.code.as_str()), Some("invoice.tax_quota_mismatch"));
+        assert!(bad.operations.is_empty(), "a refused invoice consumes no number");
     }
 }

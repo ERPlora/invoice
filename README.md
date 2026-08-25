@@ -2,8 +2,10 @@
 
 Convierte ventas completadas en **documentos fiscales numerados por serie** (F1/F2/F3, R1–R5) e
 impone la **inmutabilidad fiscal** (RD 1007/2023): una factura emitida **no se modifica ni se
-borra** — se corrige con una **rectificativa** (R1, importes negados) o se completa con una
+borra** — se corrige con una **rectificativa** (R1, importes negados; una devolución parcial emite
+la suya **por diferencias**, prorrateando el desglose congelado) o se completa con una
 **sustitutiva** (F3, «el cliente pide factura de un tiquet»). Numeración monotónica por serie+año.
+La cuota del desglose se cierra **una vez por clave fiscal** (ADR-0123 §4), nunca sumando líneas.
 
 > **Module id:** `invoice`. **Depende de:** `taxes`, `sales` (instalar invoice los auto-instala).
 > Módulo híbrido: SQL + handler WASM (`create_invoice`, `create_from_sale`, `substitute_from_invoice`).

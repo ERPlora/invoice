@@ -81,10 +81,16 @@ SELECT
     l.tax_rate, l.surcharge_rate, l.tax_category_key,
     -l.base_amount, -l.tax_amount, -l.total_amount, l.product_id, :now
 FROM invoice_invoice r
+JOIN invoice_invoice o
+  ON o.hub_id = r.hub_id AND o.id = r.rectifies_invoice_id
 JOIN invoice_invoiceitem l
   ON l.hub_id = r.hub_id AND l.invoice_id = r.rectifies_invoice_id
 WHERE r.hub_id = :hub_id
   AND r.id = :new_id
+  -- invoice#63: the negated copy is the truth only when the document rectifies the WHOLE original.
+  -- A rectificativa por diferencias (a partial refund, or the act that closes one) gets ONE line
+  -- for the amount returned instead: `rectify_line_refund.sql`.
+  AND r.total_amount = -o.total_amount
   AND NOT EXISTS (
       SELECT 1 FROM invoice_invoiceitem x
       WHERE x.hub_id = r.hub_id AND x.invoice_id = r.id
