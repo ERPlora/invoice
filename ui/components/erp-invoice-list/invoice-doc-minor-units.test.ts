@@ -92,6 +92,4 @@ describe('the invoice document is minor units + decimals (invoice#66, ADR-0400)'
     expect(data.total).toBe(48);
     expect(data.items[0].total).toBe(48);
   });
-
-  });
 });
