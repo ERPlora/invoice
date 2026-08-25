@@ -66,6 +66,8 @@ interface ErploraClientLike extends ListClient {
    *  `formatMoney` recibe CÉNTIMOS y divide; `formatAmount` recibe unidades mayores y NO divide.
    *  Los importes de factura son céntimos (ADR-0123) → SIEMPRE `formatMoney`. */
   currency: string;
+  /** Scale of the hub currency (ADR-0123 §7): EUR 2, JPY 0. Older shells do not inject it → 2. */
+  currencyDecimals?: number;
   formatMoney(cents: number, opts?: { currency?: string; locale?: string }): string;
   formatAmount(units: number, opts?: { currency?: string; locale?: string }): string;
 }
@@ -585,6 +587,10 @@ export class ErpInvoiceList extends LitElement {
       tax_total: d.tax_amount,
       total: d.total_amount,
       currency: d.currency || erplora().currency,
+      // invoice#66 / ADR-0400: every amount above is the row's MINOR UNITS (ADR-0123), and
+      // <ok-invoice> (outfitkit >= 0.1.48) cuts the integer by this scale instead of dividing. Without
+      // it the old float contract printed «4800.00 EUR» for a 48,00 € invoice.
+      decimals: erplora().currencyDecimals ?? 2,
       qr: qr || undefined,
       qr_note: csv ? `CSV: ${csv}` : (qr ? erploraT('ui.qrValidateNote') : undefined),
       footer: d.notes || undefined,
