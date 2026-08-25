@@ -11,12 +11,13 @@
 -- `substr(:now, 1, 4)` is not a new convention: it is the module's own. `handler/src/lib.rs`
 -- derives `issue_date = now.split('T')[0]` and takes the year off it for every invoice it issues.
 --
--- THE REFUND PRECONDITION. On the listener path (`:sale_id` present) the series is created only if
--- this refund is going to produce a document at all — see `rectify_bump.sql` for what fullness
--- means and why. Without it a partial refund would leave an empty RECT series behind: harmless to
--- the numbering (nothing is booked at 0) but a lie in the settings screen, which would show a
--- rectifying series for a hub that has never rectified anything. On the manual path (`:sale_id`
--- NULL) the condition is vacuously true and the behaviour is exactly what it was.
+-- THE REFUND PRECONDITION (invoice#62, widened by invoice#63). On the listener path (`:sale_id`
+-- present) the series is created only if this refund is going to produce a document at all — the
+-- same gate `rectify_bump.sql` spells out: a stable `refund_ref`, an original of this sale with
+-- money still standing on it, and no document for this refund yet. Without it a refund that
+-- issues nothing would leave an empty RECT series behind: harmless to the numbering (nothing is
+-- booked at 0) but a lie in the settings screen. On the manual path (`:sale_id` NULL) the
+-- condition is vacuously true and the behaviour is exactly what it was.
 INSERT INTO invoice_invoiceseries
   (id, hub_id, code, name, invoice_type, year, current_number, prefix, is_active,
    is_deleted, created_by, updated_by, created_at, updated_at)
@@ -26,6 +27,23 @@ SELECT
   0, 'RECT', 1,
   0, :current_user_id, :current_user_id, :now, :now
 WHERE CAST(:sale_id AS TEXT) IS NULL
-   OR (COALESCE(CAST(:fully_refunded AS INTEGER), 0) = 1
-       AND NULLIF(CAST(:refund_ref AS TEXT), '') IS NOT NULL)
+   OR (NULLIF(CAST(:refund_ref AS TEXT), '') IS NOT NULL
+       AND (COALESCE(CAST(:fully_refunded AS INTEGER), 0) = 1
+            OR COALESCE(CAST(:total AS INTEGER), 0) > 0)
+       AND EXISTS (
+         SELECT 1 FROM invoice_invoice o
+         WHERE o.hub_id = :hub_id
+           AND o.source_type = 'sale' AND o.source_id = CAST(:sale_id AS TEXT)
+           AND o.invoice_type NOT LIKE 'R%' AND o.is_deleted = 0
+           AND o.total_amount + COALESCE((
+                 SELECT SUM(r.total_amount) FROM invoice_invoice r
+                 WHERE r.hub_id = o.hub_id AND r.rectifies_invoice_id = o.id AND r.is_deleted = 0
+               ), 0) > 0
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM invoice_invoice rr
+         WHERE rr.hub_id = :hub_id
+           AND rr.rectifies_ref = NULLIF(CAST(:refund_ref AS TEXT), '')
+           AND rr.is_deleted = 0
+       ))
 ON CONFLICT (hub_id, code, year) DO NOTHING;

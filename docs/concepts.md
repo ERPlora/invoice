@@ -19,10 +19,20 @@ Everything you might want to do to a wrong invoice is done by **issuing another 
 
 This is the single most common confusion.
 
-**Rectify (R1)** — *the document was wrong.*
+**Rectify (R1)** — *the document was wrong, or part of the money came back.*
 The module issues a new invoice in the `RECT` series with **the amounts negated**, copying the issuer
-and customer from the original, and marks the **original as cancelled**. Two documents now exist and
-they cancel out. Needs `invoice.rectify_invoice`.
+and customer from the original. Rectified by hand (`invoice.rectify`) it negates the **whole**
+original and marks it **cancelled**: two documents now exist and they cancel out. Needs
+`invoice.rectify_invoice`.
+
+A **refund** does this on its own (`sale.refunded` → `invoice._rectify_from_refund`), and it
+rectifies **the money returned**, not the document: a partial refund issues a rectifying invoice *por
+diferencias* for that amount, with the original's tax breakdown **prorated** (Σ of the breakdown is
+exactly the amount returned, each quota still `base × rate` to the cent) and a single line, the
+refund; the original **stays issued** and the two coexist. The act that closes the return rectifies
+**what is left** — never its own amount — so the rectifications add up to the original to the cent,
+and only then is the original cancelled. One invoice therefore carries **one rectification per
+refund document**, and the same refund delivered twice is still one document.
 
 **Substitute (F3)** — *the document was right, but incomplete for the customer.*
 Someone paid, got a ticket (F2), and now needs a proper invoice with their tax id. The module issues

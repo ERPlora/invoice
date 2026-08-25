@@ -263,12 +263,12 @@ def test_the_rectification_does_not_take_the_sales_source_key():
     )
 
 
-# ── 3. One rectification per invoice, enforced by the SCHEMA ────────────────────────────
+# ── 3. One WHOLE rectification per invoice: the module's door, no longer the schema ──────
 
 
-def test_one_rectification_per_invoice_is_enforced_by_the_database():
+def test_one_whole_rectification_per_invoice_is_enforced_by_the_door():
     print(
-        "\n== 3. the 'one rectification per invoice' invariant lives in the schema =="
+        "\n== 3. 'one whole rectification per invoice' lives in the guard chain (011 retired 009) =="
     )
 
     # a) Through the front door: the guard chain of invoice#39 makes the retry a clean no-op,
@@ -279,8 +279,13 @@ def test_one_rectification_per_invoice_is_enforced_by_the_database():
     check("...and creates no second rectification", 1, rectifications_of("TCK-1"))
     check("...and burns no number in the RECT series", before, rect_counter())
 
-    # b) Bypassing the guard, the way a flow / the assistant / the public API could: a raw INSERT
-    #    with a different id. Only an index on the fiscal link itself can stop this one.
+    # b) Bypassing the guard with a raw INSERT. Until invoice#63 `ux_invoice_rectifies` (009)
+    #    refused this; a partial refund now legitimately puts N rectifications on one invoice, one
+    #    per refund document, so 011 retired that index and the schema ACCEPTS the row. What still
+    #    holds in the schema is «one per refund» (`ux_invoice_rectifies_ref`, 010, asserted in
+    #    `rectify_from_refund…` §8); what still holds at the door is that a WHOLE negation refuses
+    #    when anything already rectifies the invoice — asserted right after, with the stray row in
+    #    place.
     try:
         psql(
             [
@@ -302,28 +307,36 @@ def test_one_rectification_per_invoice_is_enforced_by_the_database():
         sneaked, err = False, str(exc)
 
     check(
-        "a second rectification of the same invoice is REFUSED by the database",
-        False,
+        "a second rectification row of the same invoice is ACCEPTED by the schema (invoice#63)",
+        True,
         sneaked,
     )
     check(
-        "...by the index on the rectification link", True, "ux_invoice_rectifies" in err
+        "`ux_invoice_rectifies` is gone",
+        0,
+        qi("SELECT count(*) FROM pg_indexes WHERE indexname = 'ux_invoice_rectifies'"),
     )
-    check("still exactly one rectification", 1, rectifications_of("TCK-1"))
+    before = rect_counter()
+    ok, _ = rectify("TCK-1")
+    check("the manual door still refuses a whole negation while anything rectifies the invoice", True, ok)
+    check("...issuing nothing", 2, rectifications_of("TCK-1"))
+    check("...and burning no number", before, rect_counter())
+    # The stray row is not a fixture the rest of the suite knows about: take it out again.
+    psql(["-c", f"DELETE FROM invoice_invoice WHERE id = 'R-SNEAK' AND hub_id = {literal(HUB)}"], db=H.DB)
+    check("back to exactly one rectification", 1, rectifications_of("TCK-1"))
 
 
 # ── 4. What that index must NOT block ───────────────────────────────────────────────────
 
 
 def test_the_index_is_scoped_and_partial():
-    print("\n== 4. the index is per hub, ignores NULL links and soft-deleted rows ==")
+    print("\n== 4. the link is per hub, NULL links coexist, and a soft-deleted row frees the door ==")
 
     # `id` is the PRIMARY KEY, so a second hub cannot literally reuse `TCK-1` — but the LINK value
-    # can repeat across hubs, and that is what the index has to tolerate. A neighbour row pointing
-    # at the same `rectifies_invoice_id` under a different `hub_id` must be accepted: if the index
-    # were global instead of per hub, one tenant could make another tenant's invoice unrectifiable.
-    # (The link is dangling here on purpose — the index is what is under test, not referential
-    # integrity, which the module keeps logical rather than as an FK.)
+    # can repeat across hubs, and nothing may refuse that: a neighbour row pointing at the same
+    # `rectifies_invoice_id` under a different `hub_id` must be accepted, or one tenant could make
+    # another tenant's invoice unrectifiable. (The link is dangling here on purpose — the schema is
+    # what is under test, not referential integrity, which the module keeps logical.)
     try:
         psql(
             [
@@ -345,7 +358,7 @@ def test_the_index_is_scoped_and_partial():
         neighbour_ok, neighbour_err = False, str(exc).splitlines()[0]
 
     check(
-        "a neighbouring hub may point at the same link value: the index carries `hub_id`",
+        "a neighbouring hub may point at the same link value",
         True,
         neighbour_ok,
     )
@@ -367,9 +380,9 @@ def test_the_index_is_scoped_and_partial():
     )
     check("two invoices without a rectification link coexist", (True, True), (ok1, ok2))
 
-    # A soft-deleted rectification frees the slot — a partial index only counts live rows. This is
+    # A soft-deleted rectification frees the door — the guard chain only counts live rows. This is
     # the manual-repair path, not a business flow: nothing in the module soft-deletes an issued
-    # invoice, but the index must not turn a repaired hub into an unrectifiable one.
+    # invoice, but a repaired hub must not end up unrectifiable.
     psql(
         [
             "-c",
@@ -578,7 +591,7 @@ def main() -> int:
         H.load_migrations()
         test_a_sale_born_invoice_can_be_rectified()
         test_the_rectification_does_not_take_the_sales_source_key()
-        test_one_rectification_per_invoice_is_enforced_by_the_database()
+        test_one_whole_rectification_per_invoice_is_enforced_by_the_door()
         test_the_index_is_scoped_and_partial()
         test_the_breakdown_is_copied_negated_from_the_original()
         test_the_legacy_and_empty_breakdown_shapes()

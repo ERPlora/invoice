@@ -67,7 +67,8 @@
       "migrations/postgres/007_number_allocation.sql",
       "migrations/postgres/008_series_format.sql",
       "migrations/postgres/009_rectification_unique.sql",
-      "migrations/postgres/010_rectifies_ref.sql"
+      "migrations/postgres/010_rectifies_ref.sql",
+      "migrations/postgres/011_rectifications_per_refund.sql"
     ]
   },
   "queries": {
@@ -361,6 +362,7 @@
         "commands/rectify_bump.sql",
         "commands/rectify_insert.sql",
         "commands/rectify_lines.sql",
+        "commands/rectify_line_refund.sql",
         "commands/_insert_allocation.sql",
         "commands/rectify_cancel.sql"
       ],
@@ -380,6 +382,7 @@
         "commands/rectify_bump.sql",
         "commands/rectify_insert.sql",
         "commands/rectify_lines.sql",
+        "commands/rectify_line_refund.sql",
         "commands/_insert_allocation.sql",
         "commands/rectify_cancel.sql"
       ],
@@ -387,7 +390,7 @@
         "invoice.rectified"
       ],
       "ai": {
-        "description": "Listener of `sale.refunded` (sales v2.16.4): issues the rectifying invoice for a refunded sale by itself, so the money and the fiscal document never disagree. Resolves the original from the sale, and only issues when the WHOLE invoice came back — a refund that leaves part of it standing needs a rectificativa por diferencias (invoice#63) and produces nothing here. Idempotent by the refund document reference: the same refund twice is one document, one series number and one VeriFactu record. Internal: only the runtime's outbox relay calls it."
+        "description": "Listener of `sale.refunded` (sales v2.16.4): issues the rectifying invoice for a refunded sale by itself, so the money and the fiscal document never disagree. Resolves the original from the sale. A refund of the whole invoice negates it entirely and cancels it; a refund that leaves part of it standing issues a rectificativa por diferencias (invoice#63) for the amount returned, prorated over the original's frozen tax breakdown, and the original stays issued; the act that closes the return rectifies exactly what is left, so the documents add up to the original to the cent. Idempotent by the refund document reference: the same refund twice is one document, one series number and one VeriFactu record. Internal: only the runtime's outbox relay calls it."
       }
     },
     "invoice.mark_paid": {

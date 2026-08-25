@@ -7,43 +7,38 @@
 --
 -- The guard is EXACTLY the precondition of `rectify_insert.sql` (guard pattern, ADR-0020: the same
 -- condition on every door of the chain). If the insert is going to be a no-op, no number is spent
--- here:
---   * the original exists, belongs to this hub, is alive and is NOT itself a rectification (a
---     rectification is not rectified: the fiscal chain is followed through `rectifies_invoice_id`),
---   * there is no live rectification pointing at it already (one per invoice),
---   * and, on the refund path, no live rectification carries this refund reference already.
+-- here. Two doors walk this one chain (invoice#62), and they are gated differently:
 --
--- ── WHAT invoice#62 ADDED ───────────────────────────────────────────────────────────────────────
+--   * `invoice.rectify` (a person, from the screen) names the document: `:original_id`. It negates
+--     the WHOLE original, so it requires that nothing rectifies it yet — the original exists,
+--     belongs to this hub, is alive, is NOT itself a rectification (a rectification is not
+--     rectified: the fiscal chain is followed through `rectifies_invoice_id`), and carries no live
+--     rectification of any kind (a manual whole-negation on top of a partial one would declare
+--     money twice).
 --
--- TWO DOORS, ONE CHAIN. `invoice.rectify` (a person, from the screen) names the invoice:
--- `:original_id`. `invoice._rectify_from_refund` (the outbox relay, delivering `sale.refunded`)
--- cannot: the event carries `sale_id` and nothing else that identifies a document. So the original
--- is RESOLVED here, from this module's own row — `source_type='sale'` + `source_id`, the tuple
--- `uq_invoice_source` already keeps unique per hub. The payload never names which fiscal document
--- is about to be cancelled, which is the half of "do not trust the payload" that can actually be
--- enforced from SQL. The alternative — a second copy of this chain for the refund path — would mean
--- a FOURTH copy of the document-number template, and this module already carries three with a
--- "touch one, touch all three" warning on top.
+--   * `invoice._rectify_from_refund` (the outbox relay, delivering `sale.refunded`) cannot name a
+--     document: the event carries `sale_id`. So the original is RESOLVED here, from this module's
+--     own row — `source_type='sale'` + `source_id`, the tuple `uq_invoice_source` already keeps
+--     unique per hub. The payload never names which fiscal document is about to be rectified,
+--     which is the half of "do not trust the payload" that can actually be enforced from SQL.
 --
--- FULLNESS IS THE GATE, NOT THE DOCUMENT TYPE. `invoice.create_from_sale` issues a row for EVERY
--- completed sale (F1 when it was taken as a full invoice, F2 when it is a plain ticket) and both
--- are ingested into the VeriFactu chain, so a refunded TICKET needs its rectifying invoice just as
--- much as a refunded invoice does — the core turns the R1 into the R5 the AEAT wants when the
--- document has no recipient NIF (`resolve_invoice_type`). What this chain does is negate the WHOLE
--- original and cancel it, and that is the truth only when the WHOLE of it came back. So the refund
--- path additionally requires `fully_refunded`.
+-- ── WHAT invoice#63 CHANGED: EVERY refund gets its document, for the money it returns ───────────
 --
--- `fully_refunded` is the one thing here that is taken on the event's word, and that is a bounded
--- trust on purpose: `sales` computes it against the sale total and everything already returned
--- (`already + total >= sale_total`), which is why it cannot be re-derived from `:total` — the
--- closing act of a return made in two goes carries only its own amount. What contains a wrong flag
--- is that the command is INTERNAL (only the relay reaches it, hub#131/#145) and that "one
--- rectification per invoice" (migration 009) means even a lie can produce at most ONE document,
--- never a duplicate declaration to the AEAT.
+-- Before, the refund path issued only when the WHOLE invoice came back (`fully_refunded`), and a
+-- partial refund produced nothing — while art. 80.Dos LIVA modifies the taxable base at the moment
+-- of the return, not when the rest comes back. Now a refund issues a rectificativa POR DIFERENCIAS
+-- for what it returns, `I` in `TipoRectificativa` (ADR-0379: negative amounts, no
+-- `ImporteRectificacion`), the original stays issued, and the two documents coexist — that is what
+-- «por diferencias» means. The closing act (`fully_refunded`) rectifies WHAT IS LEFT of the invoice,
+-- never its own `total`, so the sum of the documents is the original to the cent and nothing is
+-- ever declared twice. One invoice therefore carries N rectifications, one per refund document
+-- (migration 011 retires the «one per invoice» index, 010 keeps «one per refund»).
 --
--- A refund that leaves part of the invoice standing gets nothing from this chain: it needs a
--- rectificativa POR DIFERENCIAS over a prorated share of the original's frozen `tax_breakdown`,
--- with its own rounding contract and its own numbering — invoice#63.
+-- FULLNESS IS NO LONGER THE GATE — STANDING MONEY IS. The refund path issues when the original of
+-- this sale still has money on it (`total_amount + Σ live rectifications > 0`) and the refund
+-- brings a positive amount or closes the return. `fully_refunded` is still taken on the event's
+-- word, and that is a bounded trust on purpose: it only decides that the LAST document takes the
+-- remainder rather than a proration — the money it can move is capped by what is left.
 --
 -- NO REFERENCE, NO DOCUMENT. `refund_ref` is the refund document's id, stable across retries
 -- (sales#160 keys it off its own idempotency key). Without it a redelivery could not be recognised
@@ -52,25 +47,38 @@ UPDATE invoice_invoiceseries
 SET current_number = current_number + 1
 WHERE hub_id = :hub_id AND code = 'RECT'
   AND CAST(year AS TEXT) = COALESCE(CAST(:year AS TEXT), substr(CAST(:now AS TEXT), 1, 4))
-  AND (CAST(:sale_id AS TEXT) IS NULL
-       OR (COALESCE(CAST(:fully_refunded AS INTEGER), 0) = 1
-           AND NULLIF(CAST(:refund_ref AS TEXT), '') IS NOT NULL))
-  AND EXISTS (
-    SELECT 1 FROM invoice_invoice o
-    WHERE o.hub_id = :hub_id
-      AND (o.id = CAST(:original_id AS TEXT)
-           OR (CAST(:original_id AS TEXT) IS NULL
-               AND o.source_type = 'sale'
-               AND o.source_id = CAST(:sale_id AS TEXT)))
-      AND o.invoice_type NOT LIKE 'R%' AND o.is_deleted = 0
-      AND NOT EXISTS (
-        SELECT 1 FROM invoice_invoice r
-        WHERE r.hub_id = :hub_id AND r.rectifies_invoice_id = o.id AND r.is_deleted = 0
-      )
-  )
-  AND NOT EXISTS (
-    SELECT 1 FROM invoice_invoice rr
-    WHERE rr.hub_id = :hub_id
-      AND rr.rectifies_ref = NULLIF(CAST(:refund_ref AS TEXT), '')
-      AND rr.is_deleted = 0
+  AND (
+    -- the manual door: the whole original, untouched so far
+    (CAST(:sale_id AS TEXT) IS NULL AND EXISTS (
+      SELECT 1 FROM invoice_invoice o
+      WHERE o.hub_id = :hub_id AND o.id = CAST(:original_id AS TEXT)
+        AND o.invoice_type NOT LIKE 'R%' AND o.is_deleted = 0
+        AND NOT EXISTS (
+          SELECT 1 FROM invoice_invoice r
+          WHERE r.hub_id = :hub_id AND r.rectifies_invoice_id = o.id AND r.is_deleted = 0
+        )
+    ))
+    OR
+    -- the refund door: money still standing on the sale's original, and this refund unseen
+    (CAST(:sale_id AS TEXT) IS NOT NULL
+     AND CAST(:original_id AS TEXT) IS NULL
+     AND NULLIF(CAST(:refund_ref AS TEXT), '') IS NOT NULL
+     AND (COALESCE(CAST(:fully_refunded AS INTEGER), 0) = 1
+          OR COALESCE(CAST(:total AS INTEGER), 0) > 0)
+     AND EXISTS (
+       SELECT 1 FROM invoice_invoice o
+       WHERE o.hub_id = :hub_id
+         AND o.source_type = 'sale' AND o.source_id = CAST(:sale_id AS TEXT)
+         AND o.invoice_type NOT LIKE 'R%' AND o.is_deleted = 0
+         AND o.total_amount + COALESCE((
+               SELECT SUM(r.total_amount) FROM invoice_invoice r
+               WHERE r.hub_id = o.hub_id AND r.rectifies_invoice_id = o.id AND r.is_deleted = 0
+             ), 0) > 0
+     )
+     AND NOT EXISTS (
+       SELECT 1 FROM invoice_invoice rr
+       WHERE rr.hub_id = :hub_id
+         AND rr.rectifies_ref = NULLIF(CAST(:refund_ref AS TEXT), '')
+         AND rr.is_deleted = 0
+     ))
   );
