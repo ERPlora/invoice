@@ -22,7 +22,8 @@ proven here:
   3. A DIRECT invocation with a REAL `sale_id` issues the correct F2 — the path an external caller
      takes — and is idempotent against the relay's own asynchronous delivery of the same sale: only
      ONE invoice ever exists per `source_id` (`commands/_insert_invoice.sql`'s own `NOT EXISTS`
-     guard, D2).
+     guard, D2) — and the path that lost the race burnt no ticket number either (the same guard in
+     `_bump_series.sql`): the next sale is numbered N+1 and `invoice.numbering.gaps` stays empty.
 
 Numbering is asserted RELATIVELY (`N`, `N+1`), never as an absolute `-000001`: `TICKET` is one
 series shared by every run this battery has ever had against this hub, unlike the throwaway series
@@ -170,7 +171,8 @@ def test_direct_invocation_with_a_real_sale_id_is_correct_and_idempotent(
         },
     )
     hub.check_true(
-        "operations is 4 (this call won the race) or 0 (the relay already had)",
+        "operations is 4 (this call won the race) or 0 (the relay already had): "
+        f"{direct.get('operations')!r}",
         direct.get("operations") in (0, 4),
         str(direct),
     )
@@ -192,6 +194,29 @@ def test_direct_invocation_with_a_real_sale_id_is_correct_and_idempotent(
         "the id is stable: no second invoice ever displaced it",
         still_one.get("id"),
         inv.get("id"),
+    )
+
+    # Gapless numbering — the other half of D2 (art. 6.1.a RD 1619/2012; «sin huecos, sin
+    # duplicados», RD 1007/2023): whichever path LOST the race must not have burnt a ticket number
+    # either. `commands/_bump_series.sql` carries the same `NOT EXISTS` guard as
+    # `_insert_invoice.sql`, and a counter that moved with no invoice behind it is invisible until
+    # the NEXT number is handed out. One more real sale makes it observable: the relay drains the
+    # outbox in order (`crates/runtime/src/outbox.rs`, `ORDER BY created_at`), so by the time this
+    # sale's auto-F2 lands the loser of the race above has already run; its ticket is therefore
+    # N+1 (a burnt number would make it N+2), and the module's own gap detector — the query a tax
+    # inspection is answered with — reports nothing for the series. Dropping the guard from
+    # `_bump_series.sql` turns BOTH checks red naming the hole (reviewed mutant, hub#1264).
+    next_sale = charge_a_sale(hub, cash, "after-the-race")
+    next_inv = wait_for_invoice_by_source(hub, next_sale)
+    hub.check(
+        "the loser of the race burnt NO ticket number: the next real sale gets N+1, not N+2",
+        suffix(next_inv["number"]),
+        suffix(inv["number"]) + 1,
+    )
+    hub.check(
+        "invoice.numbering.gaps finds the TICKET series correlative",
+        [g for g in hub.query("invoice.numbering.gaps") if g.get("code") == "TICKET"],
+        [],
     )
 
 
