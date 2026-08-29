@@ -808,10 +808,17 @@ pub fn create_from_sale_pure(input: Value) -> Result<Output, String> {
     // the outbox event, so the read finds it; if the sale was deleted meanwhile, rejecting is the
     // correct outcome.
     //
-    // Failure channel: an `Err` here becomes a WASM trap -> `RuntimeError::Wasm` -> HTTP 400 with
-    // the message below, and NOTHING is persisted (no invoice row, no number, no event). Once
-    // ADR-0205 lands on the hub's main branch, this should become an `Output.error`
-    // `{code: "invoice.sale_not_found"}` -> HTTP 409 with a translatable namespaced code.
+    // Failure channel (ERPlora/hub#1264): `Output.error` -> `RuntimeError::Domain` -> HTTP 409
+    // with the stable, translatable code `invoice.sale_not_found` (ADR-0205), and NOTHING is
+    // persisted (no invoice row, no number, no event) — same as the trap this replaced. Before
+    // this it was a plain `Err(String)` -> WASM trap -> `RuntimeError::Wasm`, and hub#1074's
+    // client-facing redaction gate (`may_reach_the_client`) denies EVERY `Wasm` message: an
+    // external caller (the assistant, a future public API) saw only "the request could not be
+    // completed" with no code to branch on — worse than the stale comment this replaces assumed,
+    // since it never even leaked the detail. The domain-error channel is what every other
+    // rejection in this file already uses (`invoice.f1_requires_customer_tax_id`,
+    // `invoice.tax_quota_mismatch`…); this one had been left on the old channel since before
+    // ADR-0205 landed on the hub's main branch.
     let sale_id = s(payload.get("sale_id").unwrap_or(&Value::Null));
     let sale_found = input
         .get("context")
@@ -821,9 +828,13 @@ pub fn create_from_sale_pure(input: Value) -> Result<Output, String> {
         .map(|rows| !rows.is_empty())
         .unwrap_or(false);
     if !sale_id.is_empty() && !sale_found {
-        return Err(format!(
-            "sale_not_found: sale `{sale_id}` does not exist or is not invoiceable; refusing to issue an invoice for it"
-        ));
+        return Ok(Output::new().with_error(DomainError::new(
+            "invoice.sale_not_found",
+            format!(
+                "sale `{sale_id}` does not exist or is not invoiceable; refusing to issue an \
+                 invoice for it"
+            ),
+        )));
     }
 
     let empty: Vec<Value> = Vec::new();
@@ -1171,24 +1182,36 @@ mod tests {
 
     /// invoice#8 (hub#108): a nonexistent sale (empty read) must be REJECTED, not turned into a
     /// zero invoice that burns a fiscal number.
+    ///
+    /// Regression test for ERPlora/hub#1264: this used to assert `Err(String)` — a WASM trap that
+    /// hub#1074's client-facing redaction gate (`may_reach_the_client`) turns into a bare "the
+    /// request could not be completed" for every caller outside this process, no code to branch
+    /// on. The stable, translatable `Output.error` code is what an external caller (the assistant,
+    /// a future public API) actually sees.
     #[test]
     fn from_sale_rejects_nonexistent_sale_id() {
         let payload = json!({ "sale_id": "__missing_sale__", "customer_name": "X", "items": [] });
-        let err = create_from_sale_pure(inp_no_sale(payload, 6)).unwrap_err();
-        assert!(err.starts_with("sale_not_found:"), "expected a rejection, got: {err}");
+        let out = create_from_sale_pure(inp_no_sale(payload, 6)).unwrap();
+        let err = out.error.expect("a nonexistent sale_id must set Output.error, not a WASM trap");
+        assert_eq!(err.code, "invoice.sale_not_found");
+        assert!(err.message.contains("__missing_sale__"), "{}", err.message);
     }
 
     /// invoice#8: the rejection is not a silent no-op — it must NOT produce any operation (no
-    /// invoice row, no line, no series bump), which is what makes the whole command roll back.
+    /// invoice row, no line, no series bump); the host discards `operations`/`events` whenever
+    /// `Output.error` is set (hub#139), which is what makes the whole command roll back.
     #[test]
     fn from_sale_rejection_persists_nothing() {
         let payload = json!({
             "sale_id": "__missing_sale__",
             "items": [{ "product_name": "Café", "quantity": 1_000_000, "unit_price": 100, "tax_rate": 21.0 }]
         });
+        let out = create_from_sale_pure(inp_no_sale(payload, 6)).unwrap();
+        assert!(out.error.is_some(), "a missing sale must set Output.error");
         assert!(
-            create_from_sale_pure(inp_no_sale(payload, 6)).is_err(),
-            "a missing sale must not yield an Output with operations"
+            out.operations.is_empty(),
+            "a missing sale must not yield any operation: {:?}",
+            out.operations
         );
     }
 
