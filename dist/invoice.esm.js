@@ -9,7 +9,7 @@ var __decorateClass = (decorators, target, key, kind) => {
   return result;
 };
 
-// ../module-toolkit/node_modules/@lit-labs/ssr-dom-shim/lib/element-internals.js
+// @lit-labs/ssr-dom-shim/lib/element-internals.js
 var ElementInternalsShim = class ElementInternals {
   get shadowRoot() {
     return this.__host.__shadowRoot;
@@ -88,7 +88,7 @@ var ElementInternalsShim = class ElementInternals {
   }
 };
 
-// ../module-toolkit/node_modules/@lit-labs/ssr-dom-shim/lib/events.js
+// @lit-labs/ssr-dom-shim/lib/events.js
 var __classPrivateFieldSet = function(receiver, state, value, kind, f3) {
   if (kind === "m") throw new TypeError("Private method is not writable");
   if (kind === "a" && !f3) throw new TypeError("Private accessor was defined without a setter");
@@ -246,7 +246,7 @@ Object.defineProperties(CustomEventShim.prototype, {
 var EventShimWithRealType = EventShim;
 var CustomEventShimWithRealType = CustomEventShim;
 
-// ../module-toolkit/node_modules/@lit-labs/ssr-dom-shim/lib/css.js
+// @lit-labs/ssr-dom-shim/lib/css.js
 var _a2;
 var CSSRuleShim = (_a2 = class CSSRule {
   constructor() {
@@ -277,7 +277,7 @@ var CSSRuleShim = (_a2 = class CSSRule {
   }
 }, _a2.STYLE_RULE = 1, _a2.CHARSET_RULE = 2, _a2.IMPORT_RULE = 3, _a2.MEDIA_RULE = 4, _a2.FONT_FACE_RULE = 5, _a2.PAGE_RULE = 6, _a2.NAMESPACE_RULE = 10, _a2.KEYFRAMES_RULE = 7, _a2.KEYFRAME_RULE = 8, _a2.SUPPORTS_RULE = 12, _a2.COUNTER_STYLE_RULE = 11, _a2.FONT_FEATURE_VALUES_RULE = 14, _a2.MARGIN_RULE = 9, _a2);
 
-// ../module-toolkit/node_modules/@lit-labs/ssr-dom-shim/index.js
+// @lit-labs/ssr-dom-shim/index.js
 globalThis.Event ??= EventShimWithRealType;
 globalThis.CustomEvent ??= CustomEventShimWithRealType;
 var constructionToken = Symbol();
@@ -674,7 +674,7 @@ var CustomElementRegistryShimWithRealType = CustomElementRegistry;
 var customElements2 = new CustomElementRegistryShimWithRealType();
 var windowShim = new WindowShim(constructionToken);
 
-// ../module-toolkit/node_modules/@lit/reactive-element/node/css-tag.js
+// @lit/reactive-element/node/css-tag.js
 var t = globalThis;
 var e = t.ShadowRoot && (void 0 === t.ShadyCSS || t.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype;
 var s = Symbol();
@@ -719,7 +719,7 @@ var c = e || void 0 === t.CSSStyleSheet ? (t5) => t5 : (t5) => t5 instanceof CSS
   return r(e5);
 })(t5) : t5;
 
-// ../module-toolkit/node_modules/@lit/reactive-element/node/reactive-element.js
+// @lit/reactive-element/node/reactive-element.js
 var { is: h, defineProperty: r2, getOwnPropertyDescriptor: o2, getOwnPropertyNames: n2, getOwnPropertySymbols: a, getPrototypeOf: c2 } = Object;
 var l = globalThis;
 l.customElements ??= customElements2;
@@ -942,7 +942,7 @@ var g = class extends (globalThis.HTMLElement ?? HTMLElementShimWithRealType) {
 };
 g.elementStyles = [], g.shadowRootOptions = { mode: "open" }, g[f("elementProperties")] = /* @__PURE__ */ new Map(), g[f("finalized")] = /* @__PURE__ */ new Map(), u?.({ ReactiveElement: g }), (l.reactiveElementVersions ??= []).push("2.1.2");
 
-// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/lit-html.js
+// lit-html/lit-html.js
 var t2 = globalThis;
 var i2 = (t5) => t5;
 var s2 = t2.trustedTypes;
@@ -1197,7 +1197,7 @@ var D = (t5, i7, s5) => {
   return h4._$AI(t5), h4;
 };
 
-// node_modules/.pnpm/lit-element@4.2.2/node_modules/lit-element/lit-element.js
+// lit-element/lit-element.js
 var s3 = globalThis;
 var i3 = class extends g {
   constructor() {
@@ -1226,7 +1226,7 @@ var o4 = s3.litElementPolyfillSupport;
 o4?.({ LitElement: i3 });
 (s3.litElementVersions ??= []).push("4.2.2");
 
-// ../module-toolkit/node_modules/@lit/reactive-element/node/decorators/property.js
+// @lit/reactive-element/node/decorators/property.js
 var o5 = { attribute: true, type: String, converter: b, reflect: false, hasChanged: m };
 var r4 = (t5 = o5, e5, r6) => {
   const { kind: n6, metadata: i7 } = r6;
@@ -1256,19 +1256,19 @@ function n4(t5) {
   })(t5, e5, o7);
 }
 
-// ../module-toolkit/node_modules/@lit/reactive-element/node/decorators/state.js
+// @lit/reactive-element/node/decorators/state.js
 function r5(r6) {
   return n4({ ...r6, state: true, attribute: false });
 }
 
-// ../outfitkit/dist/define.js
+// @erplora/outfitkit/dist/define.js
 function define(tag, ctor) {
   if (typeof customElements !== "undefined" && !customElements.get(tag)) {
     customElements.define(tag, ctor);
   }
 }
 
-// ../outfitkit/dist/shared/icons.js
+// @erplora/outfitkit/dist/shared/icons.js
 var rawAdd = '<svg viewBox="0 0 512 512" width="1.2em" height="1.2em" ><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32" d="M256 112v288m144-144H112"/></svg>';
 var rawAlertCircle = '<svg viewBox="0 0 512 512" width="1.2em" height="1.2em" ><path fill="currentColor" d="M256 48C141.31 48 48 141.31 48 256s93.31 208 208 208s208-93.31 208-208S370.69 48 256 48m0 319.91a20 20 0 1 1 20-20a20 20 0 0 1-20 20m21.72-201.15l-5.74 122a16 16 0 0 1-32 0l-5.74-121.94v-.05a21.74 21.74 0 1 1 43.44 0Z"/></svg>';
 var rawAlertCircleOutline = '<svg viewBox="0 0 512 512" width="1.2em" height="1.2em" ><path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="32" d="M448 256c0-106-86-192-192-192S64 150 64 256s86 192 192 192s192-86 192-192Z"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32" d="M250.26 166.05L256 288l5.73-121.95a5.74 5.74 0 0 0-5.79-6h0a5.74 5.74 0 0 0-5.68 6"/><path fill="currentColor" d="M256 367.91a20 20 0 1 1 20-20a20 20 0 0 1-20 20"/></svg>';
@@ -1416,7 +1416,7 @@ function okIcon(value) {
   return BY_NAME[value] ?? value;
 }
 
-// ../outfitkit/dist/ok-inline-feedback.js
+// @erplora/outfitkit/dist/ok-inline-feedback.js
 var __defProp2 = Object.defineProperty;
 var __decorateClass2 = (decorators, target, key, kind) => {
   var result = void 0;
@@ -1633,7 +1633,7 @@ __decorateClass2([
 ], OkInlineFeedback.prototype, "hasActions");
 define("ok-inline-feedback", OkInlineFeedback);
 
-// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directive.js
+// lit-html/directive.js
 var t3 = { ATTRIBUTE: 1, CHILD: 2, PROPERTY: 3, BOOLEAN_ATTRIBUTE: 4, EVENT: 5, ELEMENT: 6 };
 var e4 = (t5) => (...e5) => ({ _$litDirective$: t5, values: e5 });
 var i4 = class {
@@ -1653,7 +1653,7 @@ var i4 = class {
   }
 };
 
-// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directive-helpers.js
+// lit-html/directive-helpers.js
 var { I: t4 } = j;
 var i5 = (o7) => o7;
 var s4 = () => document.createComment("");
@@ -1686,7 +1686,7 @@ var h3 = (o7) => {
   o7._$AR(), o7._$AA.remove();
 };
 
-// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/repeat.js
+// lit-html/directives/repeat.js
 var u4 = (e5, s5, t5) => {
   const r6 = /* @__PURE__ */ new Map();
   for (let l3 = s5; l3 <= t5; l3++) r6.set(e5[l3], l3);
@@ -1739,7 +1739,7 @@ var c4 = e4(class extends i4 {
   }
 });
 
-// node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/style-map.js
+// lit-html/directives/style-map.js
 var n5 = "important";
 var i6 = " !" + n5;
 var o6 = e4(class extends i4 {
@@ -1768,7 +1768,7 @@ var o6 = e4(class extends i4 {
   }
 });
 
-// ../outfitkit/dist/ok-data-table.js
+// @erplora/outfitkit/dist/ok-data-table.js
 var CSV_BOM = "\uFEFF";
 var WINDOWS_1252_C1 = [
   8364,
@@ -1863,7 +1863,8 @@ var DEFAULT_LABELS2 = {
   select: "Select",
   showing: "Showing {from}\u2013{to} of",
   recordSingular: "record",
-  recordPlural: "records"
+  recordPlural: "records",
+  loadMore: "Load more"
 };
 var ES_LABELS = {
   search: "Buscar\u2026",
@@ -1899,7 +1900,8 @@ var ES_LABELS = {
   select: "Seleccionar",
   showing: "Mostrando {from}\u2013{to} de",
   recordSingular: "registro",
-  recordPlural: "registros"
+  recordPlural: "registros",
+  loadMore: "Cargar m\xE1s"
 };
 var _OkDataTable = class _OkDataTable2 extends i3 {
   constructor() {
@@ -1934,6 +1936,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
     this.q = "";
     this.clientPage = 0;
     this.clientPageSize = 0;
+    this.mobileShown = 0;
     this.clientSort = "";
     this.clientSortDir = "asc";
     this.clientFilters = {};
@@ -1955,6 +1958,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
       } else {
         this.q = value;
         this.clientPage = 0;
+        this.mobileShown = 0;
       }
     };
   }
@@ -2202,8 +2206,12 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
       .gh.sortable:hover, .gh.sortable:active,
       .grow-data:hover, .grow-data:active { transform: none; }
     }
-    /* Cabecera: ion-card-header en fila (icono + título + checkbox); se conserva su padding Ionic. */
-    ion-card-header.rcard-head { display: flex; align-items: center; gap: 0.5rem; }
+    /* Header: ion-card-header as a single row (icon + title + checkbox), keeping Ionic's padding.
+       #79 — flex-direction/flex-wrap are SPELLED OUT on purpose: in ios mode (the mode the Hub
+       shell pins, ADR-0143) Ionic's own host CSS gives ion-card-header a column direction, so a
+       rule that only sets display:flex inherits it and the three children stack on three lines.
+       Under md the same rule looked right, which is why it shipped. */
+    ion-card-header.rcard-head { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 0.5rem; }
     .rcard-head .rc-icon { display: inline-flex; color: var(--primary); }
     .rcard-head .rc-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
     /* Cuerpo: ion-card-content (padding Ionic por defecto) con las filas clave-valor apiladas. */
@@ -2237,9 +2245,16 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
     .pager .strong { font-weight: 600; color: var(--color); }
     .psize { font: inherit; font-size: 12.5px; padding: 0.2rem 0.35rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--background); color: var(--color); }
     .pager .nav { display: flex; align-items: center; gap: 0.2rem; }
+    /* #78 — Pie en MÓVIL: un solo control «Cargar más» en lugar del pager numerado (Shopify
+       IndexTable, Fresha, Square y Material hacen lo mismo: nadie pinta botones de página en un
+       teléfono). Sin atributo fill: el sólido por defecto de Ionic es el único que pinta caja en
+       modo ios (outfitkit#82 / ADR-0143). Los 44px son el área táctil mínima. */
+    .pager .load-more { min-height: 44px; margin: 0; --padding-start: 1rem; --padding-end: 1rem; font-size: 13px; }
     .pager .nav .pp { font-weight: 600; color: var(--color); padding: 0 0.25rem; }
     /* Pager numerado: botón por página + «…» en los saltos (look del Hub). */
-    .pnum { min-width: 1.75rem; height: 1.75rem; padding: 0 0.4rem; border: 1px solid transparent; border-radius: 8px; background: none; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--color); cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+    /* #92 — min-width/height at 44px so a numbered page button matches the prev/next ion-button's
+       own 44px tap target (line above): before this they were visibly smaller than their neighbors. */
+    .pnum { min-width: var(--ok-tap-min, 44px); height: var(--ok-tap-min, 44px); padding: 0 0.4rem; border: 1px solid transparent; border-radius: 8px; background: none; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--color); cursor: pointer; transition: background 0.12s, border-color 0.12s; }
     .pnum:hover { background: var(--row-hover); }
     .pnum.on { background: color-mix(in srgb, var(--primary) 14%, transparent); color: var(--primary); border-color: color-mix(in srgb, var(--primary) 40%, transparent); }
     .pgap { padding: 0 0.15rem; color: var(--color-muted); }
@@ -2501,6 +2516,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
     }
     this.clientFilters = clean;
     this.clientPage = 0;
+    this.mobileShown = 0;
     this.panel = "none";
     this.emit("filterChange", { filters: this.serializeFilters(clean) });
   }
@@ -2621,6 +2637,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
       this.emit("sortChange", { sort: col.key, dir });
       return;
     }
+    this.mobileShown = 0;
     if (this.clientSort === col.key) {
       this.clientSortDir = this.clientSortDir === "asc" ? "desc" : "asc";
     } else {
@@ -2652,6 +2669,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
     else next[key] = merged;
     this.clientFilters = next;
     this.clientPage = 0;
+    this.mobileShown = 0;
   }
   // ion-select (select/multiselect) del panel de filtros (renderFilterControl). En servidor emite
   // `filterChange`; en cliente escribe `clientFilters` (multiselect ⇒ filtra por inclusión).
@@ -2699,8 +2717,9 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
    *   `views` antes de insertar  → tarjetas
    *   `views` después de insertar → tabla   ← lo que hace la página
    */
-  willUpdate() {
+  willUpdate(changed) {
     this.applyInitialView();
+    if (!this.serverSide && changed.has("rows") && this.mobileShown !== 0) this.mobileShown = 0;
   }
   applyInitialView() {
     if (this.viewChosenByUser) return;
@@ -2729,7 +2748,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
         <ion-select
           label=${col.header}
           label-placement="stacked"
-          fill="outline"
+          fill="outline" mode="md"
           ?multiple=${multi}
           interface="modal"
           .interfaceOptions=${{ cssClass: "ok-overlay" }}
@@ -2748,9 +2767,9 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
         <div class="fblock">
           <span class="flabel">${col.header}</span>
           <div class="frange">
-            <ion-input type=${t5} fill="outline" placeholder=${type === "daterange" ? this.t.from : this.t.gte}
+            <ion-input type=${t5} fill="outline" mode="md" placeholder=${type === "daterange" ? this.t.from : this.t.gte}
               @ionInput=${(e5) => onEdge(col, "from", e5)}></ion-input>
-            <ion-input type=${t5} fill="outline" placeholder=${type === "daterange" ? this.t.to : this.t.lte}
+            <ion-input type=${t5} fill="outline" mode="md" placeholder=${type === "daterange" ? this.t.to : this.t.lte}
               @ionInput=${(e5) => onEdge(col, "to", e5)}></ion-input>
           </div>
         </div>
@@ -2760,7 +2779,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
     return b2`
       <ion-input
         type=${inputType}
-        fill="outline"
+        fill="outline" mode="md"
         label=${col.header}
         label-placement="stacked"
         placeholder=${this.t.filterPlaceholder}
@@ -2921,8 +2940,14 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
       count = filtered.length;
       pages = Math.max(1, Math.ceil(filtered.length / ps));
       current = Math.min(this.clientPage, pages - 1);
-      visible = filtered.slice(current * ps, current * ps + ps);
+      visible = this.isMobile ? filtered.slice(0, Math.min(this.mobileShown || ps, count)) : filtered.slice(current * ps, current * ps + ps);
     }
+    const served = this.serverSide ? (current + 1) * ps : Math.min(this.mobileShown || ps, count);
+    const canLoadMore = this.isMobile && served < count;
+    const loadMore = () => {
+      if (this.serverSide) this.emit("pageChange", current + 1);
+      else this.mobileShown = Math.min((this.mobileShown || ps) + ps, count);
+    };
     const goTo = (p4) => {
       if (this.serverSide) this.emit("pageChange", p4);
       else this.clientPage = p4;
@@ -2932,6 +2957,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
       else {
         this.clientPageSize = n6;
         this.clientPage = 0;
+        this.mobileShown = 0;
       }
     };
     const searchbar = this.serverSide ? b2`<ion-searchbar class="ion-no-border" placeholder=${this.effSearchPlaceholder} debounce="250" @ionInput=${this.onSearch}></ion-searchbar>` : b2`<ion-searchbar class="ion-no-border" .value=${this.q} placeholder=${this.effSearchPlaceholder} debounce="250" @ionInput=${this.onSearch}></ion-searchbar>`;
@@ -3021,7 +3047,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
               <div class="pager">
                 <div class="left">
                   <span>
-                    ${pages > 1 ? b2`${this.t.showing.replace("{from}", String(current * ps + 1)).replace("{to}", String(Math.min((current + 1) * ps, count)))} ` : A}
+                    ${pages > 1 ? b2`${this.t.showing.replace("{from}", String(this.isMobile && !this.serverSide ? 1 : current * ps + 1)).replace("{to}", String(Math.min(served, count)))} ` : A}
                     <span class="strong">${count}</span> ${count === 1 ? this.t.recordSingular : this.t.recordPlural}
                   </span>
                   ${!showTopbar && this.effPageSizes.length ? b2`
@@ -3030,7 +3056,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
                         </select>
                       ` : A}
                 </div>
-                ${pages > 1 ? b2`
+                ${this.isMobile ? canLoadMore ? b2`<ion-button class="load-more" size="small" @click=${loadMore}>${this.t.loadMore}</ion-button>` : A : pages > 1 ? b2`
                       <div class="nav">
                         <ion-button size="small" fill="clear" ?disabled=${current === 0} @click=${() => goTo(current - 1)}><ion-icon slot="icon-only" .icon=${iconChevronBack}></ion-icon></ion-button>
                         ${this.pageList(current + 1, pages).map(
@@ -3078,8 +3104,8 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
         <div class="fblock">
           <span class="flabel">${label}</span>
           <div class="daterange">
-            <ion-input type="date" label=${this.t.from} label-placement="stacked" fill="outline" .value=${f3.from ?? ""} @ionChange=${(e5) => this.setFilterRange(col.key, "from", e5.detail.value ?? "")}></ion-input>
-            <ion-input type="date" label=${this.t.to} label-placement="stacked" fill="outline" .value=${f3.to ?? ""} @ionChange=${(e5) => this.setFilterRange(col.key, "to", e5.detail.value ?? "")}></ion-input>
+            <ion-input type="date" label=${this.t.from} label-placement="stacked" fill="outline" mode="md" .value=${f3.from ?? ""} @ionChange=${(e5) => this.setFilterRange(col.key, "from", e5.detail.value ?? "")}></ion-input>
+            <ion-input type="date" label=${this.t.to} label-placement="stacked" fill="outline" mode="md" .value=${f3.to ?? ""} @ionChange=${(e5) => this.setFilterRange(col.key, "to", e5.detail.value ?? "")}></ion-input>
           </div>
         </div>
       `;
@@ -3091,7 +3117,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
         <ion-select
           label=${label}
           label-placement="stacked"
-          fill="outline"
+          fill="outline" mode="md"
           multiple
           interface="modal"
           .interfaceOptions=${{ cssClass: "ok-overlay" }}
@@ -3139,7 +3165,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
       const caretIcon = !active ? iconSwapVerticalOutline : dir === "asc" ? iconChevronUpOutline : iconChevronDownOutline;
       return b2`
                 <div
-                  class=${`gcell gh ${alignCls(c5.align)}${sortable ? " sortable" : ""}`}
+                  class=${`gcell gh ${alignCls(c5.align)}${sortable ? " sortable" : ""}${c5.pinned === "end" ? " actions-col" : ""}`}
                   role="columnheader"
                   @click=${() => this.onHeaderClick(c5)}
                 >
@@ -3169,7 +3195,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
                 >
                   ${this.selectable ? b2`<span class="selcb" @click=${(e5) => e5.stopPropagation()}><ion-checkbox .checked=${selected} aria-label=${this.t.selectRow} @ionChange=${() => this.toggleRow(key)}></ion-checkbox></span>` : A}
                   ${cols.map(
-          (c5) => b2`<div class=${`gcell ${alignCls(c5.align)}`} role="cell">${c5.render ? c5.render(row) : b2`<span>${this.cell(c5, row)}</span>`}</div>`
+          (c5) => b2`<div class=${`gcell ${alignCls(c5.align)}${c5.pinned === "end" ? " actions-col" : ""}`} role="cell">${c5.render ? c5.render(row) : b2`<span>${this.cell(c5, row)}</span>`}</div>`
         )}
                   ${this.actions.length ? b2`<div class="gcell right actions-col" role="cell" @click=${(e5) => e5.stopPropagation()}>${this.actionButtons(row)}</div>` : A}
                 </div>
@@ -3346,6 +3372,9 @@ __decorateClass3([
 ], _OkDataTable.prototype, "clientPageSize");
 __decorateClass3([
   r5()
+], _OkDataTable.prototype, "mobileShown");
+__decorateClass3([
+  r5()
 ], _OkDataTable.prototype, "clientSort");
 __decorateClass3([
   r5()
@@ -3380,7 +3409,7 @@ __decorateClass3([
 var OkDataTable = _OkDataTable;
 define("ok-data-table", OkDataTable);
 
-// ../outfitkit/dist/ok-qr.js
+// @erplora/outfitkit/dist/ok-qr.js
 var __defProp4 = Object.defineProperty;
 var __decorateClass4 = (decorators, target, key, kind) => {
   var result = void 0;
@@ -4028,7 +4057,7 @@ __decorateClass4([
 ], OkQr.prototype, "margin");
 define("ok-qr", OkQr);
 
-// ../outfitkit/dist/ok-money.js
+// @erplora/outfitkit/dist/ok-money.js
 var __defProp5 = Object.defineProperty;
 var __decorateClass5 = (decorators, target, key, kind) => {
   var result = void 0;
@@ -4106,7 +4135,7 @@ __decorateClass5([
 ], OkMoney.prototype, "locale");
 define("ok-money", OkMoney);
 
-// ../outfitkit/dist/ok-invoice.js
+// @erplora/outfitkit/dist/ok-invoice.js
 var __defProp6 = Object.defineProperty;
 var __decorateClass6 = (decorators, target, key, kind) => {
   var result = void 0;
@@ -4363,7 +4392,7 @@ __decorateClass6([
 ], OkInvoice.prototype, "labels");
 define("ok-invoice", OkInvoice);
 
-// ../hub/packages/module-sdk/src/index.ts
+// @erplora/module-sdk/src/index.ts
 function isEmpty(v3) {
   return v3 === null || v3 === void 0 || v3 === "";
 }
@@ -4488,7 +4517,7 @@ function eurosToCents(euros) {
   return majorToMinor(euros, 2);
 }
 
-// modules/.wt-invoice/ui/lib/quantity.ts
+// ui/lib/quantity.ts
 var QUANTITY_SCALE2 = 1e6;
 function fromMicro2(raw) {
   return raw / QUANTITY_SCALE2;
@@ -4503,7 +4532,7 @@ function formatQuantity2(raw) {
   return String(fromMicro2(raw));
 }
 
-// modules/.wt-invoice/ui/lib/line-tax.ts
+// ui/lib/line-tax.ts
 var pct = (v3) => `${Number(v3 || 0).toFixed(2)}%`;
 function lineTaxLabel(line, t5) {
   const main = pct(line.tax_rate);
@@ -4512,7 +4541,7 @@ function lineTaxLabel(line, t5) {
   return surcharge > 0 ? `${main} + ${t5("ui.taxSurcharge")} ${pct(surcharge)}` : main;
 }
 
-// modules/.wt-invoice/ui/lib/print-document.ts
+// ui/lib/print-document.ts
 function toUnits(minor, decimals) {
   const n6 = Number(minor ?? 0);
   if (!Number.isFinite(n6)) return 0;
@@ -4536,7 +4565,7 @@ function invoiceToPrintDocument(invoice, lines, decimals, fiscal = {}) {
   };
 }
 
-// modules/.wt-invoice/locales/es.json
+// locales/es.json
 var es_default = {
   name: "Facturaci\xF3n",
   description: "Emite facturas a partir de las ventas, m\xE1rcalas como cobradas y emite facturas rectificativas.",
@@ -4545,7 +4574,8 @@ var es_default = {
     "invoice.tax_quota_mismatch": "La cuota de impuesto no se corresponde con la base y el tipo que declara, as\xED que no se ha emitido ninguna factura. Cobrar una cosa y declarar otra rompe el cruce que hace Hacienda.",
     "invoice.totals_mismatch": "El total de la factura no cuadra con sus propias l\xEDneas, as\xED que no se ha emitido nada.",
     "invoice.negative_total": "Una factura ordinaria no puede sumar menos de cero. Para devolver un importe se emite una rectificativa.",
-    "invoice.f1_requires_customer_tax_id": "Una factura completa (F1) necesita el NIF del cliente: sin \xE9l Hacienda la rechaza (error 1189) y el documento es en realidad un tique simplificado. Em\xEDtela con el NIF del cliente, o usa una serie de tiques simplificados (F2)."
+    "invoice.f1_requires_customer_tax_id": "Una factura completa (F1) necesita el NIF del cliente: sin \xE9l Hacienda la rechaza (error 1189) y el documento es en realidad un tique simplificado. Em\xEDtela con el NIF del cliente, o usa una serie de tiques simplificados (F2).",
+    "invoice.sale_not_found": "Esa venta no existe, o ya no est\xE1 disponible para facturar. No se ha emitido ning\xFAn documento ni se ha consumido numeraci\xF3n."
   },
   navigation: {
     invoice: {
@@ -4684,7 +4714,7 @@ var es_default = {
   }
 };
 
-// modules/.wt-invoice/locales/en.json
+// locales/en.json
 var en_default = {
   name: "Invoicing",
   errors: {
@@ -4692,7 +4722,8 @@ var en_default = {
     "invoice.tax_quota_mismatch": "The tax quota does not match the base and the rate declared for it, so no invoice was issued. Charging one amount and declaring another breaks the check the tax authority performs.",
     "invoice.totals_mismatch": "The invoice total does not add up to its own lines, so nothing was issued.",
     "invoice.negative_total": "An ordinary invoice cannot total less than zero. To return an amount, issue a corrective invoice.",
-    "invoice.f1_requires_customer_tax_id": "A complete invoice (F1) needs the customer's tax ID: without it the tax authority rejects it (error 1189) and the document is really a simplified ticket. Issue it with the customer's tax ID, or use a simplified-ticket series (F2)."
+    "invoice.f1_requires_customer_tax_id": "A complete invoice (F1) needs the customer's tax ID: without it the tax authority rejects it (error 1189) and the document is really a simplified ticket. Issue it with the customer's tax ID, or use a simplified-ticket series (F2).",
+    "invoice.sale_not_found": "That sale does not exist, or is no longer available to invoice. No document was issued and no number was used."
   },
   navigation: {
     invoice: {
@@ -4831,7 +4862,7 @@ var en_default = {
   }
 };
 
-// modules/.wt-invoice/ui/components/erp-invoice-list/erp-invoice-list.ts
+// ui/components/erp-invoice-list/erp-invoice-list.ts
 var CATALOG = { es: es_default, en: en_default };
 function catalogError(code) {
   for (const lang of [erplora().locale, "en"]) {
@@ -5529,7 +5560,7 @@ __decorateClass([
 ], ErpInvoiceList.prototype, "busy", 2);
 define("erp-invoice-list", ErpInvoiceList);
 
-// modules/.wt-invoice/ui/components/erp-invoice-settings/erp-invoice-settings.ts
+// ui/components/erp-invoice-settings/erp-invoice-settings.ts
 var CATALOG2 = { es: es_default, en: en_default };
 function erplora2() {
   const c5 = globalThis.erplora;
