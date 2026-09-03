@@ -125,6 +125,47 @@ def number_of(invoice_id: str) -> str:
     return H.q(f"SELECT number FROM invoice_invoice WHERE id = {H.literal(invoice_id)}")
 
 
+def booked(code: str, sequence: int) -> str:
+    return H.q(
+        "SELECT document_number FROM invoice_number_allocation "
+        f"WHERE hub_id = {H.literal(HUB)} AND code = {H.literal(code)} "
+        f"AND sequence = {sequence}"
+    )
+
+
+def allocation_id(code: str, sequence: int) -> str:
+    return H.q(
+        "SELECT id FROM invoice_number_allocation "
+        f"WHERE hub_id = {H.literal(HUB)} AND code = {H.literal(code)} "
+        f"AND sequence = {sequence}"
+    )
+
+
+def series_id_of(code: str) -> str:
+    return H.q(
+        "SELECT id FROM invoice_invoiceseries "
+        f"WHERE hub_id = {H.literal(HUB)} AND code = {H.literal(code)} AND year = {YEAR}"
+    )
+
+
+def park_counter(code: str, value: int) -> None:
+    """Park the series counter one short of the width border.
+
+    Reaching invoice 1.000.000 by issuing 999.999 invoices is not a test, it is a night. The
+    counter is the ONLY state the border depends on — everything the render reads (`format`,
+    `prefix`, `code`, `year`) is already there — so moving it is the whole fixture."""
+    H.psql(
+        [],
+        db=H.DB,
+        stdin=(
+            "UPDATE invoice_invoiceseries "
+            f"SET current_number = {value} "
+            f"WHERE hub_id = {H.literal(HUB)} AND code = {H.literal(code)} "
+            f"AND year = {YEAR}"
+        ),
+    )
+
+
 # ── 1. THE PIN: peek, ordinary emission and rectification render the SAME string ─────────
 
 # One case per shape the template engine has to cover. `None` is the fallback (no format set),
@@ -345,6 +386,143 @@ def test_the_migration_and_the_manifest():
             check("re-applying 008 does not fail", True, str(exc).splitlines()[0])
 
 
+# ── 6. The width is a MINIMUM, never a ceiling (invoice#70) ──────────────────────────────
+
+# `erp_pad(value, width)` is a bridge function of the portable subset (ADR-0007 4a): the runtime
+# lowers it to the dialect. The Postgres `lpad` imposes an EXACT width — it CUTS what does not fit —
+# so the shim used to turn 1.000.000 into `100000`, a number ALREADY ISSUED. The emission did not
+# come back wrong, it came back REFUSED: `uq_invoice_series_number` rejects the duplicate, the
+# transaction rolls back and the business stops invoicing at a round number, mid-day, with an error
+# no cashier can act on. The kernel made the width a floor (ERPlora/hub#1378,
+# `lpad(v, greatest(width, length(v)), fill)`); this section is the CONSUMER side of that contract —
+# what `invoice` must keep true once a sequence outgrows the width its template asked for.
+#
+# It is the same border for all FOUR places a number is rendered: the preview
+# (`queries/series_peek_next.sql`), the ordinary emission (`commands/_insert_invoice.sql`), the
+# rectification (`commands/rectify_insert.sql`) and — the one 1 above does not reach — the
+# deterministic primary key of the numbering book (`commands/_insert_allocation.sql`, which pads the
+# SEQUENCE to 6 whatever the series' own template says).
+#
+# Nothing already issued moves: only the next number past the width changes shape.
+
+
+def test_the_narrowest_template_survives_its_tenth_invoice():
+    print("\n== 6a. `{seq:01d}`: invoice 10 is `10`, not the `1` already issued ==")
+    sid = make_series("FI", "F1", "{prefix}{seq:01d}")
+    check("the series is created", False, sid.startswith("<"))
+
+    ok, err = emit("INV-FI-1", "FI")
+    check("the first invoice is issued", (True, ""), (ok, err))
+    check("...as FI1", "FI1", number_of("INV-FI-1"))
+
+    park_counter("FI", 9)
+    previewed = peek(sid).get("next_number")
+    check("peek shows the WHOLE number at the border", "FI10", previewed)
+
+    ok, err = emit("INV-FI-10", "FI")
+    # Truncated to `FI1` this INSERT dies on uq_invoice_series_number and no invoice exists.
+    check("the tenth invoice is issued", (True, ""), (ok, err))
+    check("...as FI10, not the FI1 already issued", "FI10", number_of("INV-FI-10"))
+    check("peek == the number actually written", previewed, number_of("INV-FI-10"))
+    check("the numbering book copied the same string", "FI10", booked("FI", 10))
+
+
+def test_the_six_digit_fallback_survives_the_millionth_invoice():
+    print("\n== 6b. the fallback shape: 999.999 -> 1.000.000 ==")
+    sid = make_series("FJ", "F1", None)
+    check("the series is created with NO format (the fallback)", False, sid.startswith("<"))
+
+    park_counter("FJ", 999_999)
+    previewed = peek(sid).get("next_number")
+    check("peek shows seven digits", f"FJ-{YEAR}-1000000", previewed)
+
+    ok, err = emit("INV-FJ-1M", "FJ")
+    check("the millionth invoice is issued", (True, ""), (ok, err))
+    written = number_of("INV-FJ-1M")
+    check("...whole, not truncated back onto FJ-YYYY-100000", f"FJ-{YEAR}-1000000", written)
+    check("peek == the number actually written", previewed, written)
+    check("the numbering book copied the same string", written, booked("FJ", 1_000_000))
+    # The book's PK is the FOURTH render site: it pads the SEQUENCE to 6 on its own. Truncated it
+    # becomes the key of sequence 100.000 and the whole emission rolls back on the primary key.
+    check(
+        "the book's deterministic key kept the whole sequence",
+        f"{HUB}/FJ/{YEAR}/1000000",
+        allocation_id("FJ", 1_000_000),
+    )
+
+
+def test_the_rectification_path_survives_its_own_border():
+    print("\n== 6c. the third render site at ITS border: `{seq:04d}` -> 10.000 ==")
+    sid = series_id_of("RECT") or make_series("RECT", "R1", "{code}-{year}-{seq:04d}")
+    check("the RECT series exists", False, sid.startswith("<"))
+
+    ok, err = emit("INV-TO-RECTIFY-BORDER", "FB")
+    check("an invoice to rectify is issued", (True, ""), (ok, err))
+
+    park_counter("RECT", 9_999)
+    previewed = peek(sid).get("next_number")
+    check("peek on RECT shows five digits", f"RECT-{YEAR}-10000", previewed)
+
+    ok, err = H.run_command(
+        "invoice.rectify",
+        {
+            "new_id": "RECT-BORDER",
+            "original_id": "INV-TO-RECTIFY-BORDER",
+            "year": YEAR,
+            "issue_date": H.NOW[:10],
+            "reason": "Wrong customer",
+        },
+    )
+    check("the ten-thousandth rectification is issued", (True, ""), (ok, err))
+    check("...whole", f"RECT-{YEAR}-10000", number_of("RECT-BORDER"))
+    check("peek == the number actually written", previewed, number_of("RECT-BORDER"))
+    check("the numbering book agrees", previewed, booked("RECT", 10_000))
+
+
+def test_the_control_proves_this_battery_can_still_see_the_bug():
+    print("\n== 6d. THE CONTROL: put the old lowering back and the border must break again ==")
+    # 6a-6c are green because the harness mirrors the kernel's shim. If that mirror ever drifts back
+    # — it HAD drifted, which is why the three above could not see this bug before invoice#70 — every
+    # green above becomes worthless without a single red to say so. So: install the lowering the
+    # runtime emitted BEFORE hub#1378 and demand the same scenario dies exactly where it used to.
+    H.install_erp_pad(H.ERP_PAD_TRUNCATING)
+    try:
+        check(
+            "the control lowering truncates, like a bare `lpad`",
+            ("00042", "1000", "100000"),
+            tuple(
+                H.q(
+                    "SELECT erp_pad(42, 5) || '|' || erp_pad(10000, 4) || '|' || erp_pad(1000000, 6)"
+                ).split("|")
+            ),
+        )
+        sid = make_series("FK", "F1", "{prefix}{seq:01d}")
+        check("the control series is created", False, sid.startswith("<"))
+        ok, err = emit("INV-FK-1", "FK")
+        check("its first invoice is issued", (True, ""), (ok, err))
+
+        park_counter("FK", 9)
+        check("...and the preview LIES, as it did", "FK1", peek(sid).get("next_number"))
+        ok, err = emit("INV-FK-10", "FK")
+        check("the tenth emission is REFUSED", False, ok)
+        # The index is the one the business hits: the number is not merely wrong, it is unissuable.
+        check(
+            "...by the index that keeps a series' numbers unique",
+            True,
+            "uq_invoice_series_number" in err,
+        )
+        check("...and no tenth invoice exists", "", number_of("INV-FK-10"))
+    finally:
+        # Leave the mirror as the rest of the run (and any battery after it) expects to find it.
+        H.install_erp_pad()
+
+    check(
+        "the mirror is restored: the width is a floor again",
+        "1000000",
+        H.q("SELECT erp_pad(1000000, 6)"),
+    )
+
+
 def main() -> int:
     running = subprocess.run(
         ["docker", "inspect", "-f", "{{.State.Running}}", H.CONTAINER],
@@ -363,6 +541,10 @@ def main() -> int:
         test_the_format_is_frozen_once_the_series_has_emitted()
         test_a_format_without_a_sequence_is_rejected_by_the_schema()
         test_the_migration_and_the_manifest()
+        test_the_narrowest_template_survives_its_tenth_invoice()
+        test_the_six_digit_fallback_survives_the_millionth_invoice()
+        test_the_rectification_path_survives_its_own_border()
+        test_the_control_proves_this_battery_can_still_see_the_bug()
     finally:
         H.psql(["-c", f"DROP DATABASE IF EXISTS {H.DB} WITH (FORCE)"])
 

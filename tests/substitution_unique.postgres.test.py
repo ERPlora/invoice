@@ -394,14 +394,39 @@ def test_migration_is_reentrant():
 # ── Runner ───────────────────────────────────────────────────────────────────────────────
 
 
-def load_migrations() -> None:
-    # `erp_pad` is a runtime bridge function (hub/crates/db/src/lib.rs, ADR-0007) — the shim
-    # translates it to `lpad((v)::text, w, '0')`. Same semantics here as a SQL function.
+# ── The `erp_pad` bridge function, in both of its lives (invoice#70) ─────────────────────
+#
+# `erp_pad` is a runtime bridge function (hub/crates/db/src/lib.rs, ADR-0007 §4a): the module writes
+# it once and the runtime lowers it to the dialect. Here it is a SQL function so the module's own SQL
+# runs unchanged — which means THIS BODY IS A MIRROR OF THE KERNEL'S SHIM, not a second opinion about
+# what padding should mean. A harness that lowers it its own way proves only its own lowering.
+#
+# The width is a MINIMUM, never a ceiling. A bare `lpad` imposes an EXACT width and CUTS what does
+# not fit, so the invoice 1.000.000 came back as `100000` — a number already issued — and
+# `uq_invoice_series_number` refused the emission (invoice#70). The kernel made the width a floor in
+# ERPlora/hub#1378 (`lpad(v, greatest(width, length(v)), fill)`, mirrored by the toolkit's validator
+# in module-toolkit#139); this mirror had stayed on the old semantics, so every number the batteries
+# rendered past its width was the truncated one and no test here could see the bug.
+#
+# `ERP_PAD_TRUNCATING` is that old lowering, kept ON PURPOSE: a battery installs it as the CONTROL to
+# prove this harness can still catch the positive. A check that cannot catch the bug is not a check.
+ERP_PAD_MIN_WIDTH = "SELECT lpad(v::text, greatest(w, length(v::text)), '0')"
+ERP_PAD_TRUNCATING = "SELECT lpad(v::text, w, '0')"
+
+
+def install_erp_pad(body: str = ERP_PAD_MIN_WIDTH, db: str | None = None) -> None:
     psql(
         [],
-        db=DB,
-        stdin="CREATE FUNCTION erp_pad(v bigint, w int) RETURNS text LANGUAGE sql AS $$ SELECT lpad(v::text, w, '0') $$;",
+        db=db or DB,
+        stdin=(
+            "CREATE OR REPLACE FUNCTION erp_pad(v bigint, w int) RETURNS text "
+            f"LANGUAGE sql AS $$ {body} $$;"
+        ),
     )
+
+
+def load_migrations() -> None:
+    install_erp_pad()
     for mig in sorted((MODULE_DIR / "migrations" / "postgres").glob("*.sql")):
         sql = DDL_TOKEN.sub(lambda m: DDL_TYPES[m.group(1).upper()], mig.read_text())
         psql([], db=DB, stdin=sql)
