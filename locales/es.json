@@ -129,7 +129,7 @@
     "fieldDefault": "Serie predeterminada",
     "codeHint": "Identificador interno de la serie (inmutable tras crearla).",
     "prefixHint": "Texto opcional antepuesto al número (ej. FAC → FAC-2026-000001).",
-    "formatHint": "Marcadores: {prefix}, {code}, {year}, {seq} y {seq:01d}…{seq:09d}. Déjalo vacío para PREFIX-AAAA-NNNNNN. Lo demás se escribe literal (p. ej. VFT{year}-A-{seq:04d}).",
+    "formatHint": "Marcadores: {prefix}, {code}, {year}, {seq} y {seq:01d}…{seq:09d}. Déjalo vacío para PREFIX-AAAA-NNNNNN. Lo demás se escribe literal (p. ej. VFT{year}-A-{seq:04d}). La anchura es un mínimo: un número más largo nunca se recorta — la factura 10.000 con {seq:04d} se escribe entera.",
     "formatLockedHint": "Esta serie ya ha emitido facturas, así que su formato de número ya no se puede cambiar: el número forma parte de la cadena de VeriFactu. Crea una serie nueva si necesitas otro formato.",
     "formatPreview": "Siguiente número",
     "yes": "Sí",
