@@ -33,6 +33,12 @@
 -- runtime (which is what lets ONE file serve both chains) and it makes the primary key say the same
 -- thing as `uq_invoice_allocation_seq` — a second attempt at the same allocation cannot invent a
 -- second row even if a future caller forgot the guard.
+--
+-- That padded sequence is a FOURTH place a number is rendered, and the only one the "three render
+-- sites" note next door does not reach: it pads to 6 whatever width the series' own template asked
+-- for. It is safe because the width is a MINIMUM (ERPlora/hub#1378) — cut to exactly 6, sequence
+-- 1.000.000 would mint the key of sequence 100.000 and take the whole emission down with it on the
+-- primary key. `tests/number_format.postgres.test.py` §6b asserts this key at that border.
 INSERT INTO invoice_number_allocation (
     id, hub_id, series_id, code, year, sequence, document_number, invoice_id, allocated_at,
     is_deleted, created_by, updated_by, created_at, updated_at

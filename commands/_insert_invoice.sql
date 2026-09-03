@@ -7,6 +7,11 @@
 -- cada forma de plantilla y exige cadenas idénticas. Si tocas uno, toca los tres. Marcadores y
 -- fallback documentados en `migrations/postgres/008_series_format.sql`. `erp_pad` (ADR-0007).
 --
+-- The width `erp_pad` receives is a MINIMUM, never a ceiling: a sequence that outgrows it is
+-- rendered WHOLE (ERPlora/hub#1378). It used to be cut, which handed back a number already issued
+-- and made `uq_invoice_series_number` refuse the emission — pinned now by
+-- `tests/number_format.postgres.test.py` §6, border by border, with §6d as its control.
+--
 -- invoice#40: la serie pasa de subquery escalar a la fuente del SELECT — el render necesita varias
 -- de sus columnas (`format`, `prefix`, `code`, `year`) y trece subqueries serían ilegibles. El
 -- efecto sobre el no-op es NINGUNO: `_ensure_series` corre justo antes en la misma transacción, así
