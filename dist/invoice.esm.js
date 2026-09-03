@@ -1924,6 +1924,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
     this.page = 0;
     this.searchable = false;
     this.sortDir = "asc";
+    this.filterValues = {};
     this.title = "";
     this.views = false;
     this.exportable = false;
@@ -1941,6 +1942,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
     this.clientSortDir = "asc";
     this.clientFilters = {};
     this.filterDraft = {};
+    this.serverFilters = {};
     this.panel = "none";
     this.viewMode = "table";
     this.viewChosenByUser = false;
@@ -2553,11 +2555,54 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
   get hasFilterRow() {
     return this.filterColumns.length > 0;
   }
-  /** Nº de filtros activos (modo cliente) → badge del botón Filtros. */
+  /** Nº de filtros activos → badge del botón Filtros. En servidor cuenta `filterValues` (#106): sin
+   *  esto el embudo no daba NINGUNA señal de que la lista venía acotada. */
   get activeFilterCount() {
+    if (this.serverSide) {
+      return Object.keys(this.serverFilters).filter((k2) => this.serverFilterState(k2) !== void 0).length;
+    }
     return Object.values(this.clientFilters).filter(
       (f3) => f3.values && f3.values.size > 0 || f3.from || f3.to
     ).length;
+  }
+  // ── Estado de filtro VISIBLE (#106) ──────────────────────────────────────────────────────────
+  /** Traduce un valor de `filterValues` (la forma que emite `filterChange`) a la forma interna que
+   *  usan los `render*Filter`. `undefined` = ese filtro no está puesto. */
+  serverFilterState(key) {
+    const raw = this.serverFilters[key];
+    if (raw === void 0 || raw === null || raw === "") return void 0;
+    if (Array.isArray(raw)) {
+      const values = raw.filter((v3) => v3 !== null && v3 !== void 0 && v3 !== "").map((v3) => String(v3));
+      return values.length ? { values: new Set(values) } : void 0;
+    }
+    if (typeof raw === "object") {
+      const range = raw;
+      const from = range.from === null || range.from === void 0 || range.from === "" ? void 0 : String(range.from);
+      const to = range.to === null || range.to === void 0 || range.to === "" ? void 0 : String(range.to);
+      return from !== void 0 || to !== void 0 ? { from, to } : void 0;
+    }
+    return { values: /* @__PURE__ */ new Set([String(raw)]) };
+  }
+  /** Estado de filtro efectivo de una columna: servidor → `filterValues`/espejo; cliente → memoria. */
+  filterStateOf(key) {
+    return this.serverSide ? this.serverFilterState(key) : this.clientFilters[key];
+  }
+  /** Fija (o borra) el valor visible de un filtro en el espejo de servidor. */
+  setServerFilter(key, value) {
+    const next = { ...this.serverFilters };
+    const empty = value === void 0 || value === null || value === "" || Array.isArray(value) && value.length === 0;
+    if (empty) delete next[key];
+    else next[key] = value;
+    this.serverFilters = next;
+  }
+  /** Fija UN extremo de un rango en el espejo. Los dos extremos viajan en eventos SEPARADOS
+   *  (`{from}` y luego `{to}`), así que aquí se MEZCLA: reemplazar borraría el otro extremo. */
+  setServerRangeEdge(key, edge, value) {
+    const prev = this.serverFilters[key];
+    const base = prev && typeof prev === "object" && !Array.isArray(prev) ? { ...prev } : {};
+    base[edge] = value;
+    const alive = (v3) => v3 !== void 0 && v3 !== null && v3 !== "";
+    this.setServerFilter(key, alive(base.from) || alive(base.to) ? base : void 0);
   }
   /** Valor crudo de una columna para ordenar/filtrar (usa format si lo hay, si no row[key]). */
   rawValue(col, row) {
@@ -2647,15 +2692,18 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
   }
   onFilterInput(col, ev) {
     const value = ev.target.value ?? "";
+    this.setServerFilter(col.key, value);
     this.emit("filterChange", { col: col.key, value });
   }
   onRangeInput(col, edge, ev) {
     const raw = ev.target.value ?? "";
     const v3 = raw === "" ? "" : Number(raw);
+    this.setServerRangeEdge(col.key, edge, v3);
     this.emit("filterChange", { col: col.key, value: { [edge]: v3 } });
   }
   onDateRangeInput(col, edge, ev) {
     const v3 = ev.target.value ?? "";
+    this.setServerRangeEdge(col.key, edge, v3);
     this.emit("filterChange", { col: col.key, value: { [edge]: v3 } });
   }
   // ── Filtros EN LÍNEA (toolbar) ────────────────────────────────────────────────────────────
@@ -2675,7 +2723,9 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
   // `filterChange`; en cliente escribe `clientFilters` (multiselect ⇒ filtra por inclusión).
   onFilterSelect(col, value, multi) {
     if (this.serverSide) {
-      this.emit("filterChange", { col: col.key, value: value ?? (multi ? [] : "") });
+      const next = value ?? (multi ? [] : "");
+      this.setServerFilter(col.key, next);
+      this.emit("filterChange", { col: col.key, value: next });
       return;
     }
     if (multi) {
@@ -2689,6 +2739,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
   onInlineRange(col, edge, ev) {
     const v3 = ev.target.value ?? "";
     if (this.serverSide) {
+      this.setServerRangeEdge(col.key, edge, v3);
       this.emit("filterChange", { col: col.key, value: { [edge]: v3 } });
       return;
     }
@@ -2719,6 +2770,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
    */
   willUpdate(changed) {
     this.applyInitialView();
+    if (changed.has("filterValues")) this.serverFilters = { ...this.filterValues ?? {} };
     if (!this.serverSide && changed.has("rows") && this.mobileShown !== 0) this.mobileShown = 0;
   }
   applyInitialView() {
@@ -2741,9 +2793,11 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
   renderFilterControl(col) {
     if (!col.filterable) return A;
     const type = col.filterType ?? "text";
+    const f3 = this.filterStateOf(col.key);
     if (type === "select" || type === "multiselect") {
       const multi = type === "multiselect";
       const opts = col.options ?? this.distinctValues(col).map((v3) => ({ value: v3, label: v3 }));
+      const current = this.selectValue(f3, multi);
       return b2`
         <ion-select
           label=${col.header}
@@ -2753,6 +2807,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
           interface="modal"
           .interfaceOptions=${{ cssClass: "ok-overlay" }}
           placeholder=${this.t.select}
+          .value=${current}
           @ionChange=${(e5) => this.onFilterSelect(col, e5.detail.value, multi)}
         >
           ${multi ? A : b2`<ion-select-option value="">${this.t.select}</ion-select-option>`}
@@ -2768,8 +2823,10 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
           <span class="flabel">${col.header}</span>
           <div class="frange">
             <ion-input type=${t5} fill="outline" mode="md" placeholder=${type === "daterange" ? this.t.from : this.t.gte}
+              .value=${f3?.from ?? ""}
               @ionInput=${(e5) => onEdge(col, "from", e5)}></ion-input>
             <ion-input type=${t5} fill="outline" mode="md" placeholder=${type === "daterange" ? this.t.to : this.t.lte}
+              .value=${f3?.to ?? ""}
               @ionInput=${(e5) => onEdge(col, "to", e5)}></ion-input>
           </div>
         </div>
@@ -2783,9 +2840,17 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
         label=${col.header}
         label-placement="stacked"
         placeholder=${this.t.filterPlaceholder}
+        .value=${this.selectValue(f3, false)}
         @ionInput=${(e5) => this.onFilterInput(col, e5)}
       ></ion-input>
     `;
+  }
+  /** Valor para un control de un solo valor (`ion-select`/`ion-input`) o multi (`ion-select
+   *  multiple`) a partir del estado de filtro interno. '' / [] = sin filtro. */
+  selectValue(f3, multi) {
+    const values = [...f3?.values ?? /* @__PURE__ */ new Set()];
+    if (multi) return values;
+    return values.length ? values[0] : "";
   }
   // Controles de filtro COMPACTOS para la toolbar (modo `inlineFilters`). Solo select y rango de
   // fechas (los del screenshot); el resto de tipos siguen disponibles vía el drawer si no se activa
@@ -2800,11 +2865,11 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
   }
   renderInlineFilter(col) {
     const type = col.filterType ?? "text";
-    const f3 = this.clientFilters[col.key];
+    const f3 = this.filterStateOf(col.key);
     if (type === "select" || type === "multiselect") {
       const multi = type === "multiselect";
       const opts = col.options ?? this.distinctValues(col).map((v3) => ({ value: v3, label: v3 }));
-      const current = multi ? [...f3?.values ?? /* @__PURE__ */ new Set()] : f3?.values && f3.values.size ? [...f3.values][0] : "";
+      const current = this.selectValue(f3, multi);
       return b2`
         <ion-select
           class="tk-filter"
@@ -3002,7 +3067,7 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
                             ${this.toolButton("grid-outline", this.viewMode === "cards", () => this.setViewMode("cards"), this.t.viewCards)}
                           </span>
                         ` : A}
-                    ${this.hasFilterRow && !this.inlineFilters ? this.toolButton("funnel-outline", this.panel === "filters" || this.activeFilterCount > 0, () => this.toggle("filters"), this.t.filters, this.serverSide ? void 0 : this.activeFilterCount) : A}
+                    ${this.hasFilterRow && !this.inlineFilters ? this.toolButton("funnel-outline", this.panel === "filters" || this.activeFilterCount > 0, () => this.toggle("filters"), this.t.filters, this.activeFilterCount) : A}
                     ${this.effImport ? b2`
                           ${this.toolButton("cloud-upload-outline", false, () => this.renderRoot.querySelector(".tk-file")?.click(), this.t.importCsv)}
                           <input class="tk-file" type="file" accept=".csv,text/csv" hidden @change=${(e5) => this.onImportFile(e5)} />
@@ -3314,6 +3379,9 @@ __decorateClass3([
   n4({ attribute: "sort-dir" })
 ], _OkDataTable.prototype, "sortDir");
 __decorateClass3([
+  n4({ attribute: false })
+], _OkDataTable.prototype, "filterValues");
+__decorateClass3([
   n4()
 ], _OkDataTable.prototype, "title");
 __decorateClass3([
@@ -3385,6 +3453,9 @@ __decorateClass3([
 __decorateClass3([
   r5()
 ], _OkDataTable.prototype, "filterDraft");
+__decorateClass3([
+  r5()
+], _OkDataTable.prototype, "serverFilters");
 __decorateClass3([
   r5()
 ], _OkDataTable.prototype, "panel");
@@ -4697,7 +4768,7 @@ var es_default = {
     fieldDefault: "Serie predeterminada",
     codeHint: "Identificador interno de la serie (inmutable tras crearla).",
     prefixHint: "Texto opcional antepuesto al n\xFAmero (ej. FAC \u2192 FAC-2026-000001).",
-    formatHint: "Marcadores: {prefix}, {code}, {year}, {seq} y {seq:01d}\u2026{seq:09d}. D\xE9jalo vac\xEDo para PREFIX-AAAA-NNNNNN. Lo dem\xE1s se escribe literal (p.\u2009ej. VFT{year}-A-{seq:04d}).",
+    formatHint: "Marcadores: {prefix}, {code}, {year}, {seq} y {seq:01d}\u2026{seq:09d}. D\xE9jalo vac\xEDo para PREFIX-AAAA-NNNNNN. Lo dem\xE1s se escribe literal (p.\u2009ej. VFT{year}-A-{seq:04d}). La anchura es un m\xEDnimo: un n\xFAmero m\xE1s largo nunca se recorta \u2014 la factura 10.000 con {seq:04d} se escribe entera.",
     formatLockedHint: "Esta serie ya ha emitido facturas, as\xED que su formato de n\xFAmero ya no se puede cambiar: el n\xFAmero forma parte de la cadena de VeriFactu. Crea una serie nueva si necesitas otro formato.",
     formatPreview: "Siguiente n\xFAmero",
     yes: "S\xED",
@@ -4845,7 +4916,7 @@ var en_default = {
     fieldDefault: "Default series",
     codeHint: "Internal identifier of the series (immutable once created).",
     prefixHint: "Optional text prepended to the number (e.g. FAC \u2192 FAC-2026-000001).",
-    formatHint: "Placeholders: {prefix}, {code}, {year}, {seq} and {seq:01d}\u2026{seq:09d}. Leave empty for PREFIX-YYYY-NNNNNN. Anything else is written literally (e.g. VFT{year}-A-{seq:04d}).",
+    formatHint: "Placeholders: {prefix}, {code}, {year}, {seq} and {seq:01d}\u2026{seq:09d}. Leave empty for PREFIX-YYYY-NNNNNN. Anything else is written literally (e.g. VFT{year}-A-{seq:04d}). The width is a minimum: a longer number is never cut \u2014 invoice 10,000 with {seq:04d} is written whole.",
     formatLockedHint: "This series has already issued invoices, so its number format can no longer be changed: the number is part of the VeriFactu chain. Create a new series if you need a different format.",
     formatPreview: "Next number",
     yes: "Yes",
