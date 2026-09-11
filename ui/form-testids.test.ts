@@ -198,8 +198,15 @@ const CONTROL_OPEN = new RegExp(`<(${CONTROL_TAGS.join('|')})(?=[\\s/>])`, 'g');
  */
 const TESTID_VALUE = /(?<![\w.:?@-])data-testid="([^"]*)"/g;
 
-/** The `testid` an `<ok-data-table>` receives: the whole namespace of the chrome it paints. */
-const TABLE_TESTID = /(?<![\w-])testid="([^"]*)"/;
+/**
+ * The `testid` an `<ok-data-table>` receives: the whole namespace of the chrome it paints.
+ *
+ * The `:` in the lookbehind is doing work. `:testid="x"` is not a binding in Lit — it paints an
+ * attribute literally called `:testid`, which `ok-data-table` never reads, so the table paints no
+ * chrome at all. Without the `:` this reader accepts that dead spelling as the declared namespace
+ * and the static rule goes green on a table nobody can address.
+ */
+const TABLE_TESTID = /(?<![:\w-])testid="([^"]*)"/;
 
 /**
  * Any `data-test…` attribute, so the guard can tell the hook from the variants that look like one
