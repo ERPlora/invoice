@@ -97,8 +97,15 @@ interface InvoiceLine {
 
 interface SeriesRow { id: string; code: string; name: string; invoice_type: string; is_active: number; }
 
-/** Línea del formulario de alta (strings: vienen de ion-input). */
-interface DraftItem { description: string; quantity: string; unit_price: string; tax_rate: string; }
+/**
+ * Línea del formulario de alta (strings: vienen de ion-input).
+ *
+ * `uid` es la identidad de la línea EN PANTALLA, y existe para nombrar sus ganchos de QA
+ * (`invoice-line-<uid>-…`, invoice#76). Por índice no vale: borrar la primera renumera todas las de
+ * abajo, y el spec que rellenaba `…-0-…` pasaría a rellenar otra línea sin enterarse. No viaja al
+ * cable — `create()` arma el payload campo a campo.
+ */
+interface DraftItem { uid: number; description: string; quantity: string; unit_price: string; tax_rate: string; }
 
 function erplora(): ErploraClientLike {
   const c = (globalThis as { erplora?: ErploraClientLike }).erplora;
@@ -150,7 +157,10 @@ const currencyDecimals = (): number => {
 };
 const fmtDoc = (v: unknown, currency: string) => erplora().formatMoney(Number(v || 0), { currency });
 const num = (v: unknown) => Number(v || 0).toFixed(2);
-const emptyItem = (): DraftItem => ({ description: '', quantity: '1', unit_price: '', tax_rate: '21' });
+/** La primera línea de un alta recién abierta. Congelado para que el QA lo pueda predecir. */
+const FIRST_ITEM_UID = 1;
+
+const emptyItem = (uid: number): DraftItem => ({ uid, description: '', quantity: '1', unit_price: '', tax_rate: '21' });
 
 export class ErpInvoiceList extends LitElement {
   static styles = css`
@@ -224,7 +234,11 @@ export class ErpInvoiceList extends LitElement {
 
   @state() newSeriesCode = 'FACT';
 
-  @state() newItems: DraftItem[] = [emptyItem()];
+  @state() newItems: DraftItem[] = [emptyItem(FIRST_ITEM_UID)];
+
+  /** Siguiente identidad de línea. Vuelve a 1 con el formulario, así un alta recién abierta empieza
+   *  siempre por `invoice-line-1-…` y el QA puede predecir el nombre. */
+  private nextItemUid = FIRST_ITEM_UID + 1;
 
   @state() seriesOptions: SeriesRow[] = [];
 
@@ -456,6 +470,15 @@ export class ErpInvoiceList extends LitElement {
 
   // ── alta manual (invoice.create) ──────────────────────────────────────────
 
+  private addItem() {
+    this.newItems = [...this.newItems, emptyItem(this.nextItemUid++)];
+  }
+
+  private resetItems() {
+    this.nextItemUid = FIRST_ITEM_UID + 1;
+    this.newItems = [emptyItem(FIRST_ITEM_UID)];
+  }
+
   private setItem(i: number, key: keyof DraftItem, value: string) {
     this.newItems = this.newItems.map((it, j) => (j === i ? { ...it, [key]: value } : it));
   }
@@ -492,7 +515,7 @@ export class ErpInvoiceList extends LitElement {
         })),
       });
       this.newCustomerName = ''; this.newCustomerTaxId = ''; this.newCustomerAddress = '';
-      this.newNotes = ''; this.newItems = [emptyItem()];
+      this.newNotes = ''; this.resetItems();
       this.dataTable()?.close(); // el panel de alta se cierra solo tras emitir
       await this.ctrl.load();
     } catch (e) {
@@ -610,12 +633,12 @@ export class ErpInvoiceList extends LitElement {
   private renderAeatCard() {
     const a = this.aeat;
     if (!a) return nothing;
-    return html`<div class="card aeat-card screen-only">
+    return html`<div class="card aeat-card screen-only" data-testid="invoice-aeat">
       <div class="aeat-head">
         <h3>${erploraT('ui.aeatTitle')}</h3>
-        <ion-badge color=${this.aeatStatusColor(a.status)}>${this.aeatStatusLabel(a.status) || '—'}</ion-badge>
+        <ion-badge data-testid="invoice-aeat-status" color=${this.aeatStatusColor(a.status)}>${this.aeatStatusLabel(a.status) || '—'}</ion-badge>
       </div>
-      ${a.csv ? html`<div class="kv"><span class="k">${erploraT('ui.aeatCsv')}</span><code>${a.csv}</code></div>` : nothing}
+      ${a.csv ? html`<div class="kv"><span class="k">${erploraT('ui.aeatCsv')}</span><code data-testid="invoice-aeat-csv">${a.csv}</code></div>` : nothing}
       ${a.qr
         ? html`<div class="qr-wrap">
             <ok-qr value=${a.qr} size="120" ec="M"></ok-qr>
@@ -629,15 +652,15 @@ export class ErpInvoiceList extends LitElement {
   private renderRectifyCard() {
     const t = this.rectifyTarget;
     if (!t) return nothing;
-    return html`<div class="card">
+    return html`<div class="card" data-testid="invoice-rectify">
       <h3>${erploraT('ui.rectifyTitle', { number: t.number })}</h3>
       <p>${erploraT('ui.rectifyNote')}</p>
       <div class="form">
-        <ion-textarea fill="outline" label-placement="floating" label=${erploraT('ui.lblReason')} placeholder=${erploraT('ui.rectifyReasonPlaceholder')} auto-grow .value=${this.rectifyReason} @ionInput=${(e: any) => (this.rectifyReason = e.target.value)}></ion-textarea>
+        <ion-textarea data-testid="invoice-rectify-reason" fill="outline" label-placement="floating" label=${erploraT('ui.lblReason')} placeholder=${erploraT('ui.rectifyReasonPlaceholder')} auto-grow .value=${this.rectifyReason} @ionInput=${(e: any) => (this.rectifyReason = e.target.value)}></ion-textarea>
       </div>
       <div class="row-actions">
-        <ion-button color="danger" ?disabled=${this.busy || !this.rectifyReason.trim()} @click=${() => this.confirmRectify()}>${this.busy ? erploraT('ui.rectifying') : erploraT('ui.issueRectifying')}</ion-button>
-        <ion-button fill="outline" color="medium" @click=${() => (this.rectifyTarget = null)}>${erploraT('ui.cancel')}</ion-button>
+        <ion-button data-testid="invoice-rectify-submit" color="danger" ?disabled=${this.busy || !this.rectifyReason.trim()} @click=${() => this.confirmRectify()}>${this.busy ? erploraT('ui.rectifying') : erploraT('ui.issueRectifying')}</ion-button>
+        <ion-button data-testid="invoice-rectify-cancel" fill="outline" color="medium" @click=${() => (this.rectifyTarget = null)}>${erploraT('ui.cancel')}</ion-button>
       </div>
     </div>`;
   }
@@ -672,16 +695,16 @@ export class ErpInvoiceList extends LitElement {
 
   private renderDetail() {
     const d = this.detail!;
-    return html`<div>
+    return html`<div data-testid="invoice-detail">
       <header class="screen-only">
         <h2>${erploraT('ui.detailTitle', { number: d.number })}</h2>
-        <ion-badge color=${STATUS_COLOR[d.status] ?? 'medium'}>${statusLabel(d.status)}</ion-badge>
-        <ion-button class="print" @click=${() => this.printDetail()}>
+        <ion-badge data-testid="invoice-detail-status" color=${STATUS_COLOR[d.status] ?? 'medium'}>${statusLabel(d.status)}</ion-badge>
+        <ion-button class="print" data-testid="invoice-detail-print" @click=${() => this.printDetail()}>
           <ion-icon slot="start" name="print-outline"></ion-icon> ${erploraT('ui.actionPrint')}
         </ion-button>
-        <ion-button fill="outline" color="medium" @click=${() => this.closeDetail()}>← ${erploraT('ui.back')}</ion-button>
+        <ion-button data-testid="invoice-detail-back" fill="outline" color="medium" @click=${() => this.closeDetail()}>← ${erploraT('ui.back')}</ion-button>
       </header>
-      ${this.actionError ? html`<p class="err screen-only">${this.actionError}</p>` : nothing}
+      ${this.actionError ? html`<p class="err screen-only" data-testid="invoice-detail-error">${this.actionError}</p>` : nothing}
       <div class="screen-only">${this.renderRectifyCard()}</div>
       ${this.renderAeatCard()}
       <div class="card screen-only">
@@ -698,22 +721,22 @@ export class ErpInvoiceList extends LitElement {
           ${d.paid_at ? html`<div><dt>${erploraT('ui.fieldPaidAt')}</dt><dd>${d.paid_at}</dd></div>` : nothing}
           ${d.notes ? html`<div><dt>${erploraT('ui.fieldNotes')}</dt><dd>${d.notes}</dd></div>` : nothing}
         </dl>
-        ${this.detailLines.length ? html`<table class="lines">
+        ${this.detailLines.length ? html`<table class="lines" data-testid="invoice-detail-lines">
           <thead><tr><th>#</th><th>${erploraT('ui.lineDescription')}</th><th>${erploraT('ui.lineQty')}</th><th>${erploraT('ui.linePrice')}</th><th>${erploraT('ui.lineTaxPct')}</th><th>${erploraT('ui.lineBase')}</th><th>${erploraT('ui.lineTax')}</th><th>${erploraT('ui.lineTotal')}</th></tr></thead>
           <tbody>${this.detailLines.map((l) => html`<tr>
             <td>${l.line_number}</td><td>${l.description}</td><td>${formatQuantity(Number(l.quantity) || 0)}</td>
             <td>${fmtDoc(l.unit_price, d.currency)}</td><td>${lineTaxLabel(l, erploraT)}</td>
             <td>${fmtDoc(l.base_amount, d.currency)}</td><td>${fmtDoc(l.tax_amount, d.currency)}</td><td>${fmtDoc(l.total_amount, d.currency)}</td>
           </tr>`)}</tbody>
-        </table>` : html`<p>${erploraT('ui.noLines')}</p>`}
+        </table>` : html`<p data-testid="invoice-detail-no-lines">${erploraT('ui.noLines')}</p>`}
         <div class="totals">
-          <span>${erploraT('ui.totalBase')}: ${fmtDoc(d.base_amount, d.currency)}</span>
-          <span>${erploraT('ui.totalTaxes')}: ${fmtDoc(d.tax_amount, d.currency)}</span>
-          <span>${erploraT('ui.totalTotal')}: ${fmtDoc(d.total_amount, d.currency)}</span>
+          <span data-testid="invoice-detail-base">${erploraT('ui.totalBase')}: ${fmtDoc(d.base_amount, d.currency)}</span>
+          <span data-testid="invoice-detail-taxes">${erploraT('ui.totalTaxes')}: ${fmtDoc(d.tax_amount, d.currency)}</span>
+          <span data-testid="invoice-detail-total">${erploraT('ui.totalTotal')}: ${fmtDoc(d.total_amount, d.currency)}</span>
         </div>
         <div class="row-actions">
-          ${this.canAdd && d.status === 'issued' ? html`<ion-button color="success" ?disabled=${this.busy} @click=${() => this.markPaid(d)}>${erploraT('ui.actionMarkPaid')}</ion-button>` : nothing}
-          ${this.canRectify && !(d.invoice_type ?? '').startsWith('R') && d.status !== 'cancelled' ? html`<ion-button fill="outline" color="danger" ?disabled=${this.busy} @click=${() => this.startRectify(d)}>${erploraT('ui.actionRectify')}</ion-button>` : nothing}
+          ${this.canAdd && d.status === 'issued' ? html`<ion-button data-testid="invoice-detail-mark-paid" color="success" ?disabled=${this.busy} @click=${() => this.markPaid(d)}>${erploraT('ui.actionMarkPaid')}</ion-button>` : nothing}
+          ${this.canRectify && !(d.invoice_type ?? '').startsWith('R') && d.status !== 'cancelled' ? html`<ion-button data-testid="invoice-detail-rectify" fill="outline" color="danger" ?disabled=${this.busy} @click=${() => this.startRectify(d)}>${erploraT('ui.actionRectify')}</ion-button>` : nothing}
         </div>
       </div>
       <!-- Documento imprimible (solo al imprimir / Guardar como PDF): layout factura con QR VeriFactu. -->
@@ -724,31 +747,31 @@ export class ErpInvoiceList extends LitElement {
   // Alta manual: se proyecta SIEMPRE en el panel `create` de la tabla (aunque esté cerrado); si solo
   // se pintara al abrir, el «+» de la barra —que lo despliega la propia tabla— saldría vacío.
   private renderCreateForm() {
-    return html`<form slot="create" @submit=${(e: Event) => this.create(e)}>
+    return html`<form slot="create" data-testid="invoice-create-form" @submit=${(e: Event) => this.create(e)}>
         <div class="form">
-          <ion-select fill="outline" label-placement="floating" label=${erploraT('ui.fieldSeries')} interface="popover" .value=${this.newSeriesCode} @ionChange=${(e: any) => (this.newSeriesCode = e.target.value)}>
+          <ion-select data-testid="invoice-create-series" fill="outline" label-placement="floating" label=${erploraT('ui.fieldSeries')} interface="popover" .value=${this.newSeriesCode} @ionChange=${(e: any) => (this.newSeriesCode = e.target.value)}>
             ${this.seriesOptions.length
               ? this.seriesOptions.map((sr) => html`<ion-select-option .value=${sr.code}>${sr.code} — ${sr.name || typeLabel(sr.invoice_type)}</ion-select-option>`)
               : html`<ion-select-option value="FACT">FACT — ${typeLabel('F1')} (F1)</ion-select-option><ion-select-option value="TICKET">TICKET — ${typeLabel('F2')} (F2)</ion-select-option>`}
           </ion-select>
-          <ion-input fill="outline" label-placement="floating" label=${erploraT('ui.fieldCustomer')} .value=${this.newCustomerName} @ionInput=${(e: any) => (this.newCustomerName = e.target.value)}></ion-input>
-          <ion-input fill="outline" label-placement="floating" label=${erploraT('ui.fieldCustomerTaxId')} placeholder=${erploraT('ui.placeholderTaxId')} .value=${this.newCustomerTaxId} @ionInput=${(e: any) => (this.newCustomerTaxId = e.target.value)}></ion-input>
-          <ion-input fill="outline" label-placement="floating" label=${erploraT('ui.fieldAddress')} .value=${this.newCustomerAddress} @ionInput=${(e: any) => (this.newCustomerAddress = e.target.value)}></ion-input>
-          <ion-input fill="outline" label-placement="floating" label=${erploraT('ui.fieldNotes')} .value=${this.newNotes} @ionInput=${(e: any) => (this.newNotes = e.target.value)}></ion-input>
+          <ion-input data-testid="invoice-create-customer" fill="outline" label-placement="floating" label=${erploraT('ui.fieldCustomer')} .value=${this.newCustomerName} @ionInput=${(e: any) => (this.newCustomerName = e.target.value)}></ion-input>
+          <ion-input data-testid="invoice-create-customer-tax-id" fill="outline" label-placement="floating" label=${erploraT('ui.fieldCustomerTaxId')} placeholder=${erploraT('ui.placeholderTaxId')} .value=${this.newCustomerTaxId} @ionInput=${(e: any) => (this.newCustomerTaxId = e.target.value)}></ion-input>
+          <ion-input data-testid="invoice-create-address" fill="outline" label-placement="floating" label=${erploraT('ui.fieldAddress')} .value=${this.newCustomerAddress} @ionInput=${(e: any) => (this.newCustomerAddress = e.target.value)}></ion-input>
+          <ion-input data-testid="invoice-create-notes" fill="outline" label-placement="floating" label=${erploraT('ui.fieldNotes')} .value=${this.newNotes} @ionInput=${(e: any) => (this.newNotes = e.target.value)}></ion-input>
         </div>
         ${this.newItems.map((it, i) => html`<div class="item-row">
-          <ion-input class="desc" fill="outline" label-placement="floating" label=${erploraT('ui.lineDescription')} .value=${it.description} @ionInput=${(e: any) => this.setItem(i, 'description', e.target.value)}></ion-input>
-          <ion-input class="num" fill="outline" label-placement="floating" label=${erploraT('ui.lineQty')} type="number" .value=${it.quantity} @ionInput=${(e: any) => this.setItem(i, 'quantity', e.target.value)}></ion-input>
-          <ion-input class="num" fill="outline" label-placement="floating" label=${erploraT('ui.linePrice')} type="number" .value=${it.unit_price} @ionInput=${(e: any) => this.setItem(i, 'unit_price', e.target.value)}></ion-input>
-          <ion-input class="num" fill="outline" label-placement="floating" label=${erploraT('ui.lineTaxPct')} type="number" .value=${it.tax_rate} @ionInput=${(e: any) => this.setItem(i, 'tax_rate', e.target.value)}></ion-input>
-          ${this.newItems.length > 1 ? html`<ion-button fill="clear" color="danger" aria-label=${erploraT('ui.removeLine')} @click=${() => (this.newItems = this.newItems.filter((_, j) => j !== i))}><ion-icon slot="icon-only" name="close-outline"></ion-icon></ion-button>` : nothing}
+          <ion-input data-testid="invoice-line-${it.uid}-description" class="desc" fill="outline" label-placement="floating" label=${erploraT('ui.lineDescription')} .value=${it.description} @ionInput=${(e: any) => this.setItem(i, 'description', e.target.value)}></ion-input>
+          <ion-input data-testid="invoice-line-${it.uid}-quantity" class="num" fill="outline" label-placement="floating" label=${erploraT('ui.lineQty')} type="number" .value=${it.quantity} @ionInput=${(e: any) => this.setItem(i, 'quantity', e.target.value)}></ion-input>
+          <ion-input data-testid="invoice-line-${it.uid}-price" class="num" fill="outline" label-placement="floating" label=${erploraT('ui.linePrice')} type="number" .value=${it.unit_price} @ionInput=${(e: any) => this.setItem(i, 'unit_price', e.target.value)}></ion-input>
+          <ion-input data-testid="invoice-line-${it.uid}-tax-rate" class="num" fill="outline" label-placement="floating" label=${erploraT('ui.lineTaxPct')} type="number" .value=${it.tax_rate} @ionInput=${(e: any) => this.setItem(i, 'tax_rate', e.target.value)}></ion-input>
+          ${this.newItems.length > 1 ? html`<ion-button data-testid="invoice-line-${it.uid}-remove" fill="clear" color="danger" aria-label=${erploraT('ui.removeLine')} @click=${() => (this.newItems = this.newItems.filter((_, j) => j !== i))}><ion-icon slot="icon-only" name="close-outline"></ion-icon></ion-button>` : nothing}
         </div>`)}
         <div class="row-actions">
-          <ion-button fill="outline" @click=${() => (this.newItems = [...this.newItems, emptyItem()])}>${erploraT('ui.addLine')}</ion-button>
-          <ion-button type="submit" ?disabled=${this.saving || !this.itemsValid}>${this.saving ? erploraT('ui.issuing') : erploraT('ui.issueInvoice')}</ion-button>
-          <ion-button fill="clear" color="medium" @click=${() => this.dataTable()?.close()}>${erploraT('ui.cancel')}</ion-button>
+          <ion-button data-testid="invoice-create-add-line" fill="outline" @click=${() => this.addItem()}>${erploraT('ui.addLine')}</ion-button>
+          <ion-button data-testid="invoice-create-submit" type="submit" ?disabled=${this.saving || !this.itemsValid}>${this.saving ? erploraT('ui.issuing') : erploraT('ui.issueInvoice')}</ion-button>
+          <ion-button data-testid="invoice-create-cancel" fill="clear" color="medium" @click=${() => this.dataTable()?.close()}>${erploraT('ui.cancel')}</ion-button>
         </div>
-        ${this.formError ? html`<ok-inline-feedback tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : nothing}
+        ${this.formError ? html`<ok-inline-feedback data-testid="invoice-create-error" tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : nothing}
       </form>`;
   }
 
@@ -758,12 +781,12 @@ export class ErpInvoiceList extends LitElement {
     if (this.detail) return this.renderDetail();
     return html`<div class="page">
         ${this.renderRectifyCard()}
-        ${this.actionError ? html`<ok-inline-feedback tone="danger" icon="alert-circle-outline">${this.actionError}</ok-inline-feedback>` : nothing}
-        ${this.detailError ? html`<ok-inline-feedback tone="danger" icon="alert-circle-outline">${this.detailError}</ok-inline-feedback>` : nothing}
-        ${this.ctrl?.error ? html`<ok-inline-feedback tone="danger" icon="alert-circle-outline">${this.ctrl.error}</ok-inline-feedback>` : nothing}
+        ${this.actionError ? html`<ok-inline-feedback data-testid="invoice-action-error" tone="danger" icon="alert-circle-outline">${this.actionError}</ok-inline-feedback>` : nothing}
+        ${this.detailError ? html`<ok-inline-feedback data-testid="invoice-detail-load-error" tone="danger" icon="alert-circle-outline">${this.detailError}</ok-inline-feedback>` : nothing}
+        ${this.ctrl?.error ? html`<ok-inline-feedback data-testid="invoice-list-error" tone="danger" icon="alert-circle-outline">${this.ctrl.error}</ok-inline-feedback>` : nothing}
         <!-- The «View» button is not the only door: rowClickable makes the whole row open the
              same detail (outfitkit#67 — the actions column can be off-screen at 1440 px). -->
-        <ok-data-table .serverSide=${true} .fill=${true} .addable=${this.canAdd} .columns=${this.columns} .views=${true} .cardTitle=${(r: Record<string, unknown>) => String(r.number ?? '—')} .cardIcon=${() => 'document-text-outline'} .rows=${this.ctrl?.rows ?? []} .total=${this.ctrl?.total ?? 0} .page=${this.ctrl?.state.page ?? 0} .pageSize=${this.ctrl?.state.pageSize ?? 50} .sort=${this.ctrl?.state.sort} .sortDir=${this.ctrl?.state.dir ?? 'asc'} .searchable=${true} .searchPlaceholder=${erploraT('ui.searchPlaceholder')} .actions=${this.rowActions} .rowClickable=${true} .emptyMessage=${this.ctrl?.loading ? erploraT('ui.loading') : erploraT('ui.empty')} @rowAction=${(e: CustomEvent<{ actionId: string; row: Record<string, unknown> }>) => this.onRowAction(e)} @rowClick=${(e: CustomEvent<{ row: Record<string, unknown> }>) => this.openDetail(String(e.detail.row.id))} @pageChange=${(e: CustomEvent<number>) => this.ctrl.setPage(e.detail)} @pageSizeChange=${(e: CustomEvent<number>) => this.ctrl.setPageSize(e.detail)} @sortChange=${(e: CustomEvent<{ sort: string; dir: 'asc' | 'desc' }>) => this.ctrl.setSort(e.detail.sort, e.detail.dir)} @searchChange=${(e: CustomEvent<string>) => this.ctrl.setSearch(e.detail)} @filterChange=${(e: CustomEvent<{ col: string; value: unknown }>) => this.ctrl.setFilter(e.detail.col, e.detail.value)}>
+        <ok-data-table testid="invoice-table" .serverSide=${true} .fill=${true} .addable=${this.canAdd} .columns=${this.columns} .views=${true} .cardTitle=${(r: Record<string, unknown>) => String(r.number ?? '—')} .cardIcon=${() => 'document-text-outline'} .rows=${this.ctrl?.rows ?? []} .total=${this.ctrl?.total ?? 0} .page=${this.ctrl?.state.page ?? 0} .pageSize=${this.ctrl?.state.pageSize ?? 50} .sort=${this.ctrl?.state.sort} .sortDir=${this.ctrl?.state.dir ?? 'asc'} .searchable=${true} .searchPlaceholder=${erploraT('ui.searchPlaceholder')} .actions=${this.rowActions} .rowClickable=${true} .emptyMessage=${this.ctrl?.loading ? erploraT('ui.loading') : erploraT('ui.empty')} @rowAction=${(e: CustomEvent<{ actionId: string; row: Record<string, unknown> }>) => this.onRowAction(e)} @rowClick=${(e: CustomEvent<{ row: Record<string, unknown> }>) => this.openDetail(String(e.detail.row.id))} @pageChange=${(e: CustomEvent<number>) => this.ctrl.setPage(e.detail)} @pageSizeChange=${(e: CustomEvent<number>) => this.ctrl.setPageSize(e.detail)} @sortChange=${(e: CustomEvent<{ sort: string; dir: 'asc' | 'desc' }>) => this.ctrl.setSort(e.detail.sort, e.detail.dir)} @searchChange=${(e: CustomEvent<string>) => this.ctrl.setSearch(e.detail)} @filterChange=${(e: CustomEvent<{ col: string; value: unknown }>) => this.ctrl.setFilter(e.detail.col, e.detail.value)}>
           ${this.canAdd ? this.renderCreateForm() : nothing}
         </ok-data-table>
       </div>`;

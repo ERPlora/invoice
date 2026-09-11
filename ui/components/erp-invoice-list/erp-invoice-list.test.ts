@@ -102,13 +102,13 @@ describe('la cadena fiscal habla el contrato: céntimos y punto fijo 10⁶', () 
 
     const wc = el as unknown as {
       newSeriesCode: string; newCustomerName: string; newCustomerTaxId: string;
-      newItems: { description: string; quantity: string; unit_price: string; tax_rate: string }[];
+      newItems: { uid: number; description: string; quantity: string; unit_price: string; tax_rate: string }[];
       create: (ev: Event) => Promise<void>;
     };
     wc.newSeriesCode = 'FACT';
     wc.newCustomerName = 'ACME';
     wc.newCustomerTaxId = 'B12345678';
-    wc.newItems = [{ description: 'Servicio', quantity: '2', unit_price: '50', tax_rate: '21' }];
+    wc.newItems = [{ uid: 1, description: 'Servicio', quantity: '2', unit_price: '50', tax_rate: '21' }];
     await wc.create(new Event('submit'));
 
     const alta = comandos.find((c) => c.name === 'invoice.create');
@@ -126,11 +126,11 @@ describe('la cadena fiscal habla el contrato: céntimos y punto fijo 10⁶', () 
     const el = await montar();
     const wc = el as unknown as {
       newSeriesCode: string;
-      newItems: { description: string; quantity: string; unit_price: string; tax_rate: string }[];
+      newItems: { uid: number; description: string; quantity: string; unit_price: string; tax_rate: string }[];
       create: (ev: Event) => Promise<void>;
     };
     wc.newSeriesCode = 'FACT';
-    wc.newItems = [{ description: 'Vino a granel', quantity: '0,5', unit_price: '12', tax_rate: '21' }];
+    wc.newItems = [{ uid: 1, description: 'Vino a granel', quantity: '0,5', unit_price: '12', tax_rate: '21' }];
     await wc.create(new Event('submit'));
     const alta = comandos.find((c) => c.name === 'invoice.create');
     expect((alta!.payload.items as Array<{ quantity: number; unit_price: number }>)[0]).toMatchObject({
@@ -296,7 +296,7 @@ describe("the module's own buttons are 44px touch targets (invoice#14)", () => {
     const el = await montar();
     const wc = el as unknown as { newItems: unknown[]; updateComplete: Promise<unknown> };
     // two lines so the per-line ✕ is rendered too
-    wc.newItems = [...(wc.newItems as unknown[]), { description: '', quantity: '1', unit_price: '0', tax_rate: '21' }];
+    wc.newItems = [...(wc.newItems as unknown[]), { uid: 2, description: '', quantity: '1', unit_price: '0', tax_rate: '21' }];
     await wc.updateComplete;
     expect(smallOnes(el), 'size="small" = ~27 px, below the 44 px touch target').toEqual([]);
   });
@@ -328,7 +328,7 @@ describe("the module's own buttons are 44px touch targets (invoice#14)", () => {
   it('the icon-only button that removes a draft line has an accessible name', async () => {
     const el = await montar();
     const wc = el as unknown as { newItems: unknown[]; updateComplete: Promise<unknown> };
-    wc.newItems = [...(wc.newItems as unknown[]), { description: '', quantity: '1', unit_price: '0', tax_rate: '21' }];
+    wc.newItems = [...(wc.newItems as unknown[]), { uid: 2, description: '', quantity: '1', unit_price: '0', tax_rate: '21' }];
     await wc.updateComplete;
     const removes = [...el.shadowRoot.querySelectorAll('.item-row ion-button')];
     expect(removes.length, 'with two draft lines each one carries its remove control').toBe(2);
@@ -351,11 +351,11 @@ describe('las negativas del handler se leen traducidas', () => {
     const el = await montar();
     const t = tabla(el)!;
     const wc = el as unknown as {
-      newItems: { description: string; quantity: string; unit_price: string; tax_rate: string }[];
+      newItems: { uid: number; description: string; quantity: string; unit_price: string; tax_rate: string }[];
       formError: string;
       updateComplete: Promise<unknown>;
     };
-    wc.newItems = [{ description: 'Servicio', quantity: '2', unit_price: '50', tax_rate: '21' }];
+    wc.newItems = [{ uid: 1, description: 'Servicio', quantity: '2', unit_price: '50', tax_rate: '21' }];
     await wc.updateComplete;
     (t.querySelector('form[slot="create"]') as HTMLFormElement).requestSubmit();
     await new Promise((r) => setTimeout(r, 0));
