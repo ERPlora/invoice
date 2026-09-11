@@ -51,7 +51,8 @@ const GUARD = 'form-testids.test.ts';
  * A covered surface: `prefix` is the namespace that belongs to it, `contract` is the EXACT set of
  * literal `data-testid` it writes today, `computed` the same for the ones Lit builds at render time
  * (declared by their SHAPE, with `*` where the interpolation goes), `tables` the `testid` handed to
- * each `<ok-data-table>`, and `controlCount` how many form controls the file holds.
+ * each `<ok-data-table>`, and `controlCount` how many controls the file holds — fields, actions and
+ * the form itself, everything `CONTROL_TAGS` sweeps.
  *
  * To get in here a screen needs every half: every control hooked, its names written down, and the
  * count declared. Adding a field to one of these screens forces this list to move — on purpose:
@@ -66,7 +67,7 @@ const COVERED: Record<
   // walks to issue an invoice, collect it and rectify it without touching a selector by text.
   'components/erp-invoice-list/erp-invoice-list.ts': {
     prefix: 'invoice-',
-    controlCount: 10,
+    controlCount: 21,
     tables: ['invoice-table'],
     contract: [
       'invoice-action-error',
@@ -118,7 +119,7 @@ const COVERED: Record<
   // noun (`employee-`, `api-key-`), not by the menu entry that leads to it.
   'components/erp-invoice-settings/erp-invoice-settings.ts': {
     prefix: 'invoice-series-',
-    controlCount: 8,
+    controlCount: 11,
     tables: ['invoice-series-table'],
     contract: [
       'invoice-series-active',
@@ -156,8 +157,20 @@ const NOT_YET_COVERED: Record<string, string> = {};
  */
 const PENDING_TODAY = 0;
 
-/** What a person fills in. Not the buttons: those are declared in the contract, one by one. */
+/**
+ * What a person TOUCHES: what they fill in, the actions they press and the form that holds them.
+ *
+ * 🔴 The hub's own list stops at the fields and leaves the buttons to the contract, "one by one".
+ * Copied here as-is that is a hole, and a measured one: the contract only knows the hooks that ARE
+ * written, so an action button added WITHOUT one changes neither the literal set nor the field
+ * count, and the whole guard stays green while the most pressed control on the screen is
+ * unreachable. Sweeping the buttons and the form is what makes the "a control with no hook" mutant
+ * die instead of survive.
+ */
 const CONTROL_TAGS = [
+  'ion-button',
+  'button',
+  'form',
   'ion-input',
   'ion-select',
   'ion-textarea',
