@@ -223,8 +223,13 @@ const TEST_ATTR = /(?<![\w-])(data-test[\w-]*)\s*=/g;
  * (`v-bind:data-testid`), Lit's own property and boolean bindings (`.data-testid`, `?data-testid`)
  * and — the realistic one in a Lit repo — an UNQUOTED binding, `data-testid=${expr}`, which is how
  * `ok-data-table` writes its own and which no regex here can read the shape of.
+ *
+ * The SEPARATOR is captured, not skipped, and that is the fifth: HTML allows `data-testid = "x"`,
+ * and the two readers of this file disagree about it — the coverage one takes it, the contract one
+ * does not. So the control counts as hooked while its name is never frozen, and a later rename of
+ * it breaks nothing. One spelling means one spelling: no space around the `=` either.
  */
-const TESTID_SPELLING = /(?<![\w-])(v-bind:data-testid|[.:?@]?data-testid)\s*=\s*("|'|[^\s"'>])/g;
+const TESTID_SPELLING = /(?<![\w-])(v-bind:data-testid|[.:?@]?data-testid)(\s*=\s*)("|'|[^\s"'>])/g;
 
 /** Kebab-case: lowercase and digits joined by single hyphens. */
 const KEBAB = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
@@ -316,7 +321,20 @@ function controls(source: string): Array<{ tag: string; line: number; open: stri
 }
 
 /** Carries a hook, in the one spelling the rules read. */
-const hasTestid = (openTagText: string): boolean => /(?:^|\s)data-testid\s*=\s*"/.test(openTagText);
+const hasTestid = (openTagText: string): boolean => /(?:^|\s)data-testid="/.test(openTagText);
+
+/**
+ * The spellings of the hook a chunk of markup writes that are NOT the one spelling. One reader, so
+ * the rule below and the fixtures that pin it can never answer differently.
+ */
+function badSpellings(source: string): string[] {
+  const out: string[] = [];
+  TESTID_SPELLING.lastIndex = 0;
+  for (let m = TESTID_SPELLING.exec(source); m; m = TESTID_SPELLING.exec(source)) {
+    if (m[1] !== 'data-testid' || m[2] !== '=' || m[3] !== '"') out.push(`${m[1]}${m[2]}${m[3]}`);
+  }
+  return out;
+}
 
 function testidValues(source: string): string[] {
   const found: string[] = [];
@@ -512,12 +530,37 @@ describe('data-testid — the module UI convention (invoice#76)', () => {
   it('a hook is spelled data-testid="…" and nothing else', () => {
     const offenders: string[] = [];
     for (const { name, source } of UI_SOURCES) {
-      TESTID_SPELLING.lastIndex = 0;
-      for (let m = TESTID_SPELLING.exec(source); m; m = TESTID_SPELLING.exec(source)) {
-        if (m[1] !== 'data-testid' || m[2] !== '"') offenders.push(`${name}: ${m[1]}=${m[2]}`);
-      }
+      for (const bad of badSpellings(source)) offenders.push(`${name}: ${bad}`);
     }
     expect(offenders, 'the rules above read one spelling: any other is a hook with no contract').toEqual([]);
+  });
+
+  it('the spelling rule denies EVERY other way of writing the same attribute', () => {
+    // Held against fixtures and not against the tree, because a rule that only ever sees the one
+    // spelling nobody has typed yet is a rule nothing has checked. Each of these is an attribute
+    // Lit renders and `getByTestId` may or may not reach — and that NO rule in this file reads.
+    for (const fixture of [
+      '<ion-input :data-testid="x"></ion-input>', // Vue's shorthand: an attribute literally named `:data-testid`
+      '<ion-input v-bind:data-testid="x"></ion-input>',
+      '<ion-input .data-testid="x"></ion-input>', // Lit property binding
+      '<ion-input ?data-testid="x"></ion-input>', // Lit boolean binding
+      "<ion-input data-testid='x'></ion-input>", // single quotes: every reader here wants double
+      '<ion-input data-testid=${name}></ion-input>', // unquoted binding: no shape to read
+      '<ion-input data-testid = "x"></ion-input>', // spaced `=`: the coverage reader takes it, the
+      // contract reader does NOT — so the control counts as hooked and its name is never frozen
+    ]) {
+      expect(badSpellings(fixture), `this spelling has to be denied: ${fixture}`).not.toEqual([]);
+    }
+    expect(badSpellings('<ion-input data-testid="x"></ion-input>'), 'the one spelling').toEqual([]);
+  });
+
+  it('only the one spelling counts as a hook for coverage', () => {
+    // The other half of the rule above: the two readers have to agree on what a hook IS. While they
+    // disagree, `data-testid = "x"` leaves the control covered and its name outside the contract,
+    // and a rename of it breaks nothing here.
+    expect(hasTestid('<ion-input data-testid="x">'), 'the one spelling is a hook').toBe(true);
+    expect(hasTestid('<ion-input :data-testid="x">'), ':data-testid is not a hook Lit resolves').toBe(false);
+    expect(hasTestid('<ion-input data-testid = "x">'), 'a spelling the contract cannot read').toBe(false);
   });
 
   it('every screen with a form is classified: covered, or pending with its issue', () => {
