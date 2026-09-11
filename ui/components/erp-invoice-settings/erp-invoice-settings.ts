@@ -345,19 +345,22 @@ export class ErpInvoiceSettings extends LitElement {
   private renderForm() {
     const f = this.form;
     const title = this.isEdit ? erploraT('ui.seriesEditTitle', { code: f.code }) : erploraT('ui.seriesCreateTitle');
-    return html`<form slot="create" @submit=${(e: Event) => this.submit(e)}>
+    return html`<form slot="create" data-testid="invoice-series-form" @submit=${(e: Event) => this.submit(e)}>
       <h3>${title}</h3>
         <div class="form">
           <ion-input
+            data-testid="invoice-series-code"
             fill="outline" label-placement="floating" label=${erploraT('ui.fieldCode')}
             ?disabled=${this.isEdit}
             .value=${f.code}
             @ionInput=${(e: any) => this.setField('code', e.target.value)}></ion-input>
           <ion-input
+            data-testid="invoice-series-name"
             fill="outline" label-placement="floating" label=${erploraT('ui.fieldName')}
             .value=${f.name}
             @ionInput=${(e: any) => this.setField('name', e.target.value)}></ion-input>
           <ion-select
+            data-testid="invoice-series-type"
             fill="outline" label-placement="floating" label=${erploraT('ui.fieldInvoiceType')}
             interface="popover" ?disabled=${this.isEdit}
             .value=${f.invoice_type}
@@ -365,15 +368,18 @@ export class ErpInvoiceSettings extends LitElement {
             ${TYPE_CODES.map((c) => html`<ion-select-option .value=${c}>${typeLabel(c)} (${c})</ion-select-option>`)}
           </ion-select>
           <ion-input
+            data-testid="invoice-series-year"
             fill="outline" label-placement="floating" label=${erploraT('ui.fieldYear')}
             type="number" ?disabled=${this.isEdit}
             .value=${f.year}
             @ionInput=${(e: any) => this.setField('year', e.target.value)}></ion-input>
           <ion-input
+            data-testid="invoice-series-prefix"
             fill="outline" label-placement="floating" label=${erploraT('ui.fieldPrefix')}
             .value=${f.prefix}
             @ionInput=${(e: any) => this.setField('prefix', e.target.value)}></ion-input>
           <ion-input
+            data-testid="invoice-series-format"
             fill="outline" label-placement="floating" label=${erploraT('ui.fieldFormat')}
             data-field="format" ?disabled=${this.formatLocked}
             .value=${f.format}
@@ -383,28 +389,28 @@ export class ErpInvoiceSettings extends LitElement {
         <span class="hint">${erploraT('ui.prefixHint')}</span>
         <span class="hint">${erploraT('ui.formatHint')}</span>
         ${this.formatLocked
-          ? html`<ok-inline-feedback tone="warning" icon="lock-closed-outline">${erploraT('ui.formatLockedHint')}</ok-inline-feedback>`
+          ? html`<ok-inline-feedback data-testid="invoice-series-format-locked" tone="warning" icon="lock-closed-outline">${erploraT('ui.formatLockedHint')}</ok-inline-feedback>`
           : nothing}
         ${this.preview
-          ? html`<span class="hint">${erploraT('ui.formatPreview')}: <strong>${this.preview}</strong></span>`
+          ? html`<span class="hint" data-testid="invoice-series-preview">${erploraT('ui.formatPreview')}: <strong>${this.preview}</strong></span>`
           : nothing}
         <div class="toggles">
           <ion-item lines="none">
-            <ion-toggle .checked=${f.is_active} @ionChange=${(e: any) => this.setField('is_active', e.target.checked)}>${erploraT('ui.fieldActive')}</ion-toggle>
+            <ion-toggle data-testid="invoice-series-active" .checked=${f.is_active} @ionChange=${(e: any) => this.setField('is_active', e.target.checked)}>${erploraT('ui.fieldActive')}</ion-toggle>
           </ion-item>
           <ion-item lines="none">
-            <ion-toggle .checked=${f.is_default} @ionChange=${(e: any) => this.setField('is_default', e.target.checked)}>${erploraT('ui.fieldDefault')}</ion-toggle>
+            <ion-toggle data-testid="invoice-series-default" .checked=${f.is_default} @ionChange=${(e: any) => this.setField('is_default', e.target.checked)}>${erploraT('ui.fieldDefault')}</ion-toggle>
           </ion-item>
         </div>
         <div class="row-actions">
-          <ion-button type="submit" ?disabled=${this.saving}>
+          <ion-button data-testid="invoice-series-submit" type="submit" ?disabled=${this.saving}>
             ${this.saving
               ? erploraT(this.isEdit ? 'ui.saving' : 'ui.creating')
               : erploraT(this.isEdit ? 'ui.save' : 'ui.create')}
           </ion-button>
-          <ion-button fill="clear" color="medium" @click=${() => this.cancelForm()}>${erploraT('ui.cancel')}</ion-button>
+          <ion-button data-testid="invoice-series-cancel" fill="clear" color="medium" @click=${() => this.cancelForm()}>${erploraT('ui.cancel')}</ion-button>
         </div>
-        ${this.formError ? html`<ok-inline-feedback tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : nothing}
+        ${this.formError ? html`<ok-inline-feedback data-testid="invoice-series-form-error" tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : nothing}
       </form>`;
   }
 
@@ -413,10 +419,11 @@ export class ErpInvoiceSettings extends LitElement {
   render() {
     return html`<div class="page">
       <p class="intro">${erploraT('ui.seriesIntro')}</p>
-      ${this.listError ? html`<ok-inline-feedback tone="danger" icon="alert-circle-outline">${this.listError}</ok-inline-feedback>` : nothing}
+      ${this.listError ? html`<ok-inline-feedback data-testid="invoice-series-list-error" tone="danger" icon="alert-circle-outline">${this.listError}</ok-inline-feedback>` : nothing}
       <!-- The «Edit» button is not the only door: rowClickable makes the whole row open the
            same edit form (outfitkit#67 — the actions column can be off-screen at 1440 px). -->
       <ok-data-table
+        testid="invoice-series-table"
         .fill=${true}
         .addable=${this.canManage}
         .columns=${this.columns}
