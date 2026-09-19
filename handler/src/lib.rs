@@ -2461,6 +2461,17 @@ mod business_date_tests {
     }
 
     #[test]
+    fn an_instant_without_an_offset_keeps_its_own_date_never_an_empty_one() {
+        // The runtime writes `to_rfc3339`, but an instant without an offset cannot be placed on
+        // any clock. The document keeps the date the host wrote — the behaviour before
+        // invoice#78 — because an EMPTY `issue_date` would be stored (the column only refuses
+        // NULL) and handed to the tax authority as the date of the invoice.
+        let out = sale_at("2026-09-18T23:50:00", Some(MADRID));
+        assert_eq!(issue_date(&out), json!("2026-09-18"));
+        assert_eq!(params(&out, "invoice._bump_series")["year"], json!(2026));
+    }
+
+    #[test]
     fn every_door_that_issues_reads_the_same_clock() {
         // The manual invoice (F1) and the substitution (F3) are the other two doors into
         // `build_invoice`. A fix on the POS door alone would leave the F3 that replaces an F2
