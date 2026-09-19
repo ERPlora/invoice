@@ -13,8 +13,10 @@ whose calendar day differs from UTC's at the moment it runs — Pago Pago (UTC�
 until 10:30 UTC, Kiritimati (UTC+14, the day after) from then on; each keeps that difference for at
 least another half hour, far longer than a sale takes. It sets it through the real admin door
 (`PUT /api/settings`), charges a sale, and asserts the relay-issued ticket carries that zone's date,
-not UTC's. The hub's previous zone is put back whatever happens: the hub is shared with every other
-battery.
+not UTC's. Then it rectifies that ticket by hand, the way the screen does since invoice#78 (no date,
+no year in the payload), and asserts the declarative rectify chain dates it on the same day — the
+half that depends on the kernel binding `:timezone` into SQL. The hub's previous zone is put back
+whatever happens: the hub is shared with every other battery.
 
 Usage: `erplora test <dir> --against-hub [dev|stable|sha256:…]`. Never on its own: without a
 runtime it fails, it does not skip.
@@ -103,6 +105,24 @@ def test_a_relay_issued_ticket_carries_the_business_date(hub: Hub, cash: str) ->
         inv.get("number", "").split("-")[1] if inv.get("number") else None,
         local_day[:4],
     )
+
+    # The rectify chain is declarative SQL: its date comes from `:now` read in `:timezone`, which
+    # the kernel binds in every command (hub#1022), and from the text form of a Postgres `date`
+    # (the runtime's driver pins `DateStyle=ISO`). Only a live kernel proves both.
+    print("\n2 · invoice.rectify on that ticket, same hub zone")
+    hub.run("invoice.rectify", {"original_id": inv["id"], "reason": "Wrong amount"})
+    rows = hub.query("invoice.list", {"search": inv.get("customer_name", "")})
+    rects = [r for r in rows if str(r.get("invoice_type", "")).startswith("R")]
+    hub.check("one rectification of the ticket", len(rects), 1)
+    if rects:
+        hub.check(
+            "the rectificativa is dated on the business's day too",
+            rects[0].get("issue_date"),
+            datetime.datetime.now(datetime.timezone.utc)
+            .astimezone(zoneinfo.ZoneInfo(zone))
+            .date()
+            .isoformat(),
+        )
 
 
 def main() -> int:
