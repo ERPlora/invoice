@@ -211,7 +211,7 @@ SELECT
                 '{code}',    s.code),
                 '{prefix}',  s.prefix)
     END,
-    COALESCE(NULLIF(CAST(:issue_date AS TEXT), ''), to_char(CAST(CAST(:now AS TEXT) AS timestamptz) AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC'), 'YYYY-MM-DD')),
+    COALESCE(NULLIF(CAST(:issue_date AS TEXT), ''), CAST(CAST(CAST(CAST(:now AS TEXT) AS timestamptz) AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC') AS date) AS TEXT)),
     g.issuer_nif, g.issuer_name, g.customer_tax_id, g.customer_name, g.customer_address, :reason,
     -CAST(COALESCE(t.base_sum, t.base_fallback) AS INTEGER),
     -CAST(t.amount - COALESCE(t.base_sum, t.base_fallback) AS INTEGER),
@@ -242,7 +242,7 @@ JOIN totals t ON t.oid = g.id
 JOIN invoice_invoiceseries s
   ON s.hub_id = g.hub_id
  AND s.code = 'RECT'
- AND CAST(s.year AS TEXT) = COALESCE(CAST(:year AS TEXT), to_char(CAST(CAST(:now AS TEXT) AS timestamptz) AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC'), 'YYYY'))
+ AND CAST(s.year AS TEXT) = COALESCE(CAST(:year AS TEXT), substr(CAST(CAST(CAST(CAST(:now AS TEXT) AS timestamptz) AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC') AS date) AS TEXT), 1, 4))
  AND s.is_deleted = 0
 -- A whole negation (manual door) is issued even for a 0,00 € document (a header-only or fully
 -- comped invoice still gets its R1); the refund door only ever moves positive money.

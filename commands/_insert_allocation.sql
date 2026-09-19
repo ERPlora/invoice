@@ -52,7 +52,7 @@ FROM invoice_invoice i
 JOIN invoice_invoiceseries s
   ON s.hub_id = i.hub_id
  AND s.code = i.series
- AND CAST(s.year AS TEXT) = COALESCE(CAST(:year AS TEXT), to_char(CAST(CAST(:now AS TEXT) AS timestamptz) AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC'), 'YYYY'))
+ AND CAST(s.year AS TEXT) = COALESCE(CAST(:year AS TEXT), substr(CAST(CAST(CAST(CAST(:now AS TEXT) AS timestamptz) AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC') AS date) AS TEXT), 1, 4))
  AND s.is_deleted = 0
 WHERE i.hub_id = :hub_id
   AND i.id = COALESCE(CAST(:invoice_id AS TEXT), CAST(:new_id AS TEXT))

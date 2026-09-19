@@ -33,9 +33,9 @@
 -- preseleccionada, y `total_series` separa «nunca creó ninguna» de «las creó para otro ejercicio»
 -- — dos conversaciones muy distintas.
 WITH clock AS (
-  SELECT to_char(CAST(CAST(:now AS TEXT) AS timestamptz)
-                   AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC'),
-                 'YYYY') AS fiscal_year
+  SELECT substr(CAST(CAST(CAST(CAST(:now AS TEXT) AS timestamptz)
+                             AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC')
+                        AS date) AS TEXT), 1, 4) AS fiscal_year
 )
 SELECT
   CAST((SELECT fiscal_year FROM clock) AS INTEGER)                       AS fiscal_year,

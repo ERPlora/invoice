@@ -26,7 +26,7 @@ INSERT INTO invoice_invoiceseries
    is_deleted, created_by, updated_by, created_at, updated_at)
 SELECT
   :new_id, :hub_id, 'RECT', 'Rectifying Invoices', 'R1',
-  CAST(COALESCE(CAST(:year AS TEXT), to_char(CAST(CAST(:now AS TEXT) AS timestamptz) AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC'), 'YYYY')) AS INTEGER),
+  CAST(COALESCE(CAST(:year AS TEXT), substr(CAST(CAST(CAST(CAST(:now AS TEXT) AS timestamptz) AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC') AS date) AS TEXT), 1, 4)) AS INTEGER),
   0, 'RECT', 1,
   0, :current_user_id, :current_user_id, :now, :now
 WHERE CAST(:sale_id AS TEXT) IS NULL
