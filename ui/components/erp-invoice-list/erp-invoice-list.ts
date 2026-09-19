@@ -444,12 +444,12 @@ export class ErpInvoiceList extends LitElement {
     this.busy = true;
     this.actionError = '';
     try {
-      const now = new Date();
+      // No date and no year (invoice#78): the server dates the document on the BUSINESS clock
+      // (`:now` in `:timezone`). The browser's `toISOString()` is the UTC date and its
+      // `getFullYear()` the device's year — two different clocks, neither of them the business's.
       await erplora().command('invoice.rectify', {
         original_id: target.id,
         reason: this.rectifyReason.trim(),
-        year: now.getFullYear(),
-        issue_date: now.toISOString().slice(0, 10),
       });
       this.rectifyTarget = null;
       await this.ctrl.load();

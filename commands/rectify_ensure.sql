@@ -8,8 +8,11 @@
 -- `rectify_bump` / `rectify_insert` would match nothing and the whole chain would be a SILENT
 -- no-op — the shape of failure this module has already paid for twice.
 --
--- `substr(:now, 1, 4)` is not a new convention: it is the module's own. `handler/src/lib.rs`
--- derives `issue_date = now.split('T')[0]` and takes the year off it for every invoice it issues.
+-- THE YEAR IS THE BUSINESS'S (invoice#78). `:now` is the runtime's instant in UTC; `:timezone` is
+-- the business zone the runtime binds in every command (hub#1022). Reading the year straight off
+-- `:now` opened LAST year's series for a rectification issued at 00:30 on 1 January in Madrid. It
+-- is the same clock `handler/src/lib.rs::business_date` dates every invoice with; a runtime older
+-- than hub#1022 binds no `:timezone` (NULL) and gets the UTC year, exactly as before.
 --
 -- THE REFUND PRECONDITION (invoice#62, widened by invoice#63). On the listener path (`:sale_id`
 -- present) the series is created only if this refund is going to produce a document at all — the
@@ -23,7 +26,7 @@ INSERT INTO invoice_invoiceseries
    is_deleted, created_by, updated_by, created_at, updated_at)
 SELECT
   :new_id, :hub_id, 'RECT', 'Rectifying Invoices', 'R1',
-  CAST(COALESCE(CAST(:year AS TEXT), substr(CAST(:now AS TEXT), 1, 4)) AS INTEGER),
+  CAST(COALESCE(CAST(:year AS TEXT), to_char(CAST(CAST(:now AS TEXT) AS timestamptz) AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC'), 'YYYY')) AS INTEGER),
   0, 'RECT', 1,
   0, :current_user_id, :current_user_id, :now, :now
 WHERE CAST(:sale_id AS TEXT) IS NULL
