@@ -207,8 +207,32 @@ fn series_defaults(code: &str) -> (&'static str, &'static str) {
     }
 }
 
-fn year_from(now: &str) -> String {
-    now.split('-').next().filter(|y| y.len() == 4).unwrap_or("2026").to_string()
+fn year_from(issue_date: &str) -> String {
+    issue_date.split('-').next().filter(|y| y.len() == 4).unwrap_or("2026").to_string()
+}
+
+/// THE BUSINESS'S DATE (invoice#78): the day a document issued at `now` carries — and with it the
+/// year of its series and the day its tax rules are read on. `now` is the runtime's instant in UTC
+/// (`to_rfc3339`); `context.timezone` is the business zone the runtime already resolved (hub#1022,
+/// `settings::timezone_of`: the declared one, else the country's). Cutting the date off `now` as
+/// it came dated everything charged between local midnight and UTC midnight on the previous day:
+/// «19/09» on the paper, «18-09-2026» in the invoice, its VeriFactu record and the QR — and on
+/// 1 January, a number from last year's series.
+///
+/// Degrades to the UTC date — the runtime's own fallback (`timezone_name()` → `UTC`) — when the
+/// hub sends no zone (a runtime older than hub#1022) or one this table cannot read: a wrong clock
+/// by a known amount, never a guess.
+fn business_date(input: &Value, now: &str) -> String {
+    let tz = input
+        .get("context")
+        .and_then(|c| c.get("timezone"))
+        .and_then(Value::as_str)
+        .and_then(|name| name.parse::<chrono_tz::Tz>().ok())
+        .unwrap_or(chrono_tz::UTC);
+    match chrono::DateTime::parse_from_rfc3339(now) {
+        Ok(instant) => instant.with_timezone(&tz).format("%Y-%m-%d").to_string(),
+        Err(_) => now.split('T').next().unwrap_or(now).to_string(),
+    }
 }
 
 /// Los tipos que NO admiten un total negativo: una factura ordinaria (F1), una simplificada (F2)
@@ -380,7 +404,7 @@ fn largest_remainder(total: i64, exact: &[Decimal]) -> Vec<i64> {
 /// (description, quantity, unit_price, tax_rate, product_id).
 fn build_invoice(
     new_ids: &[Value],
-    now: &str,
+    issue_date: &str,
     series_code: &str,
     invoice_type_override: Option<&str>,
     header: &Value,
@@ -389,8 +413,7 @@ fn build_invoice(
     closing: Closing,
 ) -> Output {
     let invoice_id = new_ids.first().map(s).unwrap_or_default();
-    let year = year_from(now);
-    let issue_date = now.split('T').next().unwrap_or(now).to_string();
+    let year = year_from(issue_date);
     let (def_type, def_name) = series_defaults(series_code);
     let inv_type = invoice_type_override.unwrap_or(def_type).to_string();
 
@@ -699,12 +722,13 @@ struct FiscalContext {
     rules: Vec<Value>,
     country: String,
     region: String,
-    /// Día ISO de la emisión, para la vigencia de las reglas.
+    /// ISO day of the issue — the business's, like the document's own date (invoice#78) — for
+    /// the validity of the rules.
     date: String,
 }
 
 impl FiscalContext {
-    fn from_input(input: &Value, now: &str) -> Self {
+    fn from_input(input: &Value, issue_date: &str) -> Self {
         let context = input.get("context").cloned().unwrap_or(Value::Null);
         FiscalContext {
             // `&Value::Null` as the payload fallback ON PURPOSE: only `taxes.calculate` lets a
@@ -713,23 +737,24 @@ impl FiscalContext {
             rules: tax::rule_catalog(&context, &Value::Null).into_iter().cloned().collect(),
             country: s(context.get("country_code").unwrap_or(&Value::Null)),
             region: s(context.get("region_code").unwrap_or(&Value::Null)),
-            date: now.chars().take(10).collect(),
+            date: issue_date.to_string(),
         }
     }
 }
 
+/// The ids the host minted and the business date of the issue (see [`business_date`]).
 fn ctx_ids(input: &Value) -> (Vec<Value>, String) {
     let new_ids = input.get("context").and_then(|c| c.get("new_ids"))
         .and_then(|v| v.as_array()).cloned().unwrap_or_default();
     let now = input.get("context").and_then(|c| c.get("now")).map(s).unwrap_or_default();
-    (new_ids, now)
+    (new_ids, business_date(input, &now))
 }
 
 /// create_invoice: payload con items + cabecera + series_code (default FACT/F1).
 pub fn create_invoice_pure(input: Value) -> Output {
     let payload = input.get("payload").cloned().unwrap_or(Value::Null);
-    let (new_ids, now) = ctx_ids(&input);
-    let fiscal = FiscalContext::from_input(&input, &now);
+    let (new_ids, issue_date) = ctx_ids(&input);
+    let fiscal = FiscalContext::from_input(&input, &issue_date);
     let empty: Vec<Value> = Vec::new();
     // invoice#50 — EL CLIENTE PROPONE, EL SERVIDOR DISPONE (lo mismo que `sales` hace con su
     // payload y que invoice#27 hizo con el TIPO). Una línea manual describe QUÉ se factura
@@ -785,14 +810,14 @@ pub fn create_invoice_pure(input: Value) -> Output {
         ));
     }
 
-    build_invoice(&new_ids, &now, &series_code, ty.as_deref(), &payload, items, &fiscal, Closing::PerKey { tax_included: false })
+    build_invoice(&new_ids, &issue_date, &series_code, ty.as_deref(), &payload, items, &fiscal, Closing::PerKey { tax_included: false })
 }
 
 /// create_from_sale: adapta el evento sale.completed (líneas) a una F2 serie TICKET.
 pub fn create_from_sale_pure(input: Value) -> Result<Output, String> {
     let payload = input.get("payload").cloned().unwrap_or(Value::Null);
-    let (new_ids, now) = ctx_ids(&input);
-    let fiscal = FiscalContext::from_input(&input, &now);
+    let (new_ids, issue_date) = ctx_ids(&input);
+    let fiscal = FiscalContext::from_input(&input, &issue_date);
 
     // invoice#8 (hub#108): the invoice must reference a REAL sale. The manifest declares a `reads`
     // entry on `sales.get` parameterized with `payload.sale_id`, so the runtime preloads the sale
@@ -882,7 +907,7 @@ pub fn create_from_sale_pure(input: Value) -> Result<Output, String> {
     // 88.Uno LIVA); that decides how each fiscal key is closed. An event without it (a `sales`
     // older than the flag) is VAT on top, which is what its per-line figures then mean.
     let tax_included = payload.get("tax_included").and_then(|v| v.as_bool()).unwrap_or(false);
-    Ok(build_invoice(&new_ids, &now, series_code, Some(inv_type), &Value::Object(header), &items, &fiscal, Closing::PerKey { tax_included }))
+    Ok(build_invoice(&new_ids, &issue_date, series_code, Some(inv_type), &Value::Object(header), &items, &fiscal, Closing::PerKey { tax_included }))
 }
 
 /// substitute_from_invoice: "el cliente pide factura de un tiquet" (ADR-0140). Emite una F3
@@ -893,8 +918,8 @@ pub fn create_from_sale_pure(input: Value) -> Result<Output, String> {
 /// importes son los del tiquet (misma operación) — las líneas llegan del F2 en el payload.
 pub fn substitute_from_invoice_pure(input: Value) -> Output {
     let payload = input.get("payload").cloned().unwrap_or(Value::Null);
-    let (new_ids, now) = ctx_ids(&input);
-    let fiscal = FiscalContext::from_input(&input, &now);
+    let (new_ids, issue_date) = ctx_ids(&input);
+    let fiscal = FiscalContext::from_input(&input, &issue_date);
     let empty: Vec<Value> = Vec::new();
     // Las líneas llegan YA como líneas de factura del F2 original (description/base_amount/
     // tax_amount/tax_rate/…): build_invoice las RESPETA (D1) y no re-suma IVA sobre el bruto, así
@@ -914,7 +939,7 @@ pub fn substitute_from_invoice_pure(input: Value) -> Output {
     // Enlace fiscal explícito F3→F2 (ADR-0140): lo lee verifactu para el bloque FacturasSustituidas.
     header.insert("substitutes_invoice_id".into(), json!(original_id));
     // F3 en la serie de facturas COMPLETAS (FACT); comparte numeración con las F1 (legal en ES).
-    build_invoice(&new_ids, &now, "FACT", Some("F3"), &Value::Object(header), &items, &fiscal, Closing::Verbatim)
+    build_invoice(&new_ids, &issue_date, "FACT", Some("F3"), &Value::Object(header), &items, &fiscal, Closing::Verbatim)
 }
 
 #[cfg(test)]
@@ -2321,5 +2346,199 @@ mod closing_per_key {
                                             json!({ "sales.get": [{ "id": "s" }] }))).unwrap();
         assert_eq!(bad.error.as_ref().map(|e| e.code.as_str()), Some("invoice.tax_quota_mismatch"));
         assert!(bad.operations.is_empty(), "a refused invoice consumes no number");
+    }
+}
+
+/// invoice#78 — THE ISSUE DATE IS THE BUSINESS'S DATE, not UTC's.
+///
+/// A bar in Madrid that charges at 01:50 on 19/09 printed «19/09» on the ticket while the stored
+/// invoice, its VeriFactu record and the QR the customer scans said «18-09-2026»: the handler took
+/// the date off `context.now`, which the runtime hands over in UTC. Two hours every summer night
+/// (one in winter), and on 1 January the document numbered in LAST year's series. The runtime
+/// already resolves the business zone and hands it to every command as `context.timezone`
+/// (hub#1022); these tests pin that the date, the series year and the tax-rule validity day are
+/// all read on that clock.
+#[cfg(test)]
+mod business_date_tests {
+    use super::*;
+
+    const MADRID: &str = "Europe/Madrid";
+
+    fn ids() -> Value {
+        json!((0..8).map(|i| format!("id-{i}")).collect::<Vec<_>>())
+    }
+
+    fn context(now: &str, timezone: Option<&str>) -> Value {
+        let mut ctx = json!({ "new_ids": ids(), "now": now,
+                              "reads": { "sales.get": [{ "id": "sale-1" }] } });
+        if let Some(tz) = timezone {
+            ctx["timezone"] = json!(tz);
+        }
+        ctx
+    }
+
+    /// A POS sale charged at `now` (the runtime's UTC instant) in a hub whose zone is `timezone`.
+    fn sale_at(now: &str, timezone: Option<&str>) -> Output {
+        let payload = json!({ "sale_id": "sale-1", "items": [
+            { "product_name": "Caña", "quantity": 1_000_000, "unit_price": 250, "tax_rate": 10.0 }
+        ]});
+        create_from_sale_pure(json!({ "payload": payload, "context": context(now, timezone) }))
+            .expect("the sale exists")
+    }
+
+    fn params<'a>(out: &'a Output, command: &str) -> &'a Map<String, Value> {
+        &out.operations
+            .iter()
+            .find(|op| op.command == command)
+            .unwrap_or_else(|| panic!("no `{command}` operation in {:?}", out.operations))
+            .params
+    }
+
+    fn issue_date(out: &Output) -> Value {
+        assert!(out.error.is_none(), "unexpected refusal: {:?}", out.error);
+        params(out, "invoice._insert_invoice")["issue_date"].clone()
+    }
+
+    #[test]
+    fn a_ticket_charged_after_local_midnight_carries_the_business_date() {
+        // The QA case, with the instant exactly as the runtime writes it (`to_rfc3339`, nanos).
+        let out = sale_at("2026-09-18T23:50:12.345678901+00:00", Some(MADRID));
+        assert_eq!(issue_date(&out), json!("2026-09-19"), "01:50 on the 19th in Madrid");
+    }
+
+    #[test]
+    fn the_date_flips_at_the_business_midnight_not_at_utc_midnight() {
+        // Madrid in September is UTC+2: the local day starts at 22:00 UTC and 02:00 local is
+        // 00:00 UTC. Both borders, on both sides.
+        for (now, expected) in [
+            ("2026-09-18T21:59:59+00:00", "2026-09-18"), // 23:59:59 local, still the 18th
+            ("2026-09-18T22:00:00+00:00", "2026-09-19"), // 00:00 local
+            ("2026-09-18T23:59:59+00:00", "2026-09-19"), // 01:59:59 local — UTC still says 18
+            ("2026-09-19T00:00:00+00:00", "2026-09-19"), // 02:00 local
+        ] {
+            assert_eq!(issue_date(&sale_at(now, Some(MADRID))), json!(expected), "at {now}");
+        }
+    }
+
+    #[test]
+    fn a_zone_west_of_utc_moves_the_date_back_not_forward() {
+        // 03:00 UTC on the 19th is 21:00 on the 18th in Mexico City (UTC-6): the fix is «read it
+        // in the business zone», not «add two hours».
+        let out = sale_at("2026-09-19T03:00:00+00:00", Some("America/Mexico_City"));
+        assert_eq!(issue_date(&out), json!("2026-09-18"));
+    }
+
+    #[test]
+    fn new_years_night_numbers_in_the_new_years_series() {
+        // 23:30 UTC on 31/12 is 00:30 on 1 January in Madrid (UTC+1 in winter): the document is
+        // dated 2027 and takes a number from the 2027 series — the series must exist for 2027,
+        // the counter bumped is 2027's and the row carries 2027.
+        let out = sale_at("2026-12-31T23:30:00+00:00", Some(MADRID));
+        assert_eq!(issue_date(&out), json!("2027-01-01"));
+        assert_eq!(params(&out, "invoice._ensure_series")["year"], json!(2027));
+        assert_eq!(params(&out, "invoice._bump_series")["year"], json!(2027));
+        assert_eq!(params(&out, "invoice._insert_invoice")["year"], json!(2027));
+    }
+
+    #[test]
+    fn the_same_instant_is_still_old_year_in_the_canaries() {
+        // The zone decides, not a fixed offset: the Canaries are UTC+0 in winter, so 23:30 UTC on
+        // 31/12 is still 2026 there, while it is already 2027 in Madrid.
+        let out = sale_at("2026-12-31T23:30:00+00:00", Some("Atlantic/Canary"));
+        assert_eq!(issue_date(&out), json!("2026-12-31"));
+        assert_eq!(params(&out, "invoice._bump_series")["year"], json!(2026));
+    }
+
+    #[test]
+    fn the_october_clock_change_moves_the_border_with_it() {
+        // 25/10/2026, 01:00 UTC: Madrid goes from UTC+2 to UTC+1 and the Canaries from UTC+1 to
+        // UTC+0. The night before, the local day starts at 22:00 UTC in Madrid; the night after, at
+        // 23:00 UTC — a fixed «+2 h» would date 23:30 local on the 25th as the 26th.
+        for (now, zone, expected) in [
+            ("2026-10-24T22:30:00+00:00", MADRID, "2026-10-25"), // 00:30 local, still summer time
+            ("2026-10-25T22:30:00+00:00", MADRID, "2026-10-25"), // 23:30 local, winter time already
+            ("2026-10-25T23:00:00+00:00", MADRID, "2026-10-26"), // 00:00 local
+            ("2026-10-24T23:30:00+00:00", "Atlantic/Canary", "2026-10-25"), // 00:30 local (UTC+1)
+            ("2026-10-25T23:30:00+00:00", "Atlantic/Canary", "2026-10-25"), // 23:30 local (UTC+0)
+        ] {
+            assert_eq!(issue_date(&sale_at(now, Some(zone))), json!(expected), "{zone} at {now}");
+        }
+    }
+
+    #[test]
+    fn without_a_usable_zone_the_date_stays_on_utc() {
+        // A hub whose runtime predates hub#1022 sends no zone, and an unreadable name is a wrong
+        // clock by a known amount — never a guess. Both keep today's behaviour: the UTC date,
+        // exactly what the runtime's own `timezone_name()` falls back to.
+        let now = "2026-09-18T23:50:00+00:00";
+        assert_eq!(issue_date(&sale_at(now, None)), json!("2026-09-18"));
+        assert_eq!(issue_date(&sale_at(now, Some("Mars/Olympus_Mons"))), json!("2026-09-18"));
+        assert_eq!(issue_date(&sale_at(now, Some("UTC"))), json!("2026-09-18"));
+    }
+
+    #[test]
+    fn an_instant_without_an_offset_keeps_its_own_date_never_an_empty_one() {
+        // The runtime writes `to_rfc3339`, but an instant without an offset cannot be placed on
+        // any clock. The document keeps the date the host wrote — the behaviour before
+        // invoice#78 — because an EMPTY `issue_date` would be stored (the column only refuses
+        // NULL) and handed to the tax authority as the date of the invoice.
+        let out = sale_at("2026-09-18T23:50:00", Some(MADRID));
+        assert_eq!(issue_date(&out), json!("2026-09-18"));
+        assert_eq!(params(&out, "invoice._bump_series")["year"], json!(2026));
+    }
+
+    #[test]
+    fn every_door_that_issues_reads_the_same_clock() {
+        // The manual invoice (F1) and the substitution (F3) are the other two doors into
+        // `build_invoice`. A fix on the POS door alone would leave the F3 that replaces an F2
+        // dated one day before the ticket it replaces.
+        let now = "2026-09-18T23:50:00+00:00";
+        let manual = create_invoice_pure(json!({
+            "payload": { "series_code": "FACT", "customer_tax_id": "B12345678", "items": [
+                { "description": "Menú", "quantity": 1_000_000, "unit_price": 1500, "tax_rate": 10.0 }
+            ]},
+            "context": context(now, Some(MADRID)),
+        }));
+        assert_eq!(issue_date(&manual), json!("2026-09-19"), "manual F1");
+
+        let substitution = substitute_from_invoice_pure(json!({
+            "payload": { "original_invoice_id": "f2-1", "customer_name": "ACME",
+                         "customer_tax_id": "B12345678", "items": [
+                { "description": "Menú", "quantity": 1_000_000, "unit_price": 1500,
+                  "tax_rate": 10.0, "base_amount": 1500, "tax_amount": 150 }
+            ]},
+            "context": context(now, Some(MADRID)),
+        }));
+        assert_eq!(issue_date(&substitution), json!("2026-09-19"), "F3 substitution");
+    }
+
+    #[test]
+    fn the_tax_rule_in_force_is_the_one_of_the_business_day() {
+        // A rate that changes on 1 January applies to what is charged at 00:30 on 1 January in
+        // Madrid: the rule's validity is read on the SAME day the document is dated, or the
+        // invoice would say «2027» and declare the 2026 rate.
+        let mut ctx = context("2026-12-31T23:30:00+00:00", Some(MADRID));
+        ctx["country_code"] = json!("ES");
+        ctx["region_code"] = json!("");
+        ctx["reads"]["taxes.rules.list"] = json!([
+            {"id": "es-vat-21", "country_code": "ES", "region_code": null,
+             "tax_category_key": "standard", "rate_pct": 21.0, "tax_type": "vat",
+             "parent_id": null, "valid_from": "2012-09-01"},
+            {"id": "es-vat-22", "country_code": "ES", "region_code": null,
+             "tax_category_key": "standard", "rate_pct": 22.0, "tax_type": "vat",
+             "parent_id": null, "valid_from": "2027-01-01"}
+        ]);
+        let out = create_invoice_pure(json!({
+            "payload": { "series_code": "FACT", "customer_tax_id": "B12345678", "items": [
+                { "description": "Item", "quantity": 1_000_000, "unit_price": 10000,
+                  "tax_rate": 22.0, "tax_category_key": "standard" }
+            ]},
+            "context": ctx,
+        }));
+        let breakdown: Value = serde_json::from_str(
+            params(&out, "invoice._insert_invoice")["tax_breakdown"].as_str().expect("string"),
+        )
+        .expect("tax_breakdown is JSON");
+        assert_eq!(breakdown[0]["rate"], json!(22.0), "the rule in force on 01/01/2027");
     }
 }

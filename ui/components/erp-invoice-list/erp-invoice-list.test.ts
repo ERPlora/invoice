@@ -420,3 +420,23 @@ describe('clicking the row opens the invoice (pm#155)', () => {
     expect(wc.detail, 'the row was clicked and the detail did not open').toEqual(FACTURA);
   });
 });
+
+describe('the rectifying invoice is dated by the server, on the business clock (invoice#78)', () => {
+  // The dialog used to send `issue_date: new Date().toISOString().slice(0, 10)` — the UTC date —
+  // with `year: getFullYear()` — the BROWSER's local year. At 01:50 in Madrid that dated the
+  // rectificativa the day before; at 00:30 on 1 January it numbered a 2027 document dated
+  // 2026-12-31. The date of a fiscal document is the business's day at the moment of issue, and
+  // the server knows it (`:now` in `:timezone`): the screen sends neither.
+  it('confirming a rectification sends the original and the reason, and no date or year', async () => {
+    const el = await montar();
+    const wc = el as unknown as {
+      rectifyTarget: unknown; rectifyReason: string; confirmRectify: () => Promise<void>;
+    };
+    wc.rectifyTarget = FACTURA;
+    wc.rectifyReason = 'Wrong amount';
+    await wc.confirmRectify();
+    const sent = comandos.find((c) => c.name === 'invoice.rectify');
+    expect(sent, 'invoice.rectify was not sent').toBeTruthy();
+    expect(sent?.payload).toEqual({ original_id: 'i1', reason: 'Wrong amount' });
+  });
+});

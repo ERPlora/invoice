@@ -17,9 +17,10 @@
 --     en Ajustes — que es exactamente donde se le pide que revise el prefijo.
 --
 -- EJERCICIO EN CURSO, no «alguna vez»: la clave de negocio es `(hub_id, code, year)` y el contador
--- se reinicia solo cada 1 de enero, así que la serie del año pasado no responde por la de este. El
--- año sale de `:now` (el reloj del runtime; el SQL no tiene otro) — `substr` es portable
--- SQLite+Postgres, a diferencia de `EXTRACT`/`strftime` (ADR-0007).
+-- se reinicia solo cada 1 de enero, así que la serie del año pasado no responde por la de este.
+-- THE FISCAL YEAR IS THE BUSINESS'S (invoice#78): `:now` (the runtime's instant, UTC) read in
+-- `:timezone` (the business zone, hub#1022) — the year the documents are numbered in. On a runtime
+-- older than hub#1022 `:timezone` is NULL and this degrades to the UTC year, as before.
 --
 -- QUÉ CUENTA COMO «HAY SERIE»: el predicado es el de la puerta que de verdad numera
 -- (`commands/_bump_series.sql`: hub + code + año), más `is_deleted = 0`, que es lo que filtran
@@ -30,19 +31,24 @@
 --
 -- Las otras dos columnas son contexto, no condiciones: `default_series` dice si hay una
 -- preseleccionada, y `total_series` separa «nunca creó ninguna» de «las creó para otro ejercicio»
--- — dos conversaciones muy distintas. Portable (CASE WHEN, sin funciones de dialecto).
+-- — dos conversaciones muy distintas.
+WITH clock AS (
+  SELECT substr(CAST(CAST(CAST(CAST(:now AS TEXT) AS timestamptz)
+                             AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC')
+                        AS date) AS TEXT), 1, 4) AS fiscal_year
+)
 SELECT
-  CAST(substr(:now, 1, 4) AS INTEGER)                                    AS fiscal_year,
+  CAST((SELECT fiscal_year FROM clock) AS INTEGER)                       AS fiscal_year,
   COALESCE(SUM(CASE WHEN is_deleted = 0
-                     AND CAST(year AS TEXT) = substr(:now, 1, 4)
+                     AND CAST(year AS TEXT) = (SELECT fiscal_year FROM clock)
                      AND invoice_type IN ('F1', 'F2', 'F3')
                     THEN 1 ELSE 0 END), 0)                               AS ordinary_series,
   COALESCE(SUM(CASE WHEN is_deleted = 0
-                     AND CAST(year AS TEXT) = substr(:now, 1, 4)
+                     AND CAST(year AS TEXT) = (SELECT fiscal_year FROM clock)
                      AND invoice_type LIKE 'R%'
                     THEN 1 ELSE 0 END), 0)                               AS rectifying_series,
   COALESCE(SUM(CASE WHEN is_deleted = 0
-                     AND CAST(year AS TEXT) = substr(:now, 1, 4)
+                     AND CAST(year AS TEXT) = (SELECT fiscal_year FROM clock)
                      AND is_default = 1
                     THEN 1 ELSE 0 END), 0)                               AS default_series,
   COALESCE(SUM(CASE WHEN is_deleted = 0 THEN 1 ELSE 0 END), 0)           AS total_series

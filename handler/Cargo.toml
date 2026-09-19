@@ -13,6 +13,12 @@ extism-pdk = { version = "1", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rust_decimal = { version = "1", default-features = false }
+# THE BUSINESS CLOCK (invoice#78). The runtime hands over the instant in UTC (`context.now`) and
+# the business zone as an IANA NAME (`context.timezone`, hub#1022) — not its rules, so the table
+# travels with the guest. Same crates and features as `appointments` and the runtime itself: one
+# implementation of time zones in the hub. `chrono` without `clock`: the guest has no clock.
+chrono = { version = "0.4", default-features = false, features = ["alloc"] }
+chrono-tz = { version = "0.10", default-features = false, features = ["std"] }
 [profile.release]
 opt-level = "s"
 [workspace]

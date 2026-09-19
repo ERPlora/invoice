@@ -46,7 +46,7 @@
 UPDATE invoice_invoiceseries
 SET current_number = current_number + 1
 WHERE hub_id = :hub_id AND code = 'RECT'
-  AND CAST(year AS TEXT) = COALESCE(CAST(:year AS TEXT), substr(CAST(:now AS TEXT), 1, 4))
+  AND CAST(year AS TEXT) = COALESCE(CAST(:year AS TEXT), substr(CAST(CAST(CAST(CAST(:now AS TEXT) AS timestamptz) AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC') AS date) AS TEXT), 1, 4))
   AND (
     -- the manual door: the whole original, untouched so far
     (CAST(:sale_id AS TEXT) IS NULL AND EXISTS (

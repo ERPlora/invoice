@@ -64,6 +64,11 @@ Consequences worth knowing:
   the series; letting someone rewind a counter would create duplicates or gaps.
 - **A new year starts a new counter automatically.** The series row for `code + year` is ensured on
   first use.
+- **The date is the business's, not the server's.** A document is dated with the day it is in the
+  hub's time zone (the one in Settings, or the country's) at the moment it is issued, and that date
+  decides the year of its series. A ticket charged at 00:30 on 1 January in Madrid is dated 1 January
+  and numbered in the new year's series — on the paper, in the stored invoice and in its VeriFactu
+  record alike.
 - **There is exactly one default series per year.** Marking one default demotes the previous one.
 - **The number format freezes with the first invoice.** It is part of VeriFactu's chained
   fingerprint; a different shape means a new series, never a re-shaped one.
