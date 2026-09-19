@@ -2450,6 +2450,22 @@ mod business_date_tests {
     }
 
     #[test]
+    fn the_october_clock_change_moves_the_border_with_it() {
+        // 25/10/2026, 01:00 UTC: Madrid goes from UTC+2 to UTC+1 and the Canaries from UTC+1 to
+        // UTC+0. The night before, the local day starts at 22:00 UTC in Madrid; the night after, at
+        // 23:00 UTC — a fixed «+2 h» would date 23:30 local on the 25th as the 26th.
+        for (now, zone, expected) in [
+            ("2026-10-24T22:30:00+00:00", MADRID, "2026-10-25"), // 00:30 local, still summer time
+            ("2026-10-25T22:30:00+00:00", MADRID, "2026-10-25"), // 23:30 local, winter time already
+            ("2026-10-25T23:00:00+00:00", MADRID, "2026-10-26"), // 00:00 local
+            ("2026-10-24T23:30:00+00:00", "Atlantic/Canary", "2026-10-25"), // 00:30 local (UTC+1)
+            ("2026-10-25T23:30:00+00:00", "Atlantic/Canary", "2026-10-25"), // 23:30 local (UTC+0)
+        ] {
+            assert_eq!(issue_date(&sale_at(now, Some(zone))), json!(expected), "{zone} at {now}");
+        }
+    }
+
+    #[test]
     fn without_a_usable_zone_the_date_stays_on_utc() {
         // A hub whose runtime predates hub#1022 sends no zone, and an unreadable name is a wrong
         // clock by a known amount — never a guess. Both keep today's behaviour: the UTC date,
