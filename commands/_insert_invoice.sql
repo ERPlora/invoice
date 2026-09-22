@@ -23,7 +23,8 @@
 -- inserta.
 INSERT INTO invoice_invoice (
     id, hub_id, invoice_type, series, number, issue_date,
-    issuer_nif, issuer_name, customer_tax_id, customer_name, customer_address, description,
+    issuer_nif, issuer_name, customer_tax_id, customer_name, customer_address,
+    customer_country, customer_id_type, description,
     base_amount, tax_amount, total_amount, tax_breakdown, currency,
     source_type, source_id, substitutes_invoice_id, status, notes,
     is_deleted, created_by, updated_by, created_at, updated_at
@@ -55,7 +56,9 @@ SELECT
     -- ADR-0061). Fuente única país-agnóstica: el caller (POS, prueba VeriFactu) ya no pasa el NIF.
     COALESCE(NULLIF(:issuer_nif, ''), :business_tax_id),
     COALESCE(NULLIF(:issuer_name, ''), :business_legal_name),
-    :customer_tax_id, :customer_name, :customer_address, :description,
+    :customer_tax_id, :customer_name, :customer_address,
+    -- ERPlora/hub#1967: absent from an older caller's payload = NULL; the column wants ''.
+    COALESCE(:customer_country, ''), COALESCE(:customer_id_type, ''), :description,
     :base_amount, :tax_amount, :total_amount, :tax_breakdown, 'EUR',
     -- substitutes_invoice_id: ADR-0140, enlace F3→F2 (NULL en emisiones normales, la F2 que
     -- sustituye en un F3). NULLIF('' → NULL) para que el default vacío del guest no rompa el FK lógico.

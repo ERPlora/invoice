@@ -696,6 +696,11 @@ fn build_invoice(
     h.insert("customer_tax_id".into(), json!(sor(header, "customer_tax_id", "")));
     h.insert("customer_name".into(), json!(sor(header, "customer_name", "")));
     h.insert("customer_address".into(), json!(sor(header, "customer_address", "")));
+    // ERPlora/hub#1967: where the customer is from (ISO 3166 alpha-2) and what their document is
+    // (the AEAT `IDType`). With them the VeriFactu engine declares a foreign customer as the
+    // foreigner they are (`IDOtro`); '' = unknown, the tax id's prefix decides.
+    h.insert("customer_country".into(), json!(sor(header, "customer_country", "").trim().to_ascii_uppercase()));
+    h.insert("customer_id_type".into(), json!(sor(header, "customer_id_type", "").trim()));
     h.insert("description".into(), json!(sor(header, "description", "")));
     h.insert("base_amount".into(), json!(base_total));            // céntimos
     h.insert("tax_amount".into(), json!(tax_total));              // céntimos
@@ -892,6 +897,8 @@ pub fn create_from_sale_pure(input: Value) -> Result<Output, String> {
     // referencia: editar la ficha del cliente no puede reescribir una factura ya emitida.
     header.insert("customer_tax_id".into(), payload.get("customer_tax_id").cloned().unwrap_or(json!("")));
     header.insert("customer_address".into(), payload.get("customer_address").cloned().unwrap_or(json!("")));
+    header.insert("customer_country".into(), payload.get("customer_country").cloned().unwrap_or(json!("")));
+    header.insert("customer_id_type".into(), payload.get("customer_id_type").cloned().unwrap_or(json!("")));
     header.insert("source_type".into(), json!("sale"));
     header.insert("source_id".into(), payload.get("sale_id").cloned().unwrap_or(Value::Null));
     // ADR-0140: el tipo de documento VIAJA en sale.completed. 'invoice' → factura completa F1
@@ -932,6 +939,8 @@ pub fn substitute_from_invoice_pure(input: Value) -> Output {
     header.insert("customer_name".into(), payload.get("customer_name").cloned().unwrap_or(json!("")));
     header.insert("customer_tax_id".into(), payload.get("customer_tax_id").cloned().unwrap_or(json!("")));
     header.insert("customer_address".into(), payload.get("customer_address").cloned().unwrap_or(json!("")));
+    header.insert("customer_country".into(), payload.get("customer_country").cloned().unwrap_or(json!("")));
+    header.insert("customer_id_type".into(), payload.get("customer_id_type").cloned().unwrap_or(json!("")));
     header.insert("description".into(), payload.get("description").cloned().unwrap_or(json!("")));
     // source = substitution del original → idempotencia D2 (1 F3 por F2, sin huecos) + by_source.
     header.insert("source_type".into(), json!("substitution"));
@@ -1154,6 +1163,61 @@ mod tests {
         assert_eq!(inv["tax_amount"], json!(21));
         assert_eq!(inv["total_amount"], json!(121));
         assert_eq!(out.events[0].name, "invoice.created");
+    }
+
+    // ERPlora/hub#1967: where the customer is from and what their document is are part of the
+    // fiscal snapshot — without them the AEAT receives a foreign customer as a Spanish NIF.
+
+    fn items() -> Value {
+        json!([{ "description": "Servicio", "quantity": 1_000_000, "unit_price": 10000, "tax_rate": 21.0 }])
+    }
+
+    #[test]
+    fn a_manual_invoice_carries_the_customers_country_and_document() {
+        let out = create_invoice_pure(inp(json!({
+            "series_code": "FACT", "customer_name": "Client Inc", "customer_tax_id": "123456789",
+            "customer_country": "us", "customer_id_type": "04", "items": items()
+        }), 6));
+        let inv = &out.operations[2].params;
+        assert_eq!(inv["customer_country"], json!("US"), "ISO code, upper case");
+        assert_eq!(inv["customer_id_type"], json!("04"));
+    }
+
+    #[test]
+    fn a_sale_carries_the_customers_country_and_document() {
+        let out = create_from_sale_pure(inp(json!({
+            "sale_id": "sale-us", "document_type": "invoice", "customer_name": "Jane Doe",
+            "customer_tax_id": "XA1234567", "customer_country": "US", "customer_id_type": "03",
+            "items": [{ "product_name": "Corte", "quantity": 1_000_000, "unit_price": 1500, "tax_rate": 21.0 }]
+        }), 6)).unwrap();
+        let inv = &out.operations[2].params;
+        assert_eq!(inv["customer_country"], json!("US"));
+        assert_eq!(inv["customer_id_type"], json!("03"));
+    }
+
+    #[test]
+    fn a_substitution_carries_the_customers_country_and_document() {
+        let out = substitute_from_invoice_pure(inp(json!({
+            "original_invoice_id": "inv-f2-us", "customer_name": "Client Ltd",
+            "customer_tax_id": "GB220430231", "customer_country": " gb ",
+            "items": [{ "description": "Menú", "quantity": 1_000_000, "unit_price": 121,
+                        "tax_rate": 21.0, "base_amount": 100, "tax_amount": 21 }]
+        }), 6));
+        let inv = &out.operations[2].params;
+        assert_eq!(inv["customer_country"], json!("GB"));
+        assert_eq!(inv["customer_id_type"], json!(""), "unknown kind: the engine picks the default");
+    }
+
+    /// Every invoice issued before (and every Spanish customer) says nothing: '' — the engine
+    /// reads the tax id's prefix, as it always did.
+    #[test]
+    fn an_invoice_without_them_stores_empty() {
+        let out = create_invoice_pure(inp(json!({
+            "series_code": "FACT", "customer_name": "ACME SL", "items": items()
+        }), 6));
+        let inv = &out.operations[2].params;
+        assert_eq!(inv["customer_country"], json!(""));
+        assert_eq!(inv["customer_id_type"], json!(""));
     }
 
     #[test]
