@@ -68,7 +68,8 @@
       "migrations/postgres/008_series_format.sql",
       "migrations/postgres/009_rectification_unique.sql",
       "migrations/postgres/010_rectifies_ref.sql",
-      "migrations/postgres/011_rectifications_per_refund.sql"
+      "migrations/postgres/011_rectifications_per_refund.sql",
+      "migrations/postgres/012_customer_country.sql"
     ]
   },
   "queries": {

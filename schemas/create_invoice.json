@@ -18,4 +18,6 @@
     "issuer_nif": {"type":"string"}, "issuer_name": {"type":"string"},
     "customer_tax_id": {"type":"string"}, "customer_name": {"type":"string"},
     "customer_address": {"type":"string"}, "description": {"type":"string"},
+    "customer_country": {"type":"string","pattern":"^([A-Za-z]{2})?$","description":"Where the customer is from: ISO 3166 alpha-2 (ES, FR, US…). Outside Spain it declares the customer to the AEAT as a foreigner (IDOtro) instead of a Spanish NIF (hub#1967). Empty = the tax id's VAT prefix decides."},
+    "customer_id_type": {"type":"string","enum":["","02","03","04","05","06","07"],"description":"AEAT IDType of `customer_tax_id` for a foreign customer: 02 EU VAT number, 03 passport, 04 tax id of their country, 05 residence certificate, 06 other document, 07 not registered. Empty = 02 in the EU, 04 elsewhere."},
     "source_type": {"type":"string"}, "source_id": {"type":["string","null"]}, "notes": {"type":"string"} } }

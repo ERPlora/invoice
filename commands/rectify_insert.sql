@@ -185,7 +185,8 @@ totals AS (
 )
 INSERT INTO invoice_invoice (
     id, hub_id, invoice_type, series, number, issue_date,
-    issuer_nif, issuer_name, customer_tax_id, customer_name, customer_address, description,
+    issuer_nif, issuer_name, customer_tax_id, customer_name, customer_address,
+    customer_country, customer_id_type, description,
     base_amount, tax_amount, total_amount, tax_breakdown, currency,
     source_type, source_id, rectifies_invoice_id, rectifies_ref, status, notes,
     is_deleted, created_by, updated_by, created_at, updated_at
@@ -212,7 +213,9 @@ SELECT
                 '{prefix}',  s.prefix)
     END,
     COALESCE(NULLIF(CAST(:issue_date AS TEXT), ''), CAST(CAST(CAST(CAST(:now AS TEXT) AS timestamptz) AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC') AS date) AS TEXT)),
-    g.issuer_nif, g.issuer_name, g.customer_tax_id, g.customer_name, g.customer_address, :reason,
+    g.issuer_nif, g.issuer_name, g.customer_tax_id, g.customer_name, g.customer_address,
+    -- ERPlora/hub#1967: the R identifies the same customer, abroad included, as its original.
+    g.customer_country, g.customer_id_type, :reason,
     -CAST(COALESCE(t.base_sum, t.base_fallback) AS INTEGER),
     -CAST(t.amount - COALESCE(t.base_sum, t.base_fallback) AS INTEGER),
     -CAST(t.amount AS INTEGER),
