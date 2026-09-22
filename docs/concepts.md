@@ -45,6 +45,23 @@ happened.
 Note that "this F2 has been substituted" is **derived** from an F3 pointing at it, not a field
 someone flips. And there can be **only one F3 per F2**.
 
+## A customer from abroad
+
+A full invoice identifies its customer. A Spanish customer is identified by their NIF; a customer
+from another country is not in the Spanish tax register, so the invoice also keeps **where they are
+from** (`customer_country`, the two-letter country code: `FR`, `US`, `GB`…) and, when it matters,
+**what document their number is** (`customer_id_type`: `02` EU VAT number, `03` passport, `04` tax
+id of their own country, `05` residence certificate, `06` other document, `07` not registered).
+
+With them the invoice is declared to the tax authority with the customer as the foreigner they are.
+Without a country, a number that starts with an EU VAT prefix (`FR…`, `DE…`) still identifies an EU
+company; anything else is read as a Spanish NIF. Leave the document kind empty and the usual one is
+chosen: the VAT number inside the EU, the tax id of their country elsewhere. A tourist paying with a
+passport is `03`.
+
+Both are part of the invoice's snapshot, like the tax id: editing the customer later does not
+change an invoice already issued, and a rectification identifies the same customer as its original.
+
 ## Voiding a sale is not rectifying its invoice
 
 `sales.void` cancels the sale — stock comes back, the till is corrected. It does **not** issue a
