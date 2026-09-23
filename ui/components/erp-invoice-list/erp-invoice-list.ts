@@ -691,13 +691,25 @@ export class ErpInvoiceList extends LitElement {
    * there the `.print-only` block still makes the browser print just the document. This module has
    * no standalone-HTML builder for its document (it is the live `<ok-invoice>`), so the isolated
    * iframe rung of the sales cascade does not apply here.
+   *
+   * invoice#88 — the result is read, as the sales viewer does (sales#349): a printer or the queue
+   * took it, or the A4 dialog opened → silence (the paper is the answer); queued with no printer
+   * set up to drain it → a warning that it waits for one; anything else → an error with the reason.
    */
-  private printDetail(): void {
+  private async printDetail(): Promise<void> {
     const d = this.detail;
     if (!d) return;
-    const sdk = (globalThis as { erplora?: { print?: (r: Record<string, unknown>) => Promise<unknown> } }).erplora;
-    if (sdk?.print) {
-      void sdk.print({
+    const sdk = (globalThis as { erplora?: {
+      print?: (r: Record<string, unknown>) => Promise<{ via?: string; error?: string; awaitingHost?: boolean } | undefined>;
+      notify?: (n: { type: 'error' | 'warning'; message: string }) => void;
+    } }).erplora;
+    if (!sdk?.print) {
+      window.print();
+      return;
+    }
+    let res: { via?: string; error?: string; awaitingHost?: boolean } | undefined;
+    try {
+      res = await sdk.print({
         role: 'receipt',
         // invoice#86 — a full invoice goes as `invoice`, which the thermal renderer refuses without
         // the customer's tax id and the VAT per rate (ERPlora/hub#2005); a simplified one is a ticket.
@@ -708,9 +720,15 @@ export class ErpInvoiceList extends LitElement {
         data: invoiceToPrintDocument(d, this.detailLines, currencyDecimals(), { qr: this.aeat?.qr || undefined }, this.parseTaxes(d)),
         jobId: `invoice-${d.id}`,
       });
-    } else {
-      window.print();
+    } catch (e) {
+      res = { via: 'none', error: e instanceof Error ? e.message : String(e) };
     }
+    if (res?.via === 'queue' && res.awaitingHost) {
+      sdk.notify?.({ type: 'warning', message: erploraT('ui.printWaitingForPrinter', { number: d.number }) });
+      return;
+    }
+    if (res?.via === 'bridge' || res?.via === 'queue' || res?.via === 'browser') return;
+    sdk.notify?.({ type: 'error', message: res?.error ? `${erploraT('ui.printFailed')}: ${res.error}` : erploraT('ui.printFailed') });
   }
 
   private renderDetail() {
@@ -719,7 +737,7 @@ export class ErpInvoiceList extends LitElement {
       <header class="screen-only">
         <h2>${erploraT('ui.detailTitle', { number: d.number })}</h2>
         <ion-badge data-testid="invoice-detail-status" color=${STATUS_COLOR[d.status] ?? 'medium'}>${statusLabel(d.status)}</ion-badge>
-        <ion-button class="print" data-testid="invoice-detail-print" @click=${() => this.printDetail()}>
+        <ion-button class="print" data-testid="invoice-detail-print" @click=${() => void this.printDetail()}>
           <ion-icon slot="start" name="print-outline"></ion-icon> ${erploraT('ui.actionPrint')}
         </ion-button>
         <ion-button data-testid="invoice-detail-back" fill="outline" color="medium" @click=${() => this.closeDetail()}>← ${erploraT('ui.back')}</ion-button>
