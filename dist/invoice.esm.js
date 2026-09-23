@@ -4883,6 +4883,7 @@ var es_default = {
     "invoice.line_amount_underflow": "Una de las l\xEDneas sale a 0,00, as\xED que no se ha emitido ninguna factura. Las cantidades se env\xEDan en millon\xE9simas de unidad (una unidad son 1000000): revisa la cantidad de esa l\xEDnea.",
     "invoice.tax_quota_mismatch": "La cuota de impuesto no se corresponde con la base y el tipo que declara, as\xED que no se ha emitido ninguna factura. Cobrar una cosa y declarar otra rompe el cruce que hace Hacienda.",
     "invoice.totals_mismatch": "El total de la factura no cuadra con sus propias l\xEDneas, as\xED que no se ha emitido nada.",
+    "invoice.quota_on_non_subject_class": "Una l\xEDnea con inversi\xF3n del sujeto pasivo, no sujeta o exenta lleva cuota de impuesto, as\xED que no se ha emitido ninguna factura. Solo una operaci\xF3n sujeta puede declarar cuota: la regla fiscal de esa categor\xEDa cobra un tipo que no le corresponde.",
     "invoice.negative_total": "Una factura ordinaria no puede sumar menos de cero. Para devolver un importe se emite una rectificativa.",
     "invoice.f1_requires_customer_tax_id": "Una factura completa (F1) necesita el NIF del cliente: sin \xE9l Hacienda la rechaza (error 1189) y el documento es en realidad un tique simplificado. Em\xEDtela con el NIF del cliente, o usa una serie de tiques simplificados (F2).",
     "invoice.sale_not_found": "Esa venta no existe, o ya no est\xE1 disponible para facturar. No se ha emitido ning\xFAn documento ni se ha consumido numeraci\xF3n."
@@ -5031,6 +5032,7 @@ var en_default = {
     "invoice.line_amount_underflow": "One of the lines prices to 0.00, so no invoice was issued. Quantities are sent in millionths of a unit (one unit is 1000000): check the quantity of that line.",
     "invoice.tax_quota_mismatch": "The tax quota does not match the base and the rate declared for it, so no invoice was issued. Charging one amount and declaring another breaks the check the tax authority performs.",
     "invoice.totals_mismatch": "The invoice total does not add up to its own lines, so nothing was issued.",
+    "invoice.quota_on_non_subject_class": "A line under reverse charge, not subject or exempt carries a tax quota, so no invoice was issued. Only a subject operation may declare a quota: the tax rule of that category charges a rate it should not.",
     "invoice.negative_total": "An ordinary invoice cannot total less than zero. To return an amount, issue a corrective invoice.",
     "invoice.f1_requires_customer_tax_id": "A complete invoice (F1) needs the customer's tax ID: without it the tax authority rejects it (error 1189) and the document is really a simplified ticket. Issue it with the customer's tax ID, or use a simplified-ticket series (F2).",
     "invoice.sale_not_found": "That sale does not exist, or is no longer available to invoice. No document was issued and no number was used."

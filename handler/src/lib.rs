@@ -272,6 +272,25 @@ fn audit(breakdown: &[DesgloseLine], base_total: i64, tax_total: i64, inv_type: 
         declared_base += e.base;
         declared_quota += e.quota + e.surcharge_quota;
 
+        // invoice#75: only an `S1` line may declare a quota (AEAT validations §15.7, error 1237).
+        // Reverse charge (`S2`, the customer self-assesses), not subject (`N1`/`N2`) and exempt
+        // lines declare a base and nothing else. A catalog rule that qualifies the operation as
+        // one of those but still carries a rate would seal a record the AEAT rejects.
+        if e.key.class != "subject" && (e.quota != 0 || e.surcharge_quota != 0) {
+            return Some(DomainError::new(
+                "invoice.quota_on_non_subject_class",
+                format!(
+                    "the breakdown declares {} of quota on a `{}` line at {} %: only a subject \
+                     line (S1) may carry a quota. The tax rule of that category qualifies the \
+                     operation as `{}` but still charges a rate.",
+                    e.quota + e.surcharge_quota,
+                    e.key.class,
+                    e.key.rate,
+                    e.key.class
+                ),
+            ));
+        }
+
         // invoice#65: with the key closed once per rate the tolerance is ONE cent, fixed — the
         // same criterion the downstream gates apply (verifactu#60 `013`, hub#1180). Only a
         // verbatim copy (an F3 of a ticket sealed per line) keeps the cent-per-line allowance the
@@ -2604,5 +2623,189 @@ mod business_date_tests {
         )
         .expect("tax_breakdown is JSON");
         assert_eq!(breakdown[0]["rate"], json!(22.0), "the rule in force on 01/01/2027");
+    }
+}
+
+#[cfg(test)]
+mod operation_class_tests {
+    //! invoice#75: the operation class of a line travels from the sale to the frozen
+    //! `tax_breakdown` — and from there to the fiscal record — without anybody rewriting it.
+    //!
+    //! The class is not a free field of the sale line: it is the qualification of the line's tax
+    //! CATEGORY (`taxes` rule, hub#292), resolved here from the same catalog `sales` charged by.
+    //! What these tests pin is the chain for the classes that are NOT `subject` (reverse charge,
+    //! not subject, exempt) and the rule that goes with them: only an `S1` line may declare a
+    //! quota (AEAT validations §15.7, error 1237). A breakdown that says `S2` with 21 % of quota
+    //! is rejected by the AEAT with the invoice number already spent in the chain.
+    use super::*;
+
+    fn rule(cat: &str, class: &str, rate: f64) -> Value {
+        json!({ "id": format!("r-{cat}"), "country_code": "ES", "region_code": null,
+                "tax_category_key": cat, "rate_pct": rate, "tax_type": "vat",
+                "parent_id": null, "is_active": 1, "operation_class": class, "regime_key": "01" })
+    }
+
+    fn rules() -> Value {
+        json!([
+            rule("product.generic", "subject", 21.0),
+            rule("eu.b2b.reverse", "subject_reverse", 0.0),
+            rule("outside.location", "not_subject_location", 0.0),
+            rule("not.subject", "not_subject", 0.0),
+        ])
+    }
+
+    fn from_sale(items: Value, rules: Value) -> Output {
+        let new_ids: Vec<Value> = (0..8).map(|i| json!(format!("id-{i}"))).collect();
+        create_from_sale_pure(json!({
+            "payload": { "sale_id": "sale-1", "document_type": "invoice",
+                         "customer_tax_id": "DE811569869", "items": items },
+            "context": { "new_ids": new_ids, "now": "2026-09-23T10:00:00+00:00",
+                         "country_code": "ES", "region_code": "",
+                         "reads": { "sales.get": [{ "id": "sale-1" }], "taxes.rules.list": rules } }
+        }))
+        .expect("from_sale does not trap")
+    }
+
+    fn line(name: &str, cat: &str, rate: f64, net: i64, tax: i64) -> Value {
+        json!({ "product_name": name, "quantity": 1_000_000, "unit_price": net + tax,
+                "tax_rate": rate, "tax_category_key": cat, "net_amount": net, "tax_amount": tax })
+    }
+
+    fn breakdown(out: &Output) -> Vec<Value> {
+        assert!(out.error.is_none(), "unexpected refusal: {:?}", out.error.as_ref().map(|e| &e.code));
+        serde_json::from_str::<Vec<Value>>(out.operations[2].params["tax_breakdown"].as_str().unwrap()).unwrap()
+    }
+
+    fn entry<'a>(d: &'a [Value], class: &str) -> &'a Value {
+        d.iter().find(|e| e["class"] == json!(class)).unwrap_or_else(|| panic!("no `{class}` entry in {d:?}"))
+    }
+
+    #[test]
+    fn a_reverse_charge_sale_line_is_frozen_as_subject_reverse_without_quota() {
+        let out = from_sale(json!([line("Consultoría", "eu.b2b.reverse", 0.0, 100_000, 0)]), rules());
+        let d = breakdown(&out);
+        assert_eq!(d.len(), 1);
+        let e = entry(&d, "subject_reverse");
+        assert_eq!(e["base"], json!(100_000));
+        assert_eq!(e["quota"], json!(0), "S2: the customer self-assesses the quota");
+        assert_eq!(out.operations[2].params["tax_amount"], json!(0));
+        assert_eq!(out.operations[2].params["total_amount"], json!(100_000));
+    }
+
+    #[test]
+    fn the_everyday_subject_sale_keeps_exactly_the_same_breakdown() {
+        let d = breakdown(&from_sale(json!([line("Caña", "product.generic", 21.0, 1000, 210)]), rules()));
+        assert_eq!(
+            d,
+            vec![json!({ "tax": "vat", "regime": "01", "class": "subject", "rate": 21.0,
+                         "base": 1000, "quota": 210 })]
+        );
+    }
+
+    #[test]
+    fn lines_of_different_class_are_different_blocks_and_same_class_adds_up() {
+        let d = breakdown(&from_sale(
+            json!([
+                line("A", "product.generic", 21.0, 1000, 210),
+                line("B", "eu.b2b.reverse", 0.0, 2000, 0),
+                line("C", "eu.b2b.reverse", 0.0, 3000, 0),
+                line("D", "outside.location", 0.0, 400, 0),
+                line("E", "not.subject", 0.0, 500, 0),
+            ]),
+            rules(),
+        ));
+        assert_eq!(d.len(), 4, "{d:?}");
+        assert_eq!(entry(&d, "subject")["quota"], json!(210));
+        assert_eq!(entry(&d, "subject_reverse")["base"], json!(5000));
+        assert_eq!(entry(&d, "not_subject_location")["base"], json!(400));
+        assert_eq!(entry(&d, "not_subject")["base"], json!(500));
+        for class in ["subject_reverse", "not_subject_location", "not_subject"] {
+            assert_eq!(entry(&d, class)["quota"], json!(0), "{class} carries no quota");
+        }
+    }
+
+    /// A catalog rule that qualifies the operation as reverse charge but still carries 21 %
+    /// (`taxes` accepts it today) would have charged the customer 21 % and declared an `S2` with
+    /// quota — which the AEAT rejects (§15.7) after the number is spent. Refused before sealing.
+    #[test]
+    fn a_non_subject_class_that_would_carry_a_quota_is_refused() {
+        for class in ["subject_reverse", "not_subject", "not_subject_location", "exempt"] {
+            let out = from_sale(
+                json!([line("X", "bad.rule", 21.0, 1000, 210)]),
+                json!([rule("bad.rule", class, 21.0)]),
+            );
+            assert_eq!(
+                out.error.as_ref().map(|e| e.code.as_str()),
+                Some("invoice.quota_on_non_subject_class"),
+                "{class} at 21 % was sealed with a quota"
+            );
+            assert!(out.operations.is_empty(), "{class}: a refusal persists nothing");
+        }
+    }
+
+    /// The equivalence surcharge is a quota too: a reverse-charge rule at 0 % that still carries a
+    /// surcharge component would declare an `S2` with `CuotaRecargoEquivalencia`.
+    #[test]
+    fn a_surcharge_on_a_non_subject_class_is_refused_too() {
+        let mut rules = json!([rule("bad.rule", "subject_reverse", 0.0)]);
+        rules.as_array_mut().unwrap().push(json!({
+            "id": "r-bad-re", "country_code": "ES", "region_code": null,
+            "tax_category_key": "bad.rule", "rate_pct": 5.2, "tax_type": "surcharge",
+            "parent_id": "r-bad.rule", "is_active": 1, "component_label": "Recargo de equivalencia" }));
+        let out = from_sale(json!([line("X", "bad.rule", 5.2, 1000, 52)]), rules);
+        assert_eq!(out.error.as_ref().map(|e| e.code.as_str()), Some("invoice.quota_on_non_subject_class"));
+    }
+
+    /// The manual door (`invoice.create`) seals through the same guard.
+    #[test]
+    fn the_manual_door_refuses_it_too() {
+        let new_ids: Vec<Value> = (0..8).map(|i| json!(format!("id-{i}"))).collect();
+        let out = create_invoice_pure(json!({
+            "payload": { "series_code": "FACT", "customer_tax_id": "DE811569869", "items": [
+                { "description": "X", "quantity": 1_000_000, "unit_price": 1000,
+                  "tax_rate": 21.0, "tax_category_key": "bad.rule" } ] },
+            "context": { "new_ids": new_ids, "now": "2026-09-23T10:00:00+00:00",
+                         "country_code": "ES", "region_code": "",
+                         "reads": { "taxes.rules.list": [rule("bad.rule", "subject_reverse", 21.0)] } }
+        }));
+        assert_eq!(out.error.as_ref().map(|e| e.code.as_str()), Some("invoice.quota_on_non_subject_class"));
+    }
+
+    /// The verbatim door (`invoice.substitute`, an F3 copied from a ticket) seals through the same
+    /// guard: a ticket line whose category qualifies as reverse charge but was charged 21 % is not
+    /// copied into a full invoice the AEAT would reject.
+    #[test]
+    fn the_verbatim_f3_door_refuses_it_too() {
+        let new_ids: Vec<Value> = (0..8).map(|i| json!(format!("id-{i}"))).collect();
+        let out = substitute_from_invoice_pure(json!({
+            "payload": { "original_invoice_id": "inv-f2-1", "customer_tax_id": "DE811569869", "items": [
+                { "description": "X", "quantity": 1_000_000, "unit_price": 121, "tax_rate": 21.0,
+                  "tax_category_key": "bad.rule", "base_amount": 100, "tax_amount": 21 } ] },
+            "context": { "new_ids": new_ids, "now": "2026-09-23T10:00:00+00:00",
+                         "country_code": "ES", "region_code": "",
+                         "reads": { "taxes.rules.list": [rule("bad.rule", "subject_reverse", 21.0)] } }
+        }));
+        assert_eq!(out.error.as_ref().map(|e| e.code.as_str()), Some("invoice.quota_on_non_subject_class"));
+        assert!(out.operations.is_empty(), "a refusal persists nothing");
+    }
+
+    /// The sign does not matter: a negative quota on a non-subject entry is a quota all the same
+    /// (a returned line under reverse charge charged at 21 %). Refused with its own code, not as a
+    /// negative total.
+    #[test]
+    fn a_negative_quota_on_a_non_subject_class_is_refused_with_its_own_code() {
+        let new_ids: Vec<Value> = (0..8).map(|i| json!(format!("id-{i}"))).collect();
+        let out = substitute_from_invoice_pure(json!({
+            "payload": { "original_invoice_id": "inv-f2-2", "customer_tax_id": "DE811569869", "items": [
+                { "description": "X", "quantity": 1_000_000, "unit_price": 1210, "tax_rate": 21.0,
+                  "tax_category_key": "prod", "base_amount": 1000, "tax_amount": 210 },
+                { "description": "Returned", "quantity": 1_000_000, "unit_price": -121, "tax_rate": 21.0,
+                  "tax_category_key": "bad.rule", "base_amount": -100, "tax_amount": -21 } ] },
+            "context": { "new_ids": new_ids, "now": "2026-09-23T10:00:00+00:00",
+                         "country_code": "ES", "region_code": "",
+                         "reads": { "taxes.rules.list": [
+                             rule("prod", "subject", 21.0), rule("bad.rule", "subject_reverse", 21.0) ] } }
+        }));
+        assert_eq!(out.error.as_ref().map(|e| e.code.as_str()), Some("invoice.quota_on_non_subject_class"));
     }
 }

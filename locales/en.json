@@ -4,6 +4,7 @@
     "invoice.line_amount_underflow": "One of the lines prices to 0.00, so no invoice was issued. Quantities are sent in millionths of a unit (one unit is 1000000): check the quantity of that line.",
     "invoice.tax_quota_mismatch": "The tax quota does not match the base and the rate declared for it, so no invoice was issued. Charging one amount and declaring another breaks the check the tax authority performs.",
     "invoice.totals_mismatch": "The invoice total does not add up to its own lines, so nothing was issued.",
+    "invoice.quota_on_non_subject_class": "A line under reverse charge, not subject or exempt carries a tax quota, so no invoice was issued. Only a subject operation may declare a quota: the tax rule of that category charges a rate it should not.",
     "invoice.negative_total": "An ordinary invoice cannot total less than zero. To return an amount, issue a corrective invoice.",
     "invoice.f1_requires_customer_tax_id": "A complete invoice (F1) needs the customer's tax ID: without it the tax authority rejects it (error 1189) and the document is really a simplified ticket. Issue it with the customer's tax ID, or use a simplified-ticket series (F2).",
     "invoice.sale_not_found": "That sale does not exist, or is no longer available to invoice. No document was issued and no number was used."
