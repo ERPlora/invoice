@@ -4852,6 +4852,11 @@ function lineTaxLabel(line, t5) {
 }
 
 // ui/lib/print-document.ts
+var VERIFACTU_LEGEND = "VERI*FACTU";
+var QR_TRIBUTARIO_HEADING = "QR tributario:";
+function qrLegalTexts(qr) {
+  return qr ? { qr_heading: QR_TRIBUTARIO_HEADING, qr_legend: VERIFACTU_LEGEND } : {};
+}
 function toUnits(minor, decimals) {
   const n6 = Number(minor ?? 0);
   if (!Number.isFinite(n6)) return 0;
@@ -4871,7 +4876,8 @@ function invoiceToPrintDocument(invoice, lines, decimals, fiscal = {}) {
     subtotal: toUnits(invoice.base_amount, decimals),
     tax_amount: toUnits(invoice.tax_amount, decimals),
     total: toUnits(invoice.total_amount, decimals),
-    qr_data: fiscal.qr || void 0
+    qr_data: fiscal.qr || void 0,
+    ...qrLegalTexts(fiscal.qr)
   };
 }
 
@@ -5305,6 +5311,8 @@ var ErpInvoiceList = class extends i3 {
     .aeat-card .aeat-head { display:flex; gap:.5rem; align-items:center; }
     .aeat-card .aeat-head h3 { margin:0; flex:1; }
     .qr-wrap { display:flex; flex-direction:column; align-items:center; gap:.4rem; padding:.5rem 0; }
+    .qr-heading { font-size:.8rem; font-weight:600; text-align:center; }
+    .qr-legend { font-size:.8rem; font-weight:700; letter-spacing:.02em; text-align:center; }
     .qr-note { font-size:.72rem; color:var(--ion-color-medium,#8a8577); text-align:center; }
     /* Documento imprimible: oculto en pantalla, único visible al imprimir / Guardar como PDF. */
     .print-only { display:none; }
@@ -5668,6 +5676,7 @@ var ErpInvoiceList = class extends i3 {
       currency: d3.currency || erplora().currency,
       qr: qr || void 0,
       qr_note: csv ? `CSV: ${csv}` : qr ? erploraT("ui.qrValidateNote") : void 0,
+      ...qrLegalTexts(qr),
       footer: d3.notes || void 0
     };
   }
@@ -5681,7 +5690,9 @@ var ErpInvoiceList = class extends i3 {
       </div>
       ${a3.csv ? b2`<div class="kv"><span class="k">${erploraT("ui.aeatCsv")}</span><code data-testid="invoice-aeat-csv">${a3.csv}</code></div>` : A}
       ${a3.qr ? b2`<div class="qr-wrap">
+            <span class="qr-heading" data-testid="invoice-aeat-qr-heading">${QR_TRIBUTARIO_HEADING}</span>
             <ok-qr value=${a3.qr} size="120" ec="M"></ok-qr>
+            <span class="qr-legend" data-testid="invoice-aeat-qr-legend">${VERIFACTU_LEGEND}</span>
             <span class="qr-note">${erploraT("ui.qrValidateNote")}</span>
             <a class="link" href=${a3.qr} target="_blank" rel="noopener noreferrer">${erploraT("ui.aeatValidateLink")}</a>
           </div>` : b2`<p class="muted">${erploraT("ui.aeatNoRecord")}</p>`}

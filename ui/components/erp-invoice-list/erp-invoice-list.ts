@@ -11,7 +11,11 @@ import type { ListController, ListClient, ListParams, ListPage } from '@erplora/
 // Aduana de la escala de cantidades (ADR-0147): la UI habla lógico (0,5), el cable habla µ (500000).
 import { QUANTITY_SCALE, parseQuantity, formatQuantity, fromMicro } from '../../lib/quantity';
 import { lineTaxLabel } from '../../lib/line-tax';
-import { invoiceToPrintDocument } from '../../lib/print-document';
+import { invoiceToPrintDocument, qrLegalTexts, QR_TRIBUTARIO_HEADING, VERIFACTU_LEGEND } from '../../lib/print-document';
+
+/** `<ok-invoice>` paints `qr_heading`/`qr_legend` since outfitkit#151/#158 (invoice#84); an
+ *  older outfitkit ignores the keys. Widened here so the module builds against either. */
+type InvoiceDocData = InvoiceData & { qr_legend?: string; qr_heading?: string };
 // Catálogo i18n del módulo (ADR-0055): esbuild inlinea estos JSON en el `dist` del WC. Los textos
 // internos se resuelven con `erplora.t(CATALOG, 'ui.clave')` (idioma activo, fallback locale→en→clave).
 import esLocale from '../../../locales/es.json';
@@ -198,6 +202,8 @@ export class ErpInvoiceList extends LitElement {
     .aeat-card .aeat-head { display:flex; gap:.5rem; align-items:center; }
     .aeat-card .aeat-head h3 { margin:0; flex:1; }
     .qr-wrap { display:flex; flex-direction:column; align-items:center; gap:.4rem; padding:.5rem 0; }
+    .qr-heading { font-size:.8rem; font-weight:600; text-align:center; }
+    .qr-legend { font-size:.8rem; font-weight:700; letter-spacing:.02em; text-align:center; }
     .qr-note { font-size:.72rem; color:var(--ion-color-medium,#8a8577); text-align:center; }
     /* Documento imprimible: oculto en pantalla, único visible al imprimir / Guardar como PDF. */
     .print-only { display:none; }
@@ -608,7 +614,7 @@ export class ErpInvoiceList extends LitElement {
    *  carries it (`d.total_amount`, `l.unit_price`…), plus `decimals` so OutfitKit cuts the text
    *  by string. The module never divides: with the previous contract (units, `toFixed(2)`) a
    *  48,00 € invoice printed «4800.00 EUR». */
-  private invoiceDocData(): InvoiceData {
+  private invoiceDocData(): InvoiceDocData {
     const d = this.detail!;
     const qr = this.aeat?.qr || '';
     const csv = this.aeat?.csv || '';
@@ -626,6 +632,7 @@ export class ErpInvoiceList extends LitElement {
       currency: d.currency || erplora().currency,
       qr: qr || undefined,
       qr_note: csv ? `CSV: ${csv}` : (qr ? erploraT('ui.qrValidateNote') : undefined),
+      ...qrLegalTexts(qr),
       footer: d.notes || undefined,
     };
   }
@@ -641,7 +648,9 @@ export class ErpInvoiceList extends LitElement {
       ${a.csv ? html`<div class="kv"><span class="k">${erploraT('ui.aeatCsv')}</span><code data-testid="invoice-aeat-csv">${a.csv}</code></div>` : nothing}
       ${a.qr
         ? html`<div class="qr-wrap">
+            <span class="qr-heading" data-testid="invoice-aeat-qr-heading">${QR_TRIBUTARIO_HEADING}</span>
             <ok-qr value=${a.qr} size="120" ec="M"></ok-qr>
+            <span class="qr-legend" data-testid="invoice-aeat-qr-legend">${VERIFACTU_LEGEND}</span>
             <span class="qr-note">${erploraT('ui.qrValidateNote')}</span>
             <a class="link" href=${a.qr} target="_blank" rel="noopener noreferrer">${erploraT('ui.aeatValidateLink')}</a>
           </div>`
