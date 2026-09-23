@@ -57,6 +57,7 @@
     "statusPaid": "Paid",
     "statusCancelled": "Cancelled",
     "detailTitle": "Invoice {number}",
+    "invoiceMissingCustomerTaxId": "This invoice has no customer tax ID: the receipt printer cannot print it as a full invoice.",
     "fieldType": "Type",
     "fieldSeries": "Series",
     "fieldIssueDate": "Issue date",

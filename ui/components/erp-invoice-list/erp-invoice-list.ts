@@ -141,6 +141,9 @@ function statusLabel(code: string): string {
 }
 
 const TYPE_CODES = ['F1', 'F2', 'F3', 'R1', 'R2', 'R3', 'R4', 'R5'];
+/** invoice#86 — simplified invoices (F2 and its rectifying R5) are tickets: they identify no
+ *  customer, so the thermal printer prints them as a `receipt`, the way sales prints its tickets. */
+const SIMPLIFIED_TYPES = new Set(['F2', 'R5']);
 const STATUS_CODES = ['draft', 'issued', 'paid', 'cancelled'];
 
 const STATUS_COLOR: Record<string, string> = {
@@ -548,6 +551,12 @@ export class ErpInvoiceList extends LitElement {
     return (s && map[s]) || 'medium';
   }
 
+  /** invoice#86 — a full invoice whose customer has no tax id cannot be printed on the thermal
+   *  printer (ERPlora/hub#2005): the screen says so before anyone presses Print. */
+  private missingCustomerTaxId(d: InvoiceDetail): boolean {
+    return !SIMPLIFIED_TYPES.has(d.invoice_type) && !d.customer_tax_id?.trim();
+  }
+
   /**
    * `tax_breakdown` → líneas de impuesto de `ok-invoice`. Entiende las DOS generaciones del
    * contrato (hub#292):
@@ -690,11 +699,13 @@ export class ErpInvoiceList extends LitElement {
     if (sdk?.print) {
       void sdk.print({
         role: 'receipt',
-        documentType: 'invoice',
+        // invoice#86 — a full invoice goes as `invoice`, which the thermal renderer refuses without
+        // the customer's tax id and the VAT per rate (ERPlora/hub#2005); a simplified one is a ticket.
+        documentType: SIMPLIFIED_TYPES.has(d.invoice_type) ? 'receipt' : 'invoice',
         format: 'a4',
         // The thermal renderer reads ANOTHER shape, in major units (`lib/print-document.ts`):
-        // the ok-invoice object is for the A4 path only.
-        data: invoiceToPrintDocument(d, this.detailLines, currencyDecimals(), { qr: this.aeat?.qr || undefined }),
+        // the ok-invoice object is for the A4 path only. The VAT rows are the ones the A4 paints.
+        data: invoiceToPrintDocument(d, this.detailLines, currencyDecimals(), { qr: this.aeat?.qr || undefined }, this.parseTaxes(d)),
         jobId: `invoice-${d.id}`,
       });
     } else {
@@ -714,6 +725,9 @@ export class ErpInvoiceList extends LitElement {
         <ion-button data-testid="invoice-detail-back" fill="outline" color="medium" @click=${() => this.closeDetail()}>← ${erploraT('ui.back')}</ion-button>
       </header>
       ${this.actionError ? html`<p class="err screen-only" data-testid="invoice-detail-error">${this.actionError}</p>` : nothing}
+      ${this.missingCustomerTaxId(d)
+        ? html`<ok-inline-feedback class="screen-only" tone="warning" icon="alert-circle-outline" data-testid="invoice-missing-tax-id">${erploraT('ui.invoiceMissingCustomerTaxId')}</ok-inline-feedback>`
+        : nothing}
       <div class="screen-only">${this.renderRectifyCard()}</div>
       ${this.renderAeatCard()}
       <div class="card screen-only">

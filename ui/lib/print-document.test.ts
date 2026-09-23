@@ -72,3 +72,44 @@ describe('invoiceToPrintDocument: what the ESC/POS renderer reads, in major unit
     expect(doc.items[0].total).toBe(2400);
   });
 });
+
+// invoice#86 — the hub prints a `documentType: 'invoice'` as a FULL invoice on the 80 mm roll and
+// refuses one without the customer's tax id or the VAT broken down per rate (ERPlora/hub#2005,
+// `escpos::check_full_invoice`). Same shape sales#350 sends: `customer_tax_id`, optional
+// `customer_address`, and `tax_breakdown` rows `{ rate, base, tax, label? }` in MAJOR units.
+describe('invoiceToPrintDocument: the full invoice the thermal renderer demands (invoice#86)', () => {
+  const TAXES = [
+    { label: 'IVA 21%', rate: 21, base: 3967, amount: 833 },
+    { label: 'Recargo de equivalencia 5.2%', rate: 5.2, base: 3967, amount: 206 },
+  ];
+
+  it('carries the customer tax id and address', () => {
+    const doc = invoiceToPrintDocument(DETAIL, LINES, 2, {}, TAXES);
+    expect(doc.customer_tax_id).toBe('B12345678');
+    expect(doc.customer_address).toBe('Calle 1');
+  });
+
+  it('breaks the VAT down per row, in major units, keeping the label the A4 prints', () => {
+    const doc = invoiceToPrintDocument(DETAIL, LINES, 2, {}, TAXES);
+    expect(doc.tax_breakdown).toEqual([
+      { rate: 21, base: 39.67, tax: 8.33, label: 'IVA 21%' },
+      { rate: 5.2, base: 39.67, tax: 2.06, label: 'Recargo de equivalencia 5.2%' },
+    ]);
+  });
+
+  it('scales the breakdown by the currency, like every other amount', () => {
+    const doc = invoiceToPrintDocument(DETAIL, LINES, 0, {}, [{ label: 'VAT 10%', rate: 10, base: 4000, amount: 400 }]);
+    expect(doc.tax_breakdown).toEqual([{ rate: 10, base: 4000, tax: 400, label: 'VAT 10%' }]);
+  });
+
+  it('a row without a numeric rate keeps a numeric `rate` (0) and is named by its label', () => {
+    const doc = invoiceToPrintDocument(DETAIL, LINES, 2, {}, [{ label: 'Exento (E1)', base: 4800, amount: 0 }]);
+    expect(doc.tax_breakdown).toEqual([{ rate: 0, base: 48, tax: 0, label: 'Exento (E1)' }]);
+  });
+
+  it('a missing tax id or address is left out, never sent blank (the hub names what is missing)', () => {
+    const doc = invoiceToPrintDocument({ ...DETAIL, customer_tax_id: '  ', customer_address: '' }, LINES, 2, {}, TAXES);
+    expect('customer_tax_id' in doc).toBe(false);
+    expect('customer_address' in doc).toBe(false);
+  });
+});

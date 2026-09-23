@@ -4106,9 +4106,11 @@ function buildMatrix(codewords, version, ec) {
     set(i7, 6, v3);
   }
   const aps = ALIGN_POS[version - 1];
+  const first = aps[0];
+  const last = aps[aps.length - 1];
   for (const r6 of aps) {
     for (const c5 of aps) {
-      if (reserved[r6][c5]) continue;
+      if (r6 === first && c5 === first || r6 === first && c5 === last || r6 === last && c5 === first) continue;
       for (let dr = -2; dr <= 2; dr++) {
         for (let dc = -2; dc <= 2; dc++) {
           const ring = Math.max(Math.abs(dr), Math.abs(dc));
@@ -4274,6 +4276,15 @@ function generateQr(value, ec) {
   }
   return null;
 }
+function modulesPath(matrix, quiet) {
+  let d3 = "";
+  for (let r6 = 0; r6 < matrix.length; r6++) {
+    for (let c5 = 0; c5 < matrix.length; c5++) {
+      if (matrix[r6][c5]) d3 += `M${c5 + quiet} ${r6 + quiet}h1v1h-1z`;
+    }
+  }
+  return d3;
+}
 var OkQr = class extends i3 {
   constructor() {
     super(...arguments);
@@ -4317,14 +4328,7 @@ var OkQr = class extends i3 {
     const count = matrix.length;
     const quiet = Math.max(0, Math.floor(this.margin));
     const dim = count + quiet * 2;
-    let d3 = "";
-    for (let r6 = 0; r6 < count; r6++) {
-      for (let c5 = 0; c5 < count; c5++) {
-        if (matrix[r6][c5]) {
-          d3 += `M${c5 + quiet} ${r6 + quiet}h1v1h-1z`;
-        }
-      }
-    }
+    const d3 = modulesPath(matrix, quiet);
     const fg = this.color || void 0;
     const bg = this.background || void 0;
     const fgStyle = fg ? `fill:${fg}` : void 0;
@@ -4536,11 +4540,13 @@ var OkInvoice = class extends i3 {
     .summary .grand td { font-size: 15px; font-weight: 800; border-top: 1.5px solid var(--ink); padding-top: 2mm; }
     .summary .grand td.num { color: var(--accent); }
     .muted { color: var(--muted); }
-    /* Pie: pago, notas, QR. */
+    /* Foot: payment and notes (the fiscal QR opens the sheet, sales#339). */
     .foot { margin-top: 8mm; display: flex; justify-content: space-between; gap: 2rem; align-items: flex-start; }
     .pay-box { font-size: 11px; }
     .pay-box .h { font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
-    .qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 1mm; }
+    .qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 1mm; margin-bottom: 6mm; }
+    .qr-heading { font-size: 12px; font-weight: 700; text-align: center; }
+    .qr-legend { font-size: 12px; font-weight: 700; text-align: center; letter-spacing: .04em; }
     .qr-note { font-size: 8px; max-width: 36mm; text-align: center; color: var(--muted); word-break: break-word; }
     .legal { margin-top: 8mm; padding-top: 3mm; border-top: 1px solid var(--rule); font-size: 9px; color: var(--muted); white-space: pre-line; text-align: center; }
     .empty { padding: 12mm; text-align: center; color: #999; font-style: italic; }
@@ -4592,6 +4598,7 @@ var OkInvoice = class extends i3 {
     const inv = this.invoice;
     if (!inv) return b2`<div class="sheet empty">${this.t.empty}</div>`;
     return b2`<div class="sheet" part="sheet">
+      ${this.renderQr(inv)}
       ${this.renderTop(inv)}
       ${this.renderBillTo(inv)}
       ${this.renderLines(inv)}
@@ -4677,17 +4684,22 @@ var OkInvoice = class extends i3 {
   }
   renderFoot(inv) {
     const hasPay = inv.payment_method || inv.payment_terms || inv.notes;
-    if (!hasPay && !inv.qr) return A;
+    if (!hasPay) return A;
     return b2`<div class="foot">
       <div class="pay-box">
         ${inv.payment_method ? b2`<div class="h">${this.t.paymentMethod}</div><div>${inv.payment_method}</div>` : A}
         ${inv.payment_terms ? b2`<div style="margin-top:2mm" class="muted">${inv.payment_terms}</div>` : A}
         ${inv.notes ? b2`<div style="margin-top:3mm">${inv.notes}</div>` : A}
       </div>
-      ${inv.qr ? b2`<div class="qr-wrap">
-            <ok-qr .value=${inv.qr} .size=${this.qrSize} ec="M"></ok-qr>
-            ${inv.qr_note ? b2`<div class="qr-note">${inv.qr_note}</div>` : A}
-          </div>` : A}
+    </div>`;
+  }
+  renderQr(inv) {
+    if (!inv.qr) return A;
+    return b2`<div class="qr-wrap">
+      ${inv.qr_heading ? b2`<div class="qr-heading">${inv.qr_heading}</div>` : A}
+      <ok-qr .value=${inv.qr} .size=${this.qrSize} ec="M"></ok-qr>
+      ${inv.qr_legend ? b2`<div class="qr-legend">${inv.qr_legend}</div>` : A}
+      ${inv.qr_note ? b2`<div class="qr-note">${inv.qr_note}</div>` : A}
     </div>`;
   }
 };
@@ -4862,12 +4874,16 @@ function toUnits(minor, decimals) {
   if (!Number.isFinite(n6)) return 0;
   return n6 / 10 ** decimals;
 }
-function invoiceToPrintDocument(invoice, lines, decimals, fiscal = {}) {
+function invoiceToPrintDocument(invoice, lines, decimals, fiscal = {}, taxes = []) {
+  const taxId = invoice.customer_tax_id?.trim();
+  const address = invoice.customer_address?.trim();
   return {
     business_name: invoice.issuer_name || "",
     vat_number: invoice.issuer_nif || void 0,
     receipt_id: invoice.number,
     customer_name: invoice.customer_name || void 0,
+    ...taxId ? { customer_tax_id: taxId } : {},
+    ...address ? { customer_address: address } : {},
     items: lines.map((l3) => ({
       name: l3.description,
       quantity: fromMicro2(Number(l3.quantity) || 0),
@@ -4876,6 +4892,14 @@ function invoiceToPrintDocument(invoice, lines, decimals, fiscal = {}) {
     subtotal: toUnits(invoice.base_amount, decimals),
     tax_amount: toUnits(invoice.tax_amount, decimals),
     total: toUnits(invoice.total_amount, decimals),
+    tax_breakdown: taxes.map((row) => ({
+      // A row with no numeric rate (exempt, not subject) keeps a numeric `rate`: the renderer
+      // prints `label` instead of the rate.
+      rate: Number.isFinite(row.rate) ? Number(row.rate) : 0,
+      base: toUnits(row.base, decimals),
+      tax: toUnits(row.amount, decimals),
+      ...row.label ? { label: row.label } : {}
+    })),
     qr_data: fiscal.qr || void 0,
     ...qrLegalTexts(fiscal.qr)
   };
@@ -4942,6 +4966,7 @@ var es_default = {
     statusPaid: "Pagada",
     statusCancelled: "Cancelada",
     detailTitle: "Factura {number}",
+    invoiceMissingCustomerTaxId: "Esta factura no tiene el NIF del cliente: la impresora de tiques no puede sacarla como factura completa.",
     fieldType: "Tipo",
     fieldSeries: "Serie",
     fieldIssueDate: "Fecha de emisi\xF3n",
@@ -5091,6 +5116,7 @@ var en_default = {
     statusPaid: "Paid",
     statusCancelled: "Cancelled",
     detailTitle: "Invoice {number}",
+    invoiceMissingCustomerTaxId: "This invoice has no customer tax ID: the receipt printer cannot print it as a full invoice.",
     fieldType: "Type",
     fieldSeries: "Series",
     fieldIssueDate: "Issue date",
@@ -5230,6 +5256,7 @@ function statusLabel(code) {
   return map[code] ?? code;
 }
 var TYPE_CODES = ["F1", "F2", "F3", "R1", "R2", "R3", "R4", "R5"];
+var SIMPLIFIED_TYPES = /* @__PURE__ */ new Set(["F2", "R5"]);
 var STATUS_CODES = ["draft", "issued", "paid", "cancelled"];
 var STATUS_COLOR = {
   draft: "medium",
@@ -5595,6 +5622,11 @@ var ErpInvoiceList = class extends i3 {
     const map = { accepted: "success", pending: "warning", rejected: "danger", error: "danger" };
     return s5 && map[s5] || "medium";
   }
+  /** invoice#86 — a full invoice whose customer has no tax id cannot be printed on the thermal
+   *  printer (ERPlora/hub#2005): the screen says so before anyone presses Print. */
+  missingCustomerTaxId(d3) {
+    return !SIMPLIFIED_TYPES.has(d3.invoice_type) && !d3.customer_tax_id?.trim();
+  }
   /**
    * `tax_breakdown` → líneas de impuesto de `ok-invoice`. Entiende las DOS generaciones del
    * contrato (hub#292):
@@ -5729,11 +5761,13 @@ var ErpInvoiceList = class extends i3 {
     if (sdk?.print) {
       void sdk.print({
         role: "receipt",
-        documentType: "invoice",
+        // invoice#86 — a full invoice goes as `invoice`, which the thermal renderer refuses without
+        // the customer's tax id and the VAT per rate (ERPlora/hub#2005); a simplified one is a ticket.
+        documentType: SIMPLIFIED_TYPES.has(d3.invoice_type) ? "receipt" : "invoice",
         format: "a4",
         // The thermal renderer reads ANOTHER shape, in major units (`lib/print-document.ts`):
-        // the ok-invoice object is for the A4 path only.
-        data: invoiceToPrintDocument(d3, this.detailLines, currencyDecimals(), { qr: this.aeat?.qr || void 0 }),
+        // the ok-invoice object is for the A4 path only. The VAT rows are the ones the A4 paints.
+        data: invoiceToPrintDocument(d3, this.detailLines, currencyDecimals(), { qr: this.aeat?.qr || void 0 }, this.parseTaxes(d3)),
         jobId: `invoice-${d3.id}`
       });
     } else {
@@ -5752,6 +5786,7 @@ var ErpInvoiceList = class extends i3 {
         <ion-button data-testid="invoice-detail-back" fill="outline" color="medium" @click=${() => this.closeDetail()}>← ${erploraT("ui.back")}</ion-button>
       </header>
       ${this.actionError ? b2`<p class="err screen-only" data-testid="invoice-detail-error">${this.actionError}</p>` : A}
+      ${this.missingCustomerTaxId(d3) ? b2`<ok-inline-feedback class="screen-only" tone="warning" icon="alert-circle-outline" data-testid="invoice-missing-tax-id">${erploraT("ui.invoiceMissingCustomerTaxId")}</ok-inline-feedback>` : A}
       <div class="screen-only">${this.renderRectifyCard()}</div>
       ${this.renderAeatCard()}
       <div class="card screen-only">
