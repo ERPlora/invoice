@@ -74,6 +74,8 @@ const COVERED: Record<
       'invoice-aeat',
       'invoice-aeat-csv',
       'invoice-aeat-status',
+      'invoice-aeat-qr-heading',
+      'invoice-aeat-qr-legend',
       'invoice-create-add-line',
       'invoice-create-address',
       'invoice-create-cancel',

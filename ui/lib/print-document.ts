@@ -51,6 +51,25 @@ export interface PrintDocument extends Record<string, unknown> {
   tax_amount: number;
   total: number;
   qr_data?: string;
+  /** invoice#84 — «VERI*FACTU», printed right under `qr_data`. Present exactly when the QR is. */
+  qr_legend?: string;
+  /** invoice#84 — «QR tributario:», printed right above `qr_data`. Present exactly when the QR is. */
+  qr_heading?: string;
+}
+
+/**
+ * invoice#84 — the legal texts of the VeriFactu QR, the same pair sales#327/#339 put on the POS
+ * ticket and invoice: «VERI*FACTU» right under the QR (RD 1619/2012 art. 6.5.b and 7.5; Orden
+ * HAC/1177/2024 art. 20.1.b) and «QR tributario:» right above it (AEAT QR spec v0.5.0 §3). A
+ * system that sends every record to the AEAT carries the legend on EVERY fiscal QR. Both are
+ * literal AEAT text, identical in every language, so they are NOT i18n catalog keys.
+ */
+export const VERIFACTU_LEGEND = 'VERI*FACTU';
+export const QR_TRIBUTARIO_HEADING = 'QR tributario:';
+
+/** The legal texts that travel with a fiscal QR — and nothing without one. */
+export function qrLegalTexts(qr: string | undefined): { qr_heading?: string; qr_legend?: string } {
+  return qr ? { qr_heading: QR_TRIBUTARIO_HEADING, qr_legend: VERIFACTU_LEGEND } : {};
 }
 
 /**
@@ -83,5 +102,6 @@ export function invoiceToPrintDocument(
     tax_amount: toUnits(invoice.tax_amount, decimals),
     total: toUnits(invoice.total_amount, decimals),
     qr_data: fiscal.qr || undefined,
+    ...qrLegalTexts(fiscal.qr),
   };
 }
