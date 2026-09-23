@@ -581,6 +581,68 @@ def test_a_partial_refund_prorates_the_legacy_object_breakdown_too():
     )
 
 
+# ── 4c. The operation class travels into the rectificativa (invoice#75) ──────────────────
+
+# An F1 to an EU business: one line subject at 21 %, one under reverse charge (S2, no quota).
+CLASS_BREAKDOWN = [
+    {"tax": "vat", "regime": "01", "class": "subject", "rate": 21.0, "base": 1000, "quota": 210},
+    {"tax": "vat", "regime": "01", "class": "subject_reverse", "rate": 0.0, "base": 2000, "quota": 0},
+]
+
+
+def issue_with_classes(invoice_id: str, sale_id: str) -> bool:
+    ok, _ = issue(
+        invoice_id, invoice_type="F1", series="FACT", source_id=sale_id, customer_tax_id="DE811569869"
+    )
+    psql(
+        [
+            "-c",
+            "UPDATE invoice_invoice SET tax_breakdown = "
+            f"{literal(json.dumps(CLASS_BREAKDOWN, separators=(',', ':')))}, base_amount = 3000, "
+            f"tax_amount = 210, total_amount = 3210 WHERE id = {literal(invoice_id)} "
+            f"AND hub_id = {literal(HUB)}",
+        ],
+        db=H.DB,
+    )
+    return ok
+
+
+def by_class(bd: list[dict], cls: str) -> dict:
+    return next((e for e in bd if e.get("class") == cls), {})
+
+
+def test_a_rectification_keeps_the_operation_class_of_each_entry():
+    print("\n== 4c. a refund of a reverse-charge invoice is rectified as reverse charge, not as VAT ==")
+
+    check("an F1 with a subject and a reverse-charge entry is issued", True, issue_with_classes("F1-RC", "sale-rc"))
+    ok, err = on_refund(
+        refunded_event("sale-rc", refund_ref="rf-rc", total=1605, fully_refunded=False, document_type="invoice")
+    )
+    check("the listener runs (partial)", True, ok)
+    if not ok:
+        print(f"       ↳ {err.splitlines()[0] if err else ''}")
+    bd = breakdown_of("rf-rc")
+    check("one entry per fiscal key of the original", 2, len(bd))
+    # 1605 over gross 1210 + 2000 → 605 and 1000: the reverse-charge share is all base.
+    check("the reverse-charge entry is still `subject_reverse`", "subject_reverse", by_class(bd, "subject_reverse").get("class"))
+    check("reverse charge: base prorated and negated", -1000, int(by_class(bd, "subject_reverse").get("base", 0)))
+    check("reverse charge: still no quota", 0, int(by_class(bd, "subject_reverse").get("quota", -1)))
+    check("the subject entry keeps its class and quota", "subject|-500|-105",
+          f"{by_class(bd, 'subject').get('class')}|{by_class(bd, 'subject').get('base')}|{by_class(bd, 'subject').get('quota')}")
+
+    check("a second reverse-charge F1 is issued", True, issue_with_classes("F1-RC2", "sale-rc2"))
+    ok, err = on_refund(refunded_event("sale-rc2", refund_ref="rf-rc2", total=3210, document_type="invoice"))
+    check("the listener runs (full)", True, ok)
+    if not ok:
+        print(f"       ↳ {err.splitlines()[0] if err else ''}")
+    bd = breakdown_of("rf-rc2")
+    check(
+        "a full refund negates each entry with its class intact",
+        [("subject", -1000, -210), ("subject_reverse", -2000, 0)],
+        sorted((e.get("class"), int(e["base"]), int(e["quota"])) for e in bd),
+    )
+
+
 # ── 5. A refund with no document reference gets no document ──────────────────────────────
 
 
@@ -874,6 +936,7 @@ def main() -> int:
         test_a_partial_refund_issues_a_rectification_by_differences()
         test_a_sale_returned_in_two_acts_is_rectified_twice_and_adds_up_to_the_cent()
         test_a_partial_refund_prorates_the_legacy_object_breakdown_too()
+        test_a_rectification_keeps_the_operation_class_of_each_entry()
         test_a_refund_without_a_reference_is_refused()
         test_the_listener_never_leaves_its_hub()
         test_the_manual_rectify_still_works_unchanged()

@@ -28,6 +28,7 @@ two of the sale's five frozen fiscal fields travel in the event.
 | Changing the number format of a series that already issued | Not accepted — the field is locked and the change is ignored | The number is in the VeriFactu chain; create a new series |
 | A number format with no `{seq}` placeholder | Rejected before it reaches the database | Every invoice would get the same number; add `{seq}` or `{seq:0Nd}` |
 | Creating an invoice with no lines | Rejected | At least one line is required |
+| A line whose tax category is reverse charge, not subject or exempt but still charges a rate | Refused before anything is written — no number consumed, nothing issued | Only a subject operation may carry a quota (the tax authority rejects the rest). Fix the tax rule of that category so it charges 0 % |
 | Issuing a manual **full** invoice (F1) without the customer's tax ID | Refused before anything is written — no number consumed, nothing issued | A complete invoice needs an identified recipient (the tax authority rejects it with error 1189). Add the customer's tax ID, or issue from a simplified ticket (F2) series |
 
 ## Caps and sizes

@@ -148,6 +148,12 @@ reason, the rate, the base and the quota — plus any surcharge.
 That is because a rate alone cannot be declared. Two lines at 0 % may be 0 % for completely different
 legal reasons, and the tax authority needs to know which.
 
+The class of a line (subject, reverse charge, not subject, exempt) comes from its **tax category**:
+the sale freezes the category on the line and the invoice qualifies it with the same tax rules the
+sale was charged by. Lines of different class are separate entries; lines of the same class and rate
+add up. Only a **subject** entry carries a quota — reverse charge, not subject and exempt entries
+declare a base and nothing else. A corrective invoice keeps the class of every entry it negates.
+
 The fiscal record sent to the authority is built from this list **verbatim**. Invoices issued before
 this change keep the old rate-keyed shape and are still read correctly.
 
