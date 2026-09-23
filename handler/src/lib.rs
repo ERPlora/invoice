@@ -2770,4 +2770,42 @@ mod operation_class_tests {
         }));
         assert_eq!(out.error.as_ref().map(|e| e.code.as_str()), Some("invoice.quota_on_non_subject_class"));
     }
+
+    /// The verbatim door (`invoice.substitute`, an F3 copied from a ticket) seals through the same
+    /// guard: a ticket line whose category qualifies as reverse charge but was charged 21 % is not
+    /// copied into a full invoice the AEAT would reject.
+    #[test]
+    fn the_verbatim_f3_door_refuses_it_too() {
+        let new_ids: Vec<Value> = (0..8).map(|i| json!(format!("id-{i}"))).collect();
+        let out = substitute_from_invoice_pure(json!({
+            "payload": { "original_invoice_id": "inv-f2-1", "customer_tax_id": "DE811569869", "items": [
+                { "description": "X", "quantity": 1_000_000, "unit_price": 121, "tax_rate": 21.0,
+                  "tax_category_key": "bad.rule", "base_amount": 100, "tax_amount": 21 } ] },
+            "context": { "new_ids": new_ids, "now": "2026-09-23T10:00:00+00:00",
+                         "country_code": "ES", "region_code": "",
+                         "reads": { "taxes.rules.list": [rule("bad.rule", "subject_reverse", 21.0)] } }
+        }));
+        assert_eq!(out.error.as_ref().map(|e| e.code.as_str()), Some("invoice.quota_on_non_subject_class"));
+        assert!(out.operations.is_empty(), "a refusal persists nothing");
+    }
+
+    /// The sign does not matter: a negative quota on a non-subject entry is a quota all the same
+    /// (a returned line under reverse charge charged at 21 %). Refused with its own code, not as a
+    /// negative total.
+    #[test]
+    fn a_negative_quota_on_a_non_subject_class_is_refused_with_its_own_code() {
+        let new_ids: Vec<Value> = (0..8).map(|i| json!(format!("id-{i}"))).collect();
+        let out = substitute_from_invoice_pure(json!({
+            "payload": { "original_invoice_id": "inv-f2-2", "customer_tax_id": "DE811569869", "items": [
+                { "description": "X", "quantity": 1_000_000, "unit_price": 1210, "tax_rate": 21.0,
+                  "tax_category_key": "prod", "base_amount": 1000, "tax_amount": 210 },
+                { "description": "Returned", "quantity": 1_000_000, "unit_price": -121, "tax_rate": 21.0,
+                  "tax_category_key": "bad.rule", "base_amount": -100, "tax_amount": -21 } ] },
+            "context": { "new_ids": new_ids, "now": "2026-09-23T10:00:00+00:00",
+                         "country_code": "ES", "region_code": "",
+                         "reads": { "taxes.rules.list": [
+                             rule("prod", "subject", 21.0), rule("bad.rule", "subject_reverse", 21.0) ] } }
+        }));
+        assert_eq!(out.error.as_ref().map(|e| e.code.as_str()), Some("invoice.quota_on_non_subject_class"));
+    }
 }
