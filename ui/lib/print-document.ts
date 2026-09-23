@@ -21,6 +21,8 @@ export interface PrintableInvoice {
   issuer_nif?: string;
   issuer_name?: string;
   customer_name?: string;
+  customer_tax_id?: string;
+  customer_address?: string;
   base_amount: number;
   tax_amount: number;
   total_amount: number;
@@ -32,6 +34,22 @@ export interface PrintableLine {
   /** Fixed-point integer, scale 10⁶ (ADR-0147). */
   quantity: number;
   total_amount: number;
+}
+
+/** One VAT row as the A4 prints it (`erp-invoice-list` `parseTaxes`): amounts in the MINOR unit. */
+export interface PrintableTax {
+  label: string;
+  rate?: number;
+  base: number;
+  amount: number;
+}
+
+/** One row of a full invoice's VAT breakdown, as `escpos::render_tax_breakdown` reads it. */
+export interface PrintTaxRow {
+  rate: number;
+  base: number;
+  tax: number;
+  label?: string;
 }
 
 export interface PrintDocumentItem {
@@ -55,6 +73,14 @@ export interface PrintDocument extends Record<string, unknown> {
   qr_legend?: string;
   /** invoice#84 — «QR tributario:», printed right above `qr_data`. Present exactly when the QR is. */
   qr_heading?: string;
+  /** invoice#86 — the customer's tax id, printed under their name. Required by the renderer for a
+   *  full invoice (ERPlora/hub#2005). */
+  customer_tax_id?: string;
+  /** invoice#86 — optional, printed under the customer's tax id. */
+  customer_address?: string;
+  /** invoice#86 — the VAT per rate, required by the renderer for a full invoice: `rate` in percent,
+   *  `base`/`tax` in the unit of `total`, `label` naming the row. */
+  tax_breakdown?: PrintTaxRow[];
 }
 
 /**
@@ -82,17 +108,30 @@ export function toUnits(minor: number | undefined, decimals: number): number {
   return n / 10 ** decimals;
 }
 
+/**
+ * invoice#86 — the renderer prints a `documentType: 'invoice'` as a FULL invoice on the 80 mm roll
+ * and REFUSES one without the customer's tax id or the VAT per rate (ERPlora/hub#2005,
+ * `escpos::check_full_invoice`). Same shape sales#350 sends. `taxes` are the rows the A4 paints, so
+ * the roll and the sheet name the same rates. A missing tax id is left missing, never sent blank:
+ * the hub then fails the job naming the field, and the viewer warns before printing. A hub that
+ * predates hub#2005 ignores the extra keys.
+ */
 export function invoiceToPrintDocument(
   invoice: PrintableInvoice,
   lines: PrintableLine[],
   decimals: number,
   fiscal: { qr?: string } = {},
+  taxes: PrintableTax[] = [],
 ): PrintDocument {
+  const taxId = invoice.customer_tax_id?.trim();
+  const address = invoice.customer_address?.trim();
   return {
     business_name: invoice.issuer_name || '',
     vat_number: invoice.issuer_nif || undefined,
     receipt_id: invoice.number,
     customer_name: invoice.customer_name || undefined,
+    ...(taxId ? { customer_tax_id: taxId } : {}),
+    ...(address ? { customer_address: address } : {}),
     items: lines.map((l) => ({
       name: l.description,
       quantity: fromMicro(Number(l.quantity) || 0),
@@ -101,6 +140,14 @@ export function invoiceToPrintDocument(
     subtotal: toUnits(invoice.base_amount, decimals),
     tax_amount: toUnits(invoice.tax_amount, decimals),
     total: toUnits(invoice.total_amount, decimals),
+    tax_breakdown: taxes.map((row) => ({
+      // A row with no numeric rate (exempt, not subject) keeps a numeric `rate`: the renderer
+      // prints `label` instead of the rate.
+      rate: Number.isFinite(row.rate) ? Number(row.rate) : 0,
+      base: toUnits(row.base, decimals),
+      tax: toUnits(row.amount, decimals),
+      ...(row.label ? { label: row.label } : {}),
+    })),
     qr_data: fiscal.qr || undefined,
     ...qrLegalTexts(fiscal.qr),
   };

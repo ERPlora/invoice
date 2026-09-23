@@ -58,6 +58,7 @@
     "statusPaid": "Pagada",
     "statusCancelled": "Cancelada",
     "detailTitle": "Factura {number}",
+    "invoiceMissingCustomerTaxId": "Esta factura no tiene el NIF del cliente: la impresora de tiques no puede sacarla como factura completa.",
     "fieldType": "Tipo",
     "fieldSeries": "Serie",
     "fieldIssueDate": "Fecha de emisión",

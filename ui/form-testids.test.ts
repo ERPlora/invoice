@@ -100,6 +100,7 @@ const COVERED: Record<
       'invoice-detail-taxes',
       'invoice-detail-total',
       'invoice-list-error',
+      'invoice-missing-tax-id',
       'invoice-rectify',
       'invoice-rectify-cancel',
       'invoice-rectify-reason',
