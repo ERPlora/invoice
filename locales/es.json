@@ -59,6 +59,8 @@
     "statusCancelled": "Cancelada",
     "detailTitle": "Factura {number}",
     "invoiceMissingCustomerTaxId": "Esta factura no tiene el NIF del cliente: la impresora de tiques no puede sacarla como factura completa.",
+    "printWaitingForPrinter": "La factura {number} está en cola, pero no hay ninguna impresora dada de alta en este puesto: saldrá en cuanto se dé de alta una.",
+    "printFailed": "No se pudo imprimir la factura",
     "fieldType": "Tipo",
     "fieldSeries": "Serie",
     "fieldIssueDate": "Fecha de emisión",

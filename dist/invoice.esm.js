@@ -4967,6 +4967,8 @@ var es_default = {
     statusCancelled: "Cancelada",
     detailTitle: "Factura {number}",
     invoiceMissingCustomerTaxId: "Esta factura no tiene el NIF del cliente: la impresora de tiques no puede sacarla como factura completa.",
+    printWaitingForPrinter: "La factura {number} est\xE1 en cola, pero no hay ninguna impresora dada de alta en este puesto: saldr\xE1 en cuanto se d\xE9 de alta una.",
+    printFailed: "No se pudo imprimir la factura",
     fieldType: "Tipo",
     fieldSeries: "Serie",
     fieldIssueDate: "Fecha de emisi\xF3n",
@@ -5117,6 +5119,8 @@ var en_default = {
     statusCancelled: "Cancelled",
     detailTitle: "Invoice {number}",
     invoiceMissingCustomerTaxId: "This invoice has no customer tax ID: the receipt printer cannot print it as a full invoice.",
+    printWaitingForPrinter: "Invoice {number} is queued, but no printer is set up for this station: it will print as soon as one is.",
+    printFailed: "The invoice could not be printed",
     fieldType: "Type",
     fieldSeries: "Series",
     fieldIssueDate: "Issue date",
@@ -5753,13 +5757,22 @@ var ErpInvoiceList = class extends i3 {
    * there the `.print-only` block still makes the browser print just the document. This module has
    * no standalone-HTML builder for its document (it is the live `<ok-invoice>`), so the isolated
    * iframe rung of the sales cascade does not apply here.
+   *
+   * invoice#88 — the result is read, as the sales viewer does (sales#349): a printer or the queue
+   * took it, or the A4 dialog opened → silence (the paper is the answer); queued with no printer
+   * set up to drain it → a warning that it waits for one; anything else → an error with the reason.
    */
-  printDetail() {
+  async printDetail() {
     const d3 = this.detail;
     if (!d3) return;
     const sdk = globalThis.erplora;
-    if (sdk?.print) {
-      void sdk.print({
+    if (!sdk?.print) {
+      window.print();
+      return;
+    }
+    let res;
+    try {
+      res = await sdk.print({
         role: "receipt",
         // invoice#86 — a full invoice goes as `invoice`, which the thermal renderer refuses without
         // the customer's tax id and the VAT per rate (ERPlora/hub#2005); a simplified one is a ticket.
@@ -5770,9 +5783,15 @@ var ErpInvoiceList = class extends i3 {
         data: invoiceToPrintDocument(d3, this.detailLines, currencyDecimals(), { qr: this.aeat?.qr || void 0 }, this.parseTaxes(d3)),
         jobId: `invoice-${d3.id}`
       });
-    } else {
-      window.print();
+    } catch (e5) {
+      res = { via: "none", error: e5 instanceof Error ? e5.message : String(e5) };
     }
+    if (res?.via === "queue" && res.awaitingHost) {
+      sdk.notify?.({ type: "warning", message: erploraT("ui.printWaitingForPrinter", { number: d3.number }) });
+      return;
+    }
+    if (res?.via === "bridge" || res?.via === "queue" || res?.via === "browser") return;
+    sdk.notify?.({ type: "error", message: res?.error ? `${erploraT("ui.printFailed")}: ${res.error}` : erploraT("ui.printFailed") });
   }
   renderDetail() {
     const d3 = this.detail;
@@ -5780,7 +5799,7 @@ var ErpInvoiceList = class extends i3 {
       <header class="screen-only">
         <h2>${erploraT("ui.detailTitle", { number: d3.number })}</h2>
         <ion-badge data-testid="invoice-detail-status" color=${STATUS_COLOR[d3.status] ?? "medium"}>${statusLabel(d3.status)}</ion-badge>
-        <ion-button class="print" data-testid="invoice-detail-print" @click=${() => this.printDetail()}>
+        <ion-button class="print" data-testid="invoice-detail-print" @click=${() => void this.printDetail()}>
           <ion-icon slot="start" name="print-outline"></ion-icon> ${erploraT("ui.actionPrint")}
         </ion-button>
         <ion-button data-testid="invoice-detail-back" fill="outline" color="medium" @click=${() => this.closeDetail()}>← ${erploraT("ui.back")}</ion-button>
