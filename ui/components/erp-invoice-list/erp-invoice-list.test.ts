@@ -193,7 +193,9 @@ describe('printing goes through the sdk.print cascade, never window.print() dire
     btn!.click();
 
     expect(printed.length, 'the print button did not go through sdk.print').toBe(1);
-    expect(printed[0]).toMatchObject({ role: 'receipt', documentType: 'invoice', format: 'a4', jobId: 'invoice-i1' });
+    expect(printed[0]).toMatchObject({ role: 'receipt', documentType: 'invoice', format: 'a4' });
+    // invoice#90 — traceable to the invoice but unique per press (the queue dedups a fixed key).
+    expect(String(printed[0].jobId).startsWith('invoice-i1-')).toBe(true);
     expect(printed[0].data, 'sdk.print got no document data for the Bridge/PDF path').toBeTruthy();
     expect(browserPrints, 'window.print() must not fire when sdk.print exists').toBe(0);
   });

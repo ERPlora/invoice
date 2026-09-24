@@ -152,3 +152,22 @@ export function invoiceToPrintDocument(
     ...qrLegalTexts(fiscal.qr),
   };
 }
+
+/** Sequence so two attempts inside the same millisecond still get different keys. */
+let reprintSeq = 0;
+
+/**
+ * Idempotency key for printing an invoice (invoice#90) — the same fix as the sales viewer
+ * (sales#92, `reprintJobId`).
+ *
+ * The print queue is idempotent by `(hub_id, job_id)` and reports a duplicate as queued, so a
+ * fixed `invoice-<id>` key let the first copy out and swallowed every later one with no paper and
+ * no warning. An invoice is IMMUTABLE (fiscal record), so a content fingerprint would be constant
+ * too. Pressing Print is an explicit request for ANOTHER copy: each attempt is a new job —
+ * `invoice-<id>-<attempt>`, still correlatable with the invoice it belongs to.
+ */
+export function reprintJobId(invoiceId: string | undefined): string | undefined {
+  if (!invoiceId) return undefined;
+  reprintSeq += 1;
+  return `invoice-${invoiceId}-${Date.now().toString(36)}-${reprintSeq}`;
+}

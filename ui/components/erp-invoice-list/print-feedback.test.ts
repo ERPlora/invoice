@@ -20,11 +20,13 @@ const LINES = [{ id: 'li1', line_number: 1, description: 'Corte', quantity: 1_00
 type Result = Record<string, unknown> | Error;
 let result: Result = { via: 'bridge' };
 let notes: Array<{ type: string; message: string }> = [];
+let requests: Array<Record<string, unknown>> = [];
 
 beforeEach(() => {
   document.body.innerHTML = '';
   document.documentElement.lang = 'es';
   notes = [];
+  requests = [];
   (globalThis as Record<string, unknown>).erplora = {
     query: async () => [],
     queryOptional: async () => undefined,
@@ -38,12 +40,12 @@ beforeEach(() => {
     currencyDecimals: 2,
     formatMoney: (cents: number) => `${(cents / 100).toFixed(2)} €`,
     formatAmount: (units: number) => `${units.toFixed(2)} €`,
-    print: async () => { if (result instanceof Error) throw result; return result; },
+    print: async (r: Record<string, unknown>) => { requests.push(r); if (result instanceof Error) throw result; return result; },
     notify: (n: { type: string; message: string }) => { notes.push(n); },
   };
 });
 
-async function printDetail(): Promise<void> {
+async function printDetail(presses = 1): Promise<void> {
   await import('./erp-invoice-list');
   const el = document.createElement('erp-invoice-list') as HTMLElement & { shadowRoot: ShadowRoot };
   document.body.appendChild(el);
@@ -55,8 +57,10 @@ async function printDetail(): Promise<void> {
   await wc.updateComplete;
   await new Promise((r) => setTimeout(r, 0));
   await wc.updateComplete;
-  (el.shadowRoot.querySelector('header ion-button.print') as HTMLElement).click();
-  await new Promise((r) => setTimeout(r, 0));
+  for (let i = 0; i < presses; i++) {
+    (el.shadowRoot.querySelector('header ion-button.print') as HTMLElement).click();
+    await new Promise((r) => setTimeout(r, 0));
+  }
 }
 
 describe('the invoice viewer says when Print did not produce paper (invoice#88)', () => {
@@ -102,5 +106,20 @@ describe('the invoice viewer says when Print did not produce paper (invoice#88)'
     expect(notes).toHaveLength(1);
     expect(notes[0].type).toBe('error');
     expect(notes[0].message).toContain('runtime unreachable');
+  });
+});
+
+// invoice#90 — a second press of Print is a request for ANOTHER copy. The queue deduplicates by
+// (hub_id, job_id) and reports the duplicate as queued, so a fixed `invoice-<id>` key meant no
+// second paper and no warning. Each press must be a new job, still correlatable with the invoice.
+describe('printing the same invoice twice sends two jobs (invoice#90)', () => {
+  it('each press carries a different jobId, both tied to the invoice', async () => {
+    result = { via: 'queue', role: 'receipt', awaitingHost: false };
+    await printDetail(2);
+    expect(requests).toHaveLength(2);
+    const [a, b] = requests.map((r) => String(r.jobId));
+    expect(a).not.toBe(b);
+    expect(a.startsWith('invoice-i1-')).toBe(true);
+    expect(b.startsWith('invoice-i1-')).toBe(true);
   });
 });

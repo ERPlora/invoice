@@ -11,7 +11,7 @@ import type { ListController, ListClient, ListParams, ListPage } from '@erplora/
 // Aduana de la escala de cantidades (ADR-0147): la UI habla lógico (0,5), el cable habla µ (500000).
 import { QUANTITY_SCALE, parseQuantity, formatQuantity, fromMicro } from '../../lib/quantity';
 import { lineTaxLabel } from '../../lib/line-tax';
-import { invoiceToPrintDocument, qrLegalTexts, QR_TRIBUTARIO_HEADING, VERIFACTU_LEGEND } from '../../lib/print-document';
+import { invoiceToPrintDocument, qrLegalTexts, reprintJobId, QR_TRIBUTARIO_HEADING, VERIFACTU_LEGEND } from '../../lib/print-document';
 
 /** `<ok-invoice>` paints `qr_heading`/`qr_legend` since outfitkit#151/#158 (invoice#84); an
  *  older outfitkit ignores the keys. Widened here so the module builds against either. */
@@ -718,7 +718,9 @@ export class ErpInvoiceList extends LitElement {
         // The thermal renderer reads ANOTHER shape, in major units (`lib/print-document.ts`):
         // the ok-invoice object is for the A4 path only. The VAT rows are the ones the A4 paints.
         data: invoiceToPrintDocument(d, this.detailLines, currencyDecimals(), { qr: this.aeat?.qr || undefined }, this.parseTaxes(d)),
-        jobId: `invoice-${d.id}`,
+        // invoice#90 — unique PER ATTEMPT (as sales#92): the queue deduplicates by job id and
+        // reports the duplicate as queued, so a fixed key swallowed every copy after the first.
+        jobId: reprintJobId(d.id),
       });
     } catch (e) {
       res = { via: 'none', error: e instanceof Error ? e.message : String(e) };
