@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "invoice.rectify payload",
+  "description": "Issues a rectifying invoice (R1) that negates an existing invoice in full. The server dates it on the business day and numbers it in that year's RECT series (invoice#79): a rectifying invoice is dated the day it is issued. `issue_date` and `year` are accepted only so a caller that sends them gets a clear refusal (`invoice.rectify_date_not_allowed`) instead of a document silently dated on another day — omit them.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "original_id",
+    "reason"
+  ],
+  "properties": {
+    "original_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Id of the invoice being rectified."
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Why it is rectified; it is printed on the document."
+    },
+    "issue_date": {
+      "type": "string",
+      "description": "Do not send it. If sent, it must be the business's today (YYYY-MM-DD), or the request is refused."
+    },
+    "year": {
+      "type": [
+        "integer",
+        "string"
+      ],
+      "description": "Do not send it. If sent, it must be the business's current year, or the request is refused."
+    }
+  }
+}

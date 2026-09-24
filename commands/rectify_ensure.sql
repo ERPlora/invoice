@@ -1,12 +1,10 @@
 -- Makes sure the RECT series of the year exists (R1). The runtime injects :new_id, :hub_id, :now.
 --
--- THE YEAR IS DERIVED WHEN NOBODY SENDS IT (invoice#62). `:year` is NOT a system parameter — the
--- runtime injects `:hub_id`, `:current_user_id`, `:now` and `:new_id`, nothing else — so it only
--- ever arrived because the screen that calls `invoice.rectify` puts it in the payload. An EVENT
--- payload has no such thing: `sale.refunded` carries the sale, the refund and the money, and that
--- is all. Without the fallback the RECT series would be created for year NULL, the joins in
--- `rectify_bump` / `rectify_insert` would match nothing and the whole chain would be a SILENT
--- no-op — the shape of failure this module has already paid for twice.
+-- THE YEAR IS ALWAYS THE SERVER'S (invoice#62, closed by invoice#79). `:year` is not a system
+-- parameter, and a payload's `:year` is no longer read at all: an event (`sale.refunded`) never
+-- carried one, and a caller of `invoice.rectify` that sends one no longer chooses the series a fiscal
+-- document is numbered in — `rectify_date_assert.sql` refuses a year other than this one, and the
+-- chain derives it here, in `rectify_bump`, `rectify_insert` and `_insert_allocation` alike.
 --
 -- THE YEAR IS THE BUSINESS'S (invoice#78). `:now` is the runtime's instant in UTC; `:timezone` is
 -- the business zone the runtime binds in every command (hub#1022). Reading the year straight off
@@ -26,7 +24,7 @@ INSERT INTO invoice_invoiceseries
    is_deleted, created_by, updated_by, created_at, updated_at)
 SELECT
   :new_id, :hub_id, 'RECT', 'Rectifying Invoices', 'R1',
-  CAST(COALESCE(CAST(:year AS TEXT), substr(CAST(CAST(CAST(CAST(:now AS TEXT) AS timestamptz) AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC') AS date) AS TEXT), 1, 4)) AS INTEGER),
+  CAST(substr(CAST(CAST(CAST(CAST(:now AS TEXT) AS timestamptz) AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC') AS date) AS TEXT), 1, 4) AS INTEGER),
   0, 'RECT', 1,
   0, :current_user_id, :current_user_id, :now, :now
 WHERE CAST(:sale_id AS TEXT) IS NULL

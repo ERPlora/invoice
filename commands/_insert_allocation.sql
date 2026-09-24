@@ -16,13 +16,14 @@
 -- performed one statement earlier (guard pattern, ADR-0020). Same for a retried rectification once
 -- `rectify_bump.sql` grew its own guard.
 --
--- invoice#62: `:year` FALLS BACK TO `:now`. It is not a system parameter — the runtime injects
--- `:hub_id`, `:current_user_id`, `:now` and `:new_id`, and nothing else — so it only ever arrived
--- because a screen or a handler put it in the payload. An EVENT payload has neither, and without
--- the fallback this join would find no series, book no number, and the numbering ledger would
--- silently stop recording the rectifications a refund issues. The year is read on the BUSINESS
--- clock (`:now` in `:timezone`, invoice#78) — the one the handler (`business_date`) and
--- `rectify_ensure`/`rectify_bump`/`rectify_insert` use — so the doors agree on what year it is.
+-- THE YEAR IS THE INVOICE'S OWN (invoice#79). The series is found by the year of the document
+-- being booked (`i.issue_date`), not by a `:year` parameter. Both chains end here: the WASM one
+-- derives its `year` from the same `issue_date` it writes (`handler/src/lib.rs::year_from`), and the
+-- rectify chain dates the R1 on the business day and numbers it in that year's RECT series. Reading
+-- a payload's `:year` here would let a caller of the public rectify door — or an event that carried
+-- one — book the number under ANOTHER year's series and desynchronise the ledger in silence; and
+-- `:now` alone was wrong the other way (invoice#62/#78: an event carries no year, and the handler's
+-- clock and this statement's are two readings that can straddle 1 January).
 --
 -- The two id conventions are a runtime fact, not a trick: a WASM handler binds the ids it took from
 -- `context.new_ids` under its own names, while a declarative command receives exactly one
@@ -52,7 +53,7 @@ FROM invoice_invoice i
 JOIN invoice_invoiceseries s
   ON s.hub_id = i.hub_id
  AND s.code = i.series
- AND CAST(s.year AS TEXT) = COALESCE(CAST(:year AS TEXT), substr(CAST(CAST(CAST(CAST(:now AS TEXT) AS timestamptz) AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC') AS date) AS TEXT), 1, 4))
+ AND CAST(s.year AS TEXT) = substr(i.issue_date, 1, 4)
  AND s.is_deleted = 0
 WHERE i.hub_id = :hub_id
   AND i.id = COALESCE(CAST(:invoice_id AS TEXT), CAST(:new_id AS TEXT))

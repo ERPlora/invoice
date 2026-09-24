@@ -358,7 +358,9 @@
     "invoice.rectify": {
       "permission": "invoice.rectify_invoice",
       "transaction": true,
+      "schema": "schemas/rectify.json",
       "sql": [
+        "commands/rectify_date_assert.sql",
         "commands/rectify_ensure.sql",
         "commands/rectify_bump.sql",
         "commands/rectify_insert.sql",
@@ -367,11 +369,18 @@
         "commands/_insert_allocation.sql",
         "commands/rectify_cancel.sql"
       ],
+      "expect_rows": {
+        "op": "min",
+        "n": 1,
+        "statement": "commands/rectify_date_assert.sql",
+        "error": "invoice.rectify_date_not_allowed",
+        "message": "A rectifying invoice is dated the day it is issued: today, and never earlier than the invoice it corrects. Send it without a date and it will be dated today."
+      },
       "emit": [
         "invoice.rectified"
       ],
       "ai": {
-        "description": "Issues a rectifying invoice that cancels or corrects an existing invoice."
+        "description": "Issues a rectifying invoice that cancels or corrects an existing invoice. The server dates it today (the business day) and numbers it in this year's series: do not send a date or a year — any other day is refused."
       }
     },
     "invoice._rectify_from_refund": {
@@ -379,6 +388,7 @@
       "internal": true,
       "transaction": true,
       "sql": [
+        "commands/rectify_date_assert.sql",
         "commands/rectify_ensure.sql",
         "commands/rectify_bump.sql",
         "commands/rectify_insert.sql",
