@@ -4,6 +4,7 @@ import { define } from '@erplora/outfitkit/define';
 import '@erplora/outfitkit/ok-inline-feedback';
 import '@erplora/outfitkit/ok-data-table';
 import type { DataTableColumn, DataTableAction } from '@erplora/outfitkit';
+import { ionTone } from '../../lib/ion-tone';
 // Catálogo i18n del módulo (ADR-0055): esbuild inlinea estos JSON en el `dist` del WC. Los textos
 // internos se resuelven con `erplora.t(CATALOG, 'ui.clave')` (idioma activo, fallback locale→en→clave).
 import esLocale from '../../../locales/es.json';
@@ -101,6 +102,12 @@ export class ErpInvoiceSettings extends LitElement {
     .toggles ion-item { --background:transparent; --padding-start:0; --inner-padding-end:0; }
     .hint { display:block; font-size:.72rem; color:var(--ion-color-medium,#8a8577); margin:-.25rem 0 .25rem; }
     .row-actions { display:flex; gap:.5rem; margin-top:.6rem; }
+    /* pm#392 — «Cancel» paints from HERE, never from \`color=\`: Ionic resolves it through a GLOBAL
+       \`.ion-color-*\` rule that does not reach inside this shadow root (it fell back to primary blue). */
+    ion-button.tone-medium[fill] {
+      --color: var(--ion-color-medium, #636469);
+      --border-color: var(--ion-color-medium, #636469);
+    }
   `;
 
   // ── listado de series ──
@@ -164,7 +171,7 @@ export class ErpInvoiceSettings extends LitElement {
           { value: '1', label: t('ui.yes') },
           { value: '0', label: t('ui.no') },
         ],
-        render: (r) => html`<ion-badge color=${r.is_active ? 'success' : 'medium'}>${r.is_active ? t('ui.yes') : t('ui.no')}</ion-badge>`,
+        render: (r) => html`<ion-badge style=${ionTone('solid', r.is_active ? 'success' : 'medium')}>${r.is_active ? t('ui.yes') : t('ui.no')}</ion-badge>`,
       },
       {
         key: 'is_default',
@@ -175,7 +182,7 @@ export class ErpInvoiceSettings extends LitElement {
           { value: '1', label: t('ui.yes') },
           { value: '0', label: t('ui.no') },
         ],
-        render: (r) => (r.is_default ? html`<ion-badge color="primary">${t('ui.yes')}</ion-badge>` : html`<span>—</span>`),
+        render: (r) => (r.is_default ? html`<ion-badge style=${ionTone('solid', 'primary')}>${t('ui.yes')}</ion-badge>` : html`<span>—</span>`),
       },
     ];
   }
@@ -408,7 +415,7 @@ export class ErpInvoiceSettings extends LitElement {
               ? erploraT(this.isEdit ? 'ui.saving' : 'ui.creating')
               : erploraT(this.isEdit ? 'ui.save' : 'ui.create')}
           </ion-button>
-          <ion-button data-testid="invoice-series-cancel" fill="clear" color="medium" @click=${() => this.cancelForm()}>${erploraT('ui.cancel')}</ion-button>
+          <ion-button data-testid="invoice-series-cancel" fill="clear" class="tone-medium" @click=${() => this.cancelForm()}>${erploraT('ui.cancel')}</ion-button>
         </div>
         ${this.formError ? html`<ok-inline-feedback data-testid="invoice-series-form-error" tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : nothing}
       </form>`;
