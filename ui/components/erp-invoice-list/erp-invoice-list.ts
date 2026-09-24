@@ -11,6 +11,7 @@ import type { ListController, ListClient, ListParams, ListPage } from '@erplora/
 // Aduana de la escala de cantidades (ADR-0147): la UI habla lógico (0,5), el cable habla µ (500000).
 import { QUANTITY_SCALE, parseQuantity, formatQuantity, fromMicro } from '../../lib/quantity';
 import { lineTaxLabel } from '../../lib/line-tax';
+import { ionTone, type IonTone } from '../../lib/ion-tone';
 import { invoiceToPrintDocument, qrLegalTexts, reprintJobId, QR_TRIBUTARIO_HEADING, VERIFACTU_LEGEND } from '../../lib/print-document';
 
 /** `<ok-invoice>` paints `qr_heading`/`qr_legend` since outfitkit#151/#158 (invoice#84); an
@@ -146,7 +147,10 @@ const TYPE_CODES = ['F1', 'F2', 'F3', 'R1', 'R2', 'R3', 'R4', 'R5'];
 const SIMPLIFIED_TYPES = new Set(['F2', 'R5']);
 const STATUS_CODES = ['draft', 'issued', 'paid', 'cancelled'];
 
-const STATUS_COLOR: Record<string, string> = {
+// The tone of each status. Painted INLINE through `ionTone`, never through `color=` (pm#392): the
+// table's chip lives inside `ok-data-table`'s shadow root, where Ionic's global `.ion-color-*` rule
+// does not arrive.
+const STATUS_COLOR: Record<string, IonTone> = {
   draft: 'medium', issued: 'primary', paid: 'success', cancelled: 'danger',
 };
 
@@ -208,6 +212,32 @@ export class ErpInvoiceList extends LitElement {
     .qr-heading { font-size:.8rem; font-weight:600; text-align:center; }
     .qr-legend { font-size:.8rem; font-weight:700; letter-spacing:.02em; text-align:center; }
     .qr-note { font-size:.72rem; color:var(--ion-color-medium,#8a8577); text-align:center; }
+    /* pm#392 — the buttons paint from HERE, never from \`color=\`: Ionic resolves it through a GLOBAL
+       \`.ion-color-*\` rule that does not reach inside this shadow root, so the solid «Issue
+       rectifying» and «Mark as paid» came out with no fill and the outline/clear ones fell back to
+       primary blue. Custom properties do inherit through the boundary, so the theme token applies. */
+    ion-button.tone-danger:not([fill]) {
+      --background: var(--ion-color-danger, #c5000f);
+      --background-activated: var(--ion-color-danger-shade, #ad000d);
+      --background-focused: var(--ion-color-danger-shade, #ad000d);
+      --background-hover: var(--ion-color-danger-tint, #cb1a27);
+      --color: var(--ion-color-danger-contrast, #fff);
+    }
+    ion-button.tone-success:not([fill]) {
+      --background: var(--ion-color-success, #2dd55b);
+      --background-activated: var(--ion-color-success-shade, #28bb50);
+      --background-focused: var(--ion-color-success-shade, #28bb50);
+      --background-hover: var(--ion-color-success-tint, #42d96b);
+      --color: var(--ion-color-success-contrast, #000);
+    }
+    ion-button.tone-danger[fill] {
+      --color: var(--ion-color-danger, #c5000f);
+      --border-color: var(--ion-color-danger, #c5000f);
+    }
+    ion-button.tone-medium[fill] {
+      --color: var(--ion-color-medium, #636469);
+      --border-color: var(--ion-color-medium, #636469);
+    }
     /* Documento imprimible: oculto en pantalla, único visible al imprimir / Guardar como PDF. */
     .print-only { display:none; }
     @media print {
@@ -308,7 +338,7 @@ export class ErpInvoiceList extends LitElement {
       filterType: 'select',
       width: 'minmax(7rem, 9rem)',
       options: STATUS_CODES.map((value) => ({ value, label: statusLabel(value) })),
-      render: (r) => html`<ion-badge color=${STATUS_COLOR[r.status as string] ?? 'medium'}>${statusLabel(r.status as string)}</ion-badge>`,
+      render: (r) => html`<ion-badge style=${ionTone('solid', STATUS_COLOR[r.status as string] ?? 'medium')}>${statusLabel(r.status as string)}</ion-badge>`,
     },
     { key: 'issue_date', header: t('ui.colDate'), sortable: true, filterable: true, filterType: 'daterange', width: 'minmax(7.5rem, 9rem)' },
     {
@@ -546,8 +576,8 @@ export class ErpInvoiceList extends LitElement {
     return s ? (map[s] ?? s) : '';
   }
 
-  private aeatStatusColor(s?: string): string {
-    const map: Record<string, string> = { accepted: 'success', pending: 'warning', rejected: 'danger', error: 'danger' };
+  private aeatStatusColor(s?: string): IonTone {
+    const map: Record<string, IonTone> = { accepted: 'success', pending: 'warning', rejected: 'danger', error: 'danger' };
     return (s && map[s]) || 'medium';
   }
 
@@ -652,7 +682,7 @@ export class ErpInvoiceList extends LitElement {
     return html`<div class="card aeat-card screen-only" data-testid="invoice-aeat">
       <div class="aeat-head">
         <h3>${erploraT('ui.aeatTitle')}</h3>
-        <ion-badge data-testid="invoice-aeat-status" color=${this.aeatStatusColor(a.status)}>${this.aeatStatusLabel(a.status) || '—'}</ion-badge>
+        <ion-badge data-testid="invoice-aeat-status" style=${ionTone('solid', this.aeatStatusColor(a.status))}>${this.aeatStatusLabel(a.status) || '—'}</ion-badge>
       </div>
       ${a.csv ? html`<div class="kv"><span class="k">${erploraT('ui.aeatCsv')}</span><code data-testid="invoice-aeat-csv">${a.csv}</code></div>` : nothing}
       ${a.qr
@@ -677,8 +707,8 @@ export class ErpInvoiceList extends LitElement {
         <ion-textarea data-testid="invoice-rectify-reason" fill="outline" label-placement="floating" label=${erploraT('ui.lblReason')} placeholder=${erploraT('ui.rectifyReasonPlaceholder')} auto-grow .value=${this.rectifyReason} @ionInput=${(e: any) => (this.rectifyReason = e.target.value)}></ion-textarea>
       </div>
       <div class="row-actions">
-        <ion-button data-testid="invoice-rectify-submit" color="danger" ?disabled=${this.busy || !this.rectifyReason.trim()} @click=${() => this.confirmRectify()}>${this.busy ? erploraT('ui.rectifying') : erploraT('ui.issueRectifying')}</ion-button>
-        <ion-button data-testid="invoice-rectify-cancel" fill="outline" color="medium" @click=${() => (this.rectifyTarget = null)}>${erploraT('ui.cancel')}</ion-button>
+        <ion-button data-testid="invoice-rectify-submit" class="tone-danger" ?disabled=${this.busy || !this.rectifyReason.trim()} @click=${() => this.confirmRectify()}>${this.busy ? erploraT('ui.rectifying') : erploraT('ui.issueRectifying')}</ion-button>
+        <ion-button data-testid="invoice-rectify-cancel" fill="outline" class="tone-medium" @click=${() => (this.rectifyTarget = null)}>${erploraT('ui.cancel')}</ion-button>
       </div>
     </div>`;
   }
@@ -738,11 +768,11 @@ export class ErpInvoiceList extends LitElement {
     return html`<div data-testid="invoice-detail">
       <header class="screen-only">
         <h2>${erploraT('ui.detailTitle', { number: d.number })}</h2>
-        <ion-badge data-testid="invoice-detail-status" color=${STATUS_COLOR[d.status] ?? 'medium'}>${statusLabel(d.status)}</ion-badge>
+        <ion-badge data-testid="invoice-detail-status" style=${ionTone('solid', STATUS_COLOR[d.status] ?? 'medium')}>${statusLabel(d.status)}</ion-badge>
         <ion-button class="print" data-testid="invoice-detail-print" @click=${() => void this.printDetail()}>
           <ion-icon slot="start" name="print-outline"></ion-icon> ${erploraT('ui.actionPrint')}
         </ion-button>
-        <ion-button data-testid="invoice-detail-back" fill="outline" color="medium" @click=${() => this.closeDetail()}>← ${erploraT('ui.back')}</ion-button>
+        <ion-button data-testid="invoice-detail-back" fill="outline" class="tone-medium" @click=${() => this.closeDetail()}>← ${erploraT('ui.back')}</ion-button>
       </header>
       ${this.actionError ? html`<p class="err screen-only" data-testid="invoice-detail-error">${this.actionError}</p>` : nothing}
       ${this.missingCustomerTaxId(d)
@@ -778,8 +808,8 @@ export class ErpInvoiceList extends LitElement {
           <span data-testid="invoice-detail-total">${erploraT('ui.totalTotal')}: ${fmtDoc(d.total_amount, d.currency)}</span>
         </div>
         <div class="row-actions">
-          ${this.canAdd && d.status === 'issued' ? html`<ion-button data-testid="invoice-detail-mark-paid" color="success" ?disabled=${this.busy} @click=${() => this.markPaid(d)}>${erploraT('ui.actionMarkPaid')}</ion-button>` : nothing}
-          ${this.canRectify && !(d.invoice_type ?? '').startsWith('R') && d.status !== 'cancelled' ? html`<ion-button data-testid="invoice-detail-rectify" fill="outline" color="danger" ?disabled=${this.busy} @click=${() => this.startRectify(d)}>${erploraT('ui.actionRectify')}</ion-button>` : nothing}
+          ${this.canAdd && d.status === 'issued' ? html`<ion-button data-testid="invoice-detail-mark-paid" class="tone-success" ?disabled=${this.busy} @click=${() => this.markPaid(d)}>${erploraT('ui.actionMarkPaid')}</ion-button>` : nothing}
+          ${this.canRectify && !(d.invoice_type ?? '').startsWith('R') && d.status !== 'cancelled' ? html`<ion-button data-testid="invoice-detail-rectify" fill="outline" class="tone-danger" ?disabled=${this.busy} @click=${() => this.startRectify(d)}>${erploraT('ui.actionRectify')}</ion-button>` : nothing}
         </div>
       </div>
       <!-- Documento imprimible (solo al imprimir / Guardar como PDF): layout factura con QR VeriFactu. -->
@@ -807,12 +837,12 @@ export class ErpInvoiceList extends LitElement {
           <ion-input data-testid="invoice-line-${it.uid}-quantity" class="num" fill="outline" label-placement="floating" label=${erploraT('ui.lineQty')} type="number" .value=${it.quantity} @ionInput=${(e: any) => this.setItem(i, 'quantity', e.target.value)}></ion-input>
           <ion-input data-testid="invoice-line-${it.uid}-price" class="num" fill="outline" label-placement="floating" label=${erploraT('ui.linePrice')} type="number" .value=${it.unit_price} @ionInput=${(e: any) => this.setItem(i, 'unit_price', e.target.value)}></ion-input>
           <ion-input data-testid="invoice-line-${it.uid}-tax-rate" class="num" fill="outline" label-placement="floating" label=${erploraT('ui.lineTaxPct')} type="number" .value=${it.tax_rate} @ionInput=${(e: any) => this.setItem(i, 'tax_rate', e.target.value)}></ion-input>
-          ${this.newItems.length > 1 ? html`<ion-button data-testid="invoice-line-${it.uid}-remove" fill="clear" color="danger" aria-label=${erploraT('ui.removeLine')} @click=${() => (this.newItems = this.newItems.filter((_, j) => j !== i))}><ion-icon slot="icon-only" name="close-outline"></ion-icon></ion-button>` : nothing}
+          ${this.newItems.length > 1 ? html`<ion-button data-testid="invoice-line-${it.uid}-remove" fill="clear" class="tone-danger" aria-label=${erploraT('ui.removeLine')} @click=${() => (this.newItems = this.newItems.filter((_, j) => j !== i))}><ion-icon slot="icon-only" name="close-outline"></ion-icon></ion-button>` : nothing}
         </div>`)}
         <div class="row-actions">
           <ion-button data-testid="invoice-create-add-line" fill="outline" @click=${() => this.addItem()}>${erploraT('ui.addLine')}</ion-button>
           <ion-button data-testid="invoice-create-submit" type="submit" ?disabled=${this.saving || !this.itemsValid}>${this.saving ? erploraT('ui.issuing') : erploraT('ui.issueInvoice')}</ion-button>
-          <ion-button data-testid="invoice-create-cancel" fill="clear" color="medium" @click=${() => this.dataTable()?.close()}>${erploraT('ui.cancel')}</ion-button>
+          <ion-button data-testid="invoice-create-cancel" fill="clear" class="tone-medium" @click=${() => this.dataTable()?.close()}>${erploraT('ui.cancel')}</ion-button>
         </div>
         ${this.formError ? html`<ok-inline-feedback data-testid="invoice-create-error" tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : nothing}
       </form>`;

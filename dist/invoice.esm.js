@@ -4863,6 +4863,26 @@ function lineTaxLabel(line, t5) {
   return surcharge > 0 ? `${main} + ${t5("ui.taxSurcharge")} ${pct(surcharge)}` : main;
 }
 
+// ui/lib/ion-tone.ts
+var PALETTE = {
+  danger: { base: "#c5000f", contrast: "#fff", shade: "#ad000d", tint: "#cb1a27" },
+  warning: { base: "#ffc409", contrast: "#000", shade: "#e0ac08", tint: "#ffca22" },
+  success: { base: "#2dd55b", contrast: "#000", shade: "#28bb50", tint: "#42d96b" },
+  medium: { base: "#636469", contrast: "#fff", shade: "#57585c", tint: "#737478" },
+  primary: { base: "#0054e9", contrast: "#fff", shade: "#004acd", tint: "#1a65eb" }
+};
+function ionTone(_kind, tone) {
+  const p4 = PALETTE[tone];
+  const token = (suffix, fallback) => `var(--ion-color-${tone}${suffix}, ${fallback})`;
+  return [
+    `--background: ${token("", p4.base)}`,
+    `--background-activated: ${token("-shade", p4.shade)}`,
+    `--background-focused: ${token("-shade", p4.shade)}`,
+    `--background-hover: ${token("-tint", p4.tint)}`,
+    `--color: ${token("-contrast", p4.contrast)};`
+  ].join("; ");
+}
+
 // ui/lib/print-document.ts
 var VERIFACTU_LEGEND = "VERI*FACTU";
 var QR_TRIBUTARIO_HEADING = "QR tributario:";
@@ -5351,6 +5371,32 @@ var ErpInvoiceList = class extends i3 {
     .qr-heading { font-size:.8rem; font-weight:600; text-align:center; }
     .qr-legend { font-size:.8rem; font-weight:700; letter-spacing:.02em; text-align:center; }
     .qr-note { font-size:.72rem; color:var(--ion-color-medium,#8a8577); text-align:center; }
+    /* pm#392 — the buttons paint from HERE, never from \`color=\`: Ionic resolves it through a GLOBAL
+       \`.ion-color-*\` rule that does not reach inside this shadow root, so the solid «Issue
+       rectifying» and «Mark as paid» came out with no fill and the outline/clear ones fell back to
+       primary blue. Custom properties do inherit through the boundary, so the theme token applies. */
+    ion-button.tone-danger:not([fill]) {
+      --background: var(--ion-color-danger, #c5000f);
+      --background-activated: var(--ion-color-danger-shade, #ad000d);
+      --background-focused: var(--ion-color-danger-shade, #ad000d);
+      --background-hover: var(--ion-color-danger-tint, #cb1a27);
+      --color: var(--ion-color-danger-contrast, #fff);
+    }
+    ion-button.tone-success:not([fill]) {
+      --background: var(--ion-color-success, #2dd55b);
+      --background-activated: var(--ion-color-success-shade, #28bb50);
+      --background-focused: var(--ion-color-success-shade, #28bb50);
+      --background-hover: var(--ion-color-success-tint, #42d96b);
+      --color: var(--ion-color-success-contrast, #000);
+    }
+    ion-button.tone-danger[fill] {
+      --color: var(--ion-color-danger, #c5000f);
+      --border-color: var(--ion-color-danger, #c5000f);
+    }
+    ion-button.tone-medium[fill] {
+      --color: var(--ion-color-medium, #636469);
+      --border-color: var(--ion-color-medium, #636469);
+    }
     /* Documento imprimible: oculto en pantalla, único visible al imprimir / Guardar como PDF. */
     .print-only { display:none; }
     @media print {
@@ -5399,7 +5445,7 @@ var ErpInvoiceList = class extends i3 {
         filterType: "select",
         width: "minmax(7rem, 9rem)",
         options: STATUS_CODES.map((value) => ({ value, label: statusLabel(value) })),
-        render: (r6) => b2`<ion-badge color=${STATUS_COLOR[r6.status] ?? "medium"}>${statusLabel(r6.status)}</ion-badge>`
+        render: (r6) => b2`<ion-badge style=${ionTone("solid", STATUS_COLOR[r6.status] ?? "medium")}>${statusLabel(r6.status)}</ion-badge>`
       },
       { key: "issue_date", header: t5("ui.colDate"), sortable: true, filterable: true, filterType: "daterange", width: "minmax(7.5rem, 9rem)" },
       {
@@ -5728,7 +5774,7 @@ var ErpInvoiceList = class extends i3 {
     return b2`<div class="card aeat-card screen-only" data-testid="invoice-aeat">
       <div class="aeat-head">
         <h3>${erploraT("ui.aeatTitle")}</h3>
-        <ion-badge data-testid="invoice-aeat-status" color=${this.aeatStatusColor(a3.status)}>${this.aeatStatusLabel(a3.status) || "\u2014"}</ion-badge>
+        <ion-badge data-testid="invoice-aeat-status" style=${ionTone("solid", this.aeatStatusColor(a3.status))}>${this.aeatStatusLabel(a3.status) || "\u2014"}</ion-badge>
       </div>
       ${a3.csv ? b2`<div class="kv"><span class="k">${erploraT("ui.aeatCsv")}</span><code data-testid="invoice-aeat-csv">${a3.csv}</code></div>` : A}
       ${a3.qr ? b2`<div class="qr-wrap">
@@ -5750,8 +5796,8 @@ var ErpInvoiceList = class extends i3 {
         <ion-textarea data-testid="invoice-rectify-reason" fill="outline" label-placement="floating" label=${erploraT("ui.lblReason")} placeholder=${erploraT("ui.rectifyReasonPlaceholder")} auto-grow .value=${this.rectifyReason} @ionInput=${(e5) => this.rectifyReason = e5.target.value}></ion-textarea>
       </div>
       <div class="row-actions">
-        <ion-button data-testid="invoice-rectify-submit" color="danger" ?disabled=${this.busy || !this.rectifyReason.trim()} @click=${() => this.confirmRectify()}>${this.busy ? erploraT("ui.rectifying") : erploraT("ui.issueRectifying")}</ion-button>
-        <ion-button data-testid="invoice-rectify-cancel" fill="outline" color="medium" @click=${() => this.rectifyTarget = null}>${erploraT("ui.cancel")}</ion-button>
+        <ion-button data-testid="invoice-rectify-submit" class="tone-danger" ?disabled=${this.busy || !this.rectifyReason.trim()} @click=${() => this.confirmRectify()}>${this.busy ? erploraT("ui.rectifying") : erploraT("ui.issueRectifying")}</ion-button>
+        <ion-button data-testid="invoice-rectify-cancel" fill="outline" class="tone-medium" @click=${() => this.rectifyTarget = null}>${erploraT("ui.cancel")}</ion-button>
       </div>
     </div>`;
   }
@@ -5806,11 +5852,11 @@ var ErpInvoiceList = class extends i3 {
     return b2`<div data-testid="invoice-detail">
       <header class="screen-only">
         <h2>${erploraT("ui.detailTitle", { number: d3.number })}</h2>
-        <ion-badge data-testid="invoice-detail-status" color=${STATUS_COLOR[d3.status] ?? "medium"}>${statusLabel(d3.status)}</ion-badge>
+        <ion-badge data-testid="invoice-detail-status" style=${ionTone("solid", STATUS_COLOR[d3.status] ?? "medium")}>${statusLabel(d3.status)}</ion-badge>
         <ion-button class="print" data-testid="invoice-detail-print" @click=${() => void this.printDetail()}>
           <ion-icon slot="start" name="print-outline"></ion-icon> ${erploraT("ui.actionPrint")}
         </ion-button>
-        <ion-button data-testid="invoice-detail-back" fill="outline" color="medium" @click=${() => this.closeDetail()}>← ${erploraT("ui.back")}</ion-button>
+        <ion-button data-testid="invoice-detail-back" fill="outline" class="tone-medium" @click=${() => this.closeDetail()}>← ${erploraT("ui.back")}</ion-button>
       </header>
       ${this.actionError ? b2`<p class="err screen-only" data-testid="invoice-detail-error">${this.actionError}</p>` : A}
       ${this.missingCustomerTaxId(d3) ? b2`<ok-inline-feedback class="screen-only" tone="warning" icon="alert-circle-outline" data-testid="invoice-missing-tax-id">${erploraT("ui.invoiceMissingCustomerTaxId")}</ok-inline-feedback>` : A}
@@ -5844,8 +5890,8 @@ var ErpInvoiceList = class extends i3 {
           <span data-testid="invoice-detail-total">${erploraT("ui.totalTotal")}: ${fmtDoc(d3.total_amount, d3.currency)}</span>
         </div>
         <div class="row-actions">
-          ${this.canAdd && d3.status === "issued" ? b2`<ion-button data-testid="invoice-detail-mark-paid" color="success" ?disabled=${this.busy} @click=${() => this.markPaid(d3)}>${erploraT("ui.actionMarkPaid")}</ion-button>` : A}
-          ${this.canRectify && !(d3.invoice_type ?? "").startsWith("R") && d3.status !== "cancelled" ? b2`<ion-button data-testid="invoice-detail-rectify" fill="outline" color="danger" ?disabled=${this.busy} @click=${() => this.startRectify(d3)}>${erploraT("ui.actionRectify")}</ion-button>` : A}
+          ${this.canAdd && d3.status === "issued" ? b2`<ion-button data-testid="invoice-detail-mark-paid" class="tone-success" ?disabled=${this.busy} @click=${() => this.markPaid(d3)}>${erploraT("ui.actionMarkPaid")}</ion-button>` : A}
+          ${this.canRectify && !(d3.invoice_type ?? "").startsWith("R") && d3.status !== "cancelled" ? b2`<ion-button data-testid="invoice-detail-rectify" fill="outline" class="tone-danger" ?disabled=${this.busy} @click=${() => this.startRectify(d3)}>${erploraT("ui.actionRectify")}</ion-button>` : A}
         </div>
       </div>
       <!-- Documento imprimible (solo al imprimir / Guardar como PDF): layout factura con QR VeriFactu. -->
@@ -5870,12 +5916,12 @@ var ErpInvoiceList = class extends i3 {
           <ion-input data-testid="invoice-line-${it.uid}-quantity" class="num" fill="outline" label-placement="floating" label=${erploraT("ui.lineQty")} type="number" .value=${it.quantity} @ionInput=${(e5) => this.setItem(i7, "quantity", e5.target.value)}></ion-input>
           <ion-input data-testid="invoice-line-${it.uid}-price" class="num" fill="outline" label-placement="floating" label=${erploraT("ui.linePrice")} type="number" .value=${it.unit_price} @ionInput=${(e5) => this.setItem(i7, "unit_price", e5.target.value)}></ion-input>
           <ion-input data-testid="invoice-line-${it.uid}-tax-rate" class="num" fill="outline" label-placement="floating" label=${erploraT("ui.lineTaxPct")} type="number" .value=${it.tax_rate} @ionInput=${(e5) => this.setItem(i7, "tax_rate", e5.target.value)}></ion-input>
-          ${this.newItems.length > 1 ? b2`<ion-button data-testid="invoice-line-${it.uid}-remove" fill="clear" color="danger" aria-label=${erploraT("ui.removeLine")} @click=${() => this.newItems = this.newItems.filter((_2, j2) => j2 !== i7)}><ion-icon slot="icon-only" name="close-outline"></ion-icon></ion-button>` : A}
+          ${this.newItems.length > 1 ? b2`<ion-button data-testid="invoice-line-${it.uid}-remove" fill="clear" class="tone-danger" aria-label=${erploraT("ui.removeLine")} @click=${() => this.newItems = this.newItems.filter((_2, j2) => j2 !== i7)}><ion-icon slot="icon-only" name="close-outline"></ion-icon></ion-button>` : A}
         </div>`)}
         <div class="row-actions">
           <ion-button data-testid="invoice-create-add-line" fill="outline" @click=${() => this.addItem()}>${erploraT("ui.addLine")}</ion-button>
           <ion-button data-testid="invoice-create-submit" type="submit" ?disabled=${this.saving || !this.itemsValid}>${this.saving ? erploraT("ui.issuing") : erploraT("ui.issueInvoice")}</ion-button>
-          <ion-button data-testid="invoice-create-cancel" fill="clear" color="medium" @click=${() => this.dataTable()?.close()}>${erploraT("ui.cancel")}</ion-button>
+          <ion-button data-testid="invoice-create-cancel" fill="clear" class="tone-medium" @click=${() => this.dataTable()?.close()}>${erploraT("ui.cancel")}</ion-button>
         </div>
         ${this.formError ? b2`<ok-inline-feedback data-testid="invoice-create-error" tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : A}
       </form>`;
@@ -6024,6 +6070,12 @@ var ErpInvoiceSettings = class extends i3 {
     .toggles ion-item { --background:transparent; --padding-start:0; --inner-padding-end:0; }
     .hint { display:block; font-size:.72rem; color:var(--ion-color-medium,#8a8577); margin:-.25rem 0 .25rem; }
     .row-actions { display:flex; gap:.5rem; margin-top:.6rem; }
+    /* pm#392 — «Cancel» paints from HERE, never from \`color=\`: Ionic resolves it through a GLOBAL
+       \`.ion-color-*\` rule that does not reach inside this shadow root (it fell back to primary blue). */
+    ion-button.tone-medium[fill] {
+      --color: var(--ion-color-medium, #636469);
+      --border-color: var(--ion-color-medium, #636469);
+    }
   `;
   }
   // Getter (no campo): se re-evalúa en cada render, así los textos cambian con el idioma activo
@@ -6062,7 +6114,7 @@ var ErpInvoiceSettings = class extends i3 {
           { value: "1", label: t5("ui.yes") },
           { value: "0", label: t5("ui.no") }
         ],
-        render: (r6) => b2`<ion-badge color=${r6.is_active ? "success" : "medium"}>${r6.is_active ? t5("ui.yes") : t5("ui.no")}</ion-badge>`
+        render: (r6) => b2`<ion-badge style=${ionTone("solid", r6.is_active ? "success" : "medium")}>${r6.is_active ? t5("ui.yes") : t5("ui.no")}</ion-badge>`
       },
       {
         key: "is_default",
@@ -6073,7 +6125,7 @@ var ErpInvoiceSettings = class extends i3 {
           { value: "1", label: t5("ui.yes") },
           { value: "0", label: t5("ui.no") }
         ],
-        render: (r6) => r6.is_default ? b2`<ion-badge color="primary">${t5("ui.yes")}</ion-badge>` : b2`<span>—</span>`
+        render: (r6) => r6.is_default ? b2`<ion-badge style=${ionTone("solid", "primary")}>${t5("ui.yes")}</ion-badge>` : b2`<span>—</span>`
       }
     ];
   }
@@ -6273,7 +6325,7 @@ var ErpInvoiceSettings = class extends i3 {
           <ion-button data-testid="invoice-series-submit" type="submit" ?disabled=${this.saving}>
             ${this.saving ? erploraT2(this.isEdit ? "ui.saving" : "ui.creating") : erploraT2(this.isEdit ? "ui.save" : "ui.create")}
           </ion-button>
-          <ion-button data-testid="invoice-series-cancel" fill="clear" color="medium" @click=${() => this.cancelForm()}>${erploraT2("ui.cancel")}</ion-button>
+          <ion-button data-testid="invoice-series-cancel" fill="clear" class="tone-medium" @click=${() => this.cancelForm()}>${erploraT2("ui.cancel")}</ion-button>
         </div>
         ${this.formError ? b2`<ok-inline-feedback data-testid="invoice-series-form-error" tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : A}
       </form>`;
