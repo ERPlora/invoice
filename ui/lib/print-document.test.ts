@@ -113,3 +113,29 @@ describe('invoiceToPrintDocument: the full invoice the thermal renderer demands 
     expect('customer_address' in doc).toBe(false);
   });
 });
+
+// invoice#90 — the REPRINT key is unique per attempt (same fix as sales#92). An invoice is
+// immutable (fiscal record), and the queue deduplicates by (hub_id, job_id): a fixed
+// `invoice-<id>` let the first copy out and swallowed every later one as a silent «Duplicate»
+// reported as queued. Each press of Print is an explicit request for another copy.
+describe('reprintJobId — one key per print attempt (invoice#90)', () => {
+  it('every call returns a DIFFERENT key, even in the same millisecond', async () => {
+    const { reprintJobId } = await import('./print-document');
+    const first = reprintJobId('i1')!;
+    const second = reprintJobId('i1')!;
+    expect(first).not.toBe(second);
+    expect(reprintJobId('i1')).not.toBe(second);
+  });
+
+  it('correlates with the invoice (`invoice-<id>-…`) and is never the old fixed key', async () => {
+    const { reprintJobId } = await import('./print-document');
+    const key = reprintJobId('i1')!;
+    expect(key.startsWith('invoice-i1-')).toBe(true);
+    expect(key).not.toBe('invoice-i1');
+  });
+
+  it('without an invoice there is no job', async () => {
+    const { reprintJobId } = await import('./print-document');
+    expect(reprintJobId(undefined)).toBeUndefined();
+  });
+});

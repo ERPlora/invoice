@@ -4904,6 +4904,12 @@ function invoiceToPrintDocument(invoice, lines, decimals, fiscal = {}, taxes = [
     ...qrLegalTexts(fiscal.qr)
   };
 }
+var reprintSeq = 0;
+function reprintJobId(invoiceId) {
+  if (!invoiceId) return void 0;
+  reprintSeq += 1;
+  return `invoice-${invoiceId}-${Date.now().toString(36)}-${reprintSeq}`;
+}
 
 // locales/es.json
 var es_default = {
@@ -5781,7 +5787,9 @@ var ErpInvoiceList = class extends i3 {
         // The thermal renderer reads ANOTHER shape, in major units (`lib/print-document.ts`):
         // the ok-invoice object is for the A4 path only. The VAT rows are the ones the A4 paints.
         data: invoiceToPrintDocument(d3, this.detailLines, currencyDecimals(), { qr: this.aeat?.qr || void 0 }, this.parseTaxes(d3)),
-        jobId: `invoice-${d3.id}`
+        // invoice#90 — unique PER ATTEMPT (as sales#92): the queue deduplicates by job id and
+        // reports the duplicate as queued, so a fixed key swallowed every copy after the first.
+        jobId: reprintJobId(d3.id)
       });
     } catch (e5) {
       res = { via: "none", error: e5 instanceof Error ? e5.message : String(e5) };
