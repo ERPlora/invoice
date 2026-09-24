@@ -8,7 +8,8 @@
     "invoice.quota_on_non_subject_class": "Una línea con inversión del sujeto pasivo, no sujeta o exenta lleva cuota de impuesto, así que no se ha emitido ninguna factura. Solo una operación sujeta puede declarar cuota: la regla fiscal de esa categoría cobra un tipo que no le corresponde.",
     "invoice.negative_total": "Una factura ordinaria no puede sumar menos de cero. Para devolver un importe se emite una rectificativa.",
     "invoice.f1_requires_customer_tax_id": "Una factura completa (F1) necesita el NIF del cliente: sin él Hacienda la rechaza (error 1189) y el documento es en realidad un tique simplificado. Emítela con el NIF del cliente, o usa una serie de tiques simplificados (F2).",
-    "invoice.sale_not_found": "Esa venta no existe, o ya no está disponible para facturar. No se ha emitido ningún documento ni se ha consumido numeración."
+    "invoice.sale_not_found": "Esa venta no existe, o ya no está disponible para facturar. No se ha emitido ningún documento ni se ha consumido numeración.",
+    "invoice.rectify_date_not_allowed": "Una factura rectificativa lleva la fecha del día en que se emite: hoy, y nunca anterior a la factura que corrige. No se ha emitido nada. Envíala sin fecha y quedará fechada hoy."
   },
   "navigation": {
     "invoice": {

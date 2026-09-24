@@ -1,6 +1,11 @@
 -- Crea la factura rectificativa R1 con importes NEGADOS, copiando emisor/cliente de la original.
--- Runtime inyecta :new_id, :hub_id, :now; el resto (:year, :reason, :original_id | :sale_id,
--- :refund_ref, :total, :fully_refunded) viaja en el payload.
+-- Runtime injects :new_id, :hub_id, :now, :timezone; the rest (:reason, :original_id | :sale_id,
+-- :refund_ref, :total, :fully_refunded) travels in the payload.
+--
+-- THE DATE AND THE YEAR ARE THE SERVER'S (invoice#79). Both are the business day (`:now` in
+-- `:timezone`), never a payload's `:issue_date`/`:year`: the expedition date of a fiscal document is
+-- the day it is issued, not a field its requester fills in. `invoice.rectify` refuses a request that
+-- sends a different one (`rectify_date_assert.sql`); the refund listener's event is simply not read.
 --
 -- ⚠ RENDER — el mismo que `commands/_insert_invoice.sql` y `queries/series_peek_next.sql` (allí con
 -- `current_number + 1`). TRES sitios; los pina `tests/number_format.postgres.test.py` §1. Si tocas
@@ -212,7 +217,7 @@ SELECT
                 '{code}',    s.code),
                 '{prefix}',  s.prefix)
     END,
-    COALESCE(NULLIF(CAST(:issue_date AS TEXT), ''), CAST(CAST(CAST(CAST(:now AS TEXT) AS timestamptz) AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC') AS date) AS TEXT)),
+    CAST(CAST(CAST(CAST(:now AS TEXT) AS timestamptz) AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC') AS date) AS TEXT),
     g.issuer_nif, g.issuer_name, g.customer_tax_id, g.customer_name, g.customer_address,
     -- ERPlora/hub#1967: the R identifies the same customer, abroad included, as its original.
     g.customer_country, g.customer_id_type, :reason,
@@ -245,7 +250,7 @@ JOIN totals t ON t.oid = g.id
 JOIN invoice_invoiceseries s
   ON s.hub_id = g.hub_id
  AND s.code = 'RECT'
- AND CAST(s.year AS TEXT) = COALESCE(CAST(:year AS TEXT), substr(CAST(CAST(CAST(CAST(:now AS TEXT) AS timestamptz) AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC') AS date) AS TEXT), 1, 4))
+ AND CAST(s.year AS TEXT) = substr(CAST(CAST(CAST(CAST(:now AS TEXT) AS timestamptz) AT TIME ZONE COALESCE(NULLIF(CAST(:timezone AS TEXT), ''), 'UTC') AS date) AS TEXT), 1, 4)
  AND s.is_deleted = 0
 -- A whole negation (manual door) is issued even for a 0,00 € document (a header-only or fully
 -- comped invoice still gets its R1); the refund door only ever moves positive money.

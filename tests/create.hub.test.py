@@ -17,6 +17,11 @@ below is the one the hub's e2e asserted, in cents (ADR-0007/0123) and 10^6 fixed
      code, year)` (`commands/_ensure_series.sql`).
   3. `invoice.rectify` issues an R1 with every amount NEGATED, under its own `RECT` series, and
      cancels the original (`status = 'cancelled'`) — the original's money never double-counts.
+  4. `invoice.rectify` dates the R1 itself, on the business day (invoice#79): a date other than
+     today, a year other than this one or an original dated after today is refused with
+     `invoice.rectify_date_not_allowed` (HTTP 409) and nothing is written; today's date sent
+     explicitly, or no date at all, is accepted and the R1 is dated today. The business's today is
+     the original's own `issue_date`: the handler dated it with the same clock (invoice#78).
 
 What the hub's e2e checked structurally (`install_registers_capabilities`: the module installs,
 `invoice.create`/`invoice.rectify` are registered commands, `invoice.create_from_sale` listens to
@@ -36,6 +41,7 @@ Usage: `erplora test <dir> --against-hub [dev|stable|sha256:…]` (module-toolki
 own: without a runtime it fails, it does not skip.
 """
 
+import datetime
 import sys
 
 import hub_harness
@@ -196,6 +202,82 @@ def test_rectify_negates_and_cancels_the_original(hub: Hub) -> None:
     )
 
 
+# ── invoice#79: the server dates a rectificativa ─────────────────────────────────────────
+
+CODE = "invoice.rectify_date_not_allowed"
+
+
+def issue_original(hub: Hub) -> dict:
+    created = hub.run(
+        "invoice.create",
+        {
+            "series_code": unique_series("rdate"),
+            "customer_name": unique_tag("ACME"),
+            "customer_tax_id": "B99999999",
+            "items": [
+                {
+                    "description": "X",
+                    "quantity": ONE,
+                    "unit_price": 10000,
+                    "tax_rate": 21.0,
+                }
+            ],
+        },
+    )
+    return hub.query("invoice.get", {"invoice_id": created["new_ids"][0]})[0]
+
+
+def status_of(hub: Hub, invoice_id: str) -> str:
+    return hub.query("invoice.get", {"invoice_id": invoice_id})[0].get("status")
+
+
+def test_a_date_other_than_today_is_refused(hub: Hub) -> None:
+    print(
+        "\n1 · a rectificativa dated on any other day is refused, and nothing is written"
+    )
+    orig = issue_original(hub)
+    today = datetime.date.fromisoformat(orig["issue_date"])
+    for label, extra in (
+        ("yesterday", {"issue_date": (today - datetime.timedelta(days=1)).isoformat()}),
+        ("tomorrow", {"issue_date": (today + datetime.timedelta(days=1)).isoformat()}),
+        ("another year's date", {"issue_date": "2020-01-01"}),
+        ("last year's series", {"year": today.year - 1}),
+    ):
+        hub.refused(
+            f"rectify dated {label}",
+            "invoice.rectify",
+            {"original_id": orig["id"], "reason": "Wrong amount", **extra},
+            CODE,
+        )
+    hub.check("the original is still issued", status_of(hub, orig["id"]), "issued")
+
+
+def test_today_explicitly_is_accepted(hub: Hub) -> None:
+    print("\n2 · today's date, sent explicitly, is accepted")
+    orig = issue_original(hub)
+    rect = hub.run(
+        "invoice.rectify",
+        {
+            "original_id": orig["id"],
+            "reason": "Wrong amount",
+            "issue_date": orig["issue_date"],
+        },
+    )
+    doc = hub.query("invoice.get", {"invoice_id": rect["new_ids"][0]})[0]
+    hub.check("the R1 is dated today", doc.get("issue_date"), orig["issue_date"])
+    hub.check("the original is cancelled", status_of(hub, orig["id"]), "cancelled")
+
+
+def test_no_date_is_dated_today_by_the_server(hub: Hub) -> None:
+    print("\n3 · no date (the screen): the server dates it today")
+    orig = issue_original(hub)
+    rect = hub.run(
+        "invoice.rectify", {"original_id": orig["id"], "reason": "Wrong amount"}
+    )
+    doc = hub.query("invoice.get", {"invoice_id": rect["new_ids"][0]})[0]
+    hub.check("the R1 is dated today", doc.get("issue_date"), orig["issue_date"])
+
+
 def main() -> int:
     hub = Hub("create.hub")
     print(
@@ -206,6 +288,9 @@ def main() -> int:
     test_a_two_line_invoice_writes_series_header_and_lines(hub)
     test_the_same_series_numbers_its_second_invoice_next(hub)
     test_rectify_negates_and_cancels_the_original(hub)
+    test_a_date_other_than_today_is_refused(hub)
+    test_today_explicitly_is_accepted(hub)
+    test_no_date_is_dated_today_by_the_server(hub)
     return hub.finish(
         "direct invoicing keeps every promise the hub's e2e used to assert, against the real kernel"
     )

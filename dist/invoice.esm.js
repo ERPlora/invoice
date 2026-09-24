@@ -4942,7 +4942,8 @@ var es_default = {
     "invoice.quota_on_non_subject_class": "Una l\xEDnea con inversi\xF3n del sujeto pasivo, no sujeta o exenta lleva cuota de impuesto, as\xED que no se ha emitido ninguna factura. Solo una operaci\xF3n sujeta puede declarar cuota: la regla fiscal de esa categor\xEDa cobra un tipo que no le corresponde.",
     "invoice.negative_total": "Una factura ordinaria no puede sumar menos de cero. Para devolver un importe se emite una rectificativa.",
     "invoice.f1_requires_customer_tax_id": "Una factura completa (F1) necesita el NIF del cliente: sin \xE9l Hacienda la rechaza (error 1189) y el documento es en realidad un tique simplificado. Em\xEDtela con el NIF del cliente, o usa una serie de tiques simplificados (F2).",
-    "invoice.sale_not_found": "Esa venta no existe, o ya no est\xE1 disponible para facturar. No se ha emitido ning\xFAn documento ni se ha consumido numeraci\xF3n."
+    "invoice.sale_not_found": "Esa venta no existe, o ya no est\xE1 disponible para facturar. No se ha emitido ning\xFAn documento ni se ha consumido numeraci\xF3n.",
+    "invoice.rectify_date_not_allowed": "Una factura rectificativa lleva la fecha del d\xEDa en que se emite: hoy, y nunca anterior a la factura que corrige. No se ha emitido nada. Env\xEDala sin fecha y quedar\xE1 fechada hoy."
   },
   navigation: {
     invoice: {
@@ -5094,7 +5095,8 @@ var en_default = {
     "invoice.quota_on_non_subject_class": "A line under reverse charge, not subject or exempt carries a tax quota, so no invoice was issued. Only a subject operation may declare a quota: the tax rule of that category charges a rate it should not.",
     "invoice.negative_total": "An ordinary invoice cannot total less than zero. To return an amount, issue a corrective invoice.",
     "invoice.f1_requires_customer_tax_id": "A complete invoice (F1) needs the customer's tax ID: without it the tax authority rejects it (error 1189) and the document is really a simplified ticket. Issue it with the customer's tax ID, or use a simplified-ticket series (F2).",
-    "invoice.sale_not_found": "That sale does not exist, or is no longer available to invoice. No document was issued and no number was used."
+    "invoice.sale_not_found": "That sale does not exist, or is no longer available to invoice. No document was issued and no number was used.",
+    "invoice.rectify_date_not_allowed": "A rectifying invoice is dated the day it is issued: today, and never earlier than the invoice it corrects. Nothing was issued. Send it without a date and it will be dated today."
   },
   navigation: {
     invoice: {

@@ -21,6 +21,7 @@ two of the sale's five frozen fiscal fields travel in the event.
 | Rectifying an already-rectifying or cancelled invoice | The action is not offered, and the command is a no-op if it is called anyway — no number consumed, nothing cancelled | You cannot rectify a rectification |
 | Rectifying the same invoice twice by hand | Resolves to the existing rectification — no second number, no second document | One whole rectification per invoice; look for the one that already exists |
 | Refunding a sale in several acts | Each refund gets its own rectifying invoice for the amount returned; the closing act takes what is left | One rectification per refund document; they add up to the original to the cent |
+| Choosing the date of a rectifying invoice | The server dates it today, on the business's day, and numbers it in this year's series. A request that sends another date or year (the API, the assistant) is refused with `invoice.rectify_date_not_allowed` and nothing is issued | A rectifying invoice is dated the day it is issued, never earlier than the invoice it corrects |
 | Issuing a second F3 for the same F2 | Resolves to the existing F3 | One substitution per ticket, by design |
 | The same sale event delivered twice | Resolves to the existing invoice | Idempotent by source; nothing to do |
 | Creating a series whose code and year already exist | Rejected | Codes are unique per hub and year |
