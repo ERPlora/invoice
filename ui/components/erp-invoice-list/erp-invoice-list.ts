@@ -167,6 +167,10 @@ const moneyStep = (): string => {
 /** `step` of the line quantity: one unit of the 10⁶ quantity scale (ADR-0147), so the browser
  *  accepts «0.5» and refuses only what parseQuantity refuses — a 7th decimal (invoice#97). */
 const QUANTITY_STEP = `0.${'0'.repeat(String(QUANTITY_SCALE).length - 2)}1`;
+/** `step` of the line tax rate. A percentage is neither money nor quantity: no currency or 10⁶
+ *  scale applies and the engine keeps it unscaled, so any decimal passes — IGIC 9.5, surcharge
+ *  5.2, QST 9.975 (invoice#98). */
+const TAX_RATE_STEP = 'any';
 // Invoice amounts are INTEGERS in the minor unit in the DB and the JSON (ADR-0123). `<ok-money>`
 // cuts them by string with the hub's scale — never a division (pm#289; before, `formatMoney`
 // divided in a float and 23100 once painted as «23100,00 €» through `formatAmount`). `currency` is
@@ -846,7 +850,7 @@ export class ErpInvoiceList extends LitElement {
           <ion-input data-testid="invoice-line-${it.uid}-description" class="desc" fill="outline" label-placement="floating" label=${erploraT('ui.lineDescription')} .value=${it.description} @ionInput=${(e: any) => this.setItem(i, 'description', e.target.value)}></ion-input>
           <ion-input data-testid="invoice-line-${it.uid}-quantity" class="num" fill="outline" label-placement="floating" label=${erploraT('ui.lineQty')} type="number" step=${QUANTITY_STEP} .value=${it.quantity} @ionInput=${(e: any) => this.setItem(i, 'quantity', e.target.value)}></ion-input>
           <ion-input data-testid="invoice-line-${it.uid}-price" class="num" fill="outline" label-placement="floating" label=${erploraT('ui.linePrice')} type="number" step=${moneyStep()} .value=${it.unit_price} @ionInput=${(e: any) => this.setItem(i, 'unit_price', e.target.value)}></ion-input>
-          <ion-input data-testid="invoice-line-${it.uid}-tax-rate" class="num" fill="outline" label-placement="floating" label=${erploraT('ui.lineTaxPct')} type="number" .value=${it.tax_rate} @ionInput=${(e: any) => this.setItem(i, 'tax_rate', e.target.value)}></ion-input>
+          <ion-input data-testid="invoice-line-${it.uid}-tax-rate" class="num" fill="outline" label-placement="floating" label=${erploraT('ui.lineTaxPct')} type="number" step=${TAX_RATE_STEP} .value=${it.tax_rate} @ionInput=${(e: any) => this.setItem(i, 'tax_rate', e.target.value)}></ion-input>
           ${this.newItems.length > 1 ? html`<ion-button data-testid="invoice-line-${it.uid}-remove" fill="clear" class="tone-danger" aria-label=${erploraT('ui.removeLine')} @click=${() => (this.newItems = this.newItems.filter((_, j) => j !== i))}><ion-icon slot="icon-only" name="close-outline"></ion-icon></ion-button>` : nothing}
         </div>`)}
         <div class="row-actions">
