@@ -173,6 +173,16 @@ describe('la cadena fiscal habla el contrato: céntimos y punto fijo 10⁶', () 
     expect(input, 'the line price input is not rendered').toBeTruthy();
     expect(input!.step ?? input!.getAttribute('step')).toBe(step);
   });
+
+  // invoice#97: same native validation on the quantity. With no `step` «0.5» (half a unit, a quarter
+  // of an hour) was refused on «Issue» although parseQuantity takes it. The step is the quantity
+  // scale (10⁶, ADR-0147), so the browser refuses exactly what parseQuantity refuses: a 7th decimal.
+  it('the line quantity input accepts the smallest quantity step (10⁶ scale)', async () => {
+    const el = await montar();
+    const input = el.shadowRoot.querySelector('[data-testid="invoice-line-1-quantity"]') as (HTMLElement & { step?: string }) | null;
+    expect(input, 'the line quantity input is not rendered').toBeTruthy();
+    expect(input!.step ?? input!.getAttribute('step')).toBe('0.000001');
+  });
 });
 
 // pm#289: money is painted by <ok-money> from the integer in minor units — the one formatter that
