@@ -10,6 +10,7 @@
 // fiscal (numeración de serie, firma VeriFactu) y el contrato de datos NO se tocan: el payload que
 // se manda es el mismo de antes, y estos tests lo vigilan.
 import { beforeEach, describe, expect, it } from 'vitest';
+import { render as litRender } from 'lit';
 
 const SERIES = [
   { id: 'sr1', code: 'FACT', name: 'Facturas', invoice_type: 'F1', is_active: 1 },
@@ -139,13 +140,56 @@ describe('la cadena fiscal habla el contrato: céntimos y punto fijo 10⁶', () 
   });
 });
 
-describe('el dinero se pinta con formatMoney (céntimos → euros), no crudo (bug ×100)', () => {
-  it('la columna total divide: 12100 céntimos son 121.00 €, no 12100.00 €', async () => {
+// pm#289: money is painted by <ok-money> from the integer in minor units — the one formatter that
+// cuts the digits by string and never divides. The SDK's formatMoney divided in a float.
+describe('money is painted with <ok-money> from the minor-unit integer', () => {
+  const DETAIL_MONEY = {
+    ...FACTURA, issuer_nif: 'B00000000', issuer_name: 'Emisora SL', customer_address: '',
+    description: '', tax_breakdown: '', currency: 'EUR', source_id: null,
+    rectifies_invoice_id: null, paid_at: null, notes: '',
+  };
+  const LINE = {
+    line_number: 1, description: 'Corte', quantity: 1_000_000, unit_price: 10000, tax_rate: 21,
+    surcharge_rate: 0, base_amount: 10000, tax_amount: 2100, total_amount: 12100,
+  };
+  const money = (host: ParentNode, sel: string) => {
+    const m = host.querySelector(`${sel} ok-money`);
+    return m && { value: String(m.getAttribute('value') ?? (m as unknown as { value: unknown }).value), decimals: Number((m as unknown as { decimals: unknown }).decimals), currency: (m as unknown as { currency: unknown }).currency };
+  };
+
+  it('the total column renders <ok-money value="12100">, not a pre-formatted string', async () => {
     const el = await montar();
-    const cols = (el as unknown as { columns: { key: string; format?: (r: unknown) => string }[] }).columns;
+    const cols = (el as unknown as { columns: { key: string; format?: unknown; render?: (r: unknown) => unknown }[] }).columns;
     const total = cols.find((c) => c.key === 'total_amount');
-    expect(total?.format, 'la columna total no tiene formato de dinero').toBeTruthy();
-    expect(total!.format!(FACTURA)).toBe('121.00 €');
+    expect(total?.format, 'a `format` string would be painted instead of <ok-money>').toBeUndefined();
+    const host = document.createElement('div');
+    litRender(total!.render!(FACTURA), host);
+    expect(money(host, '')).toEqual({ value: '12100', decimals: 2, currency: '€' });
+  });
+
+  it('the detail lines and totals are <ok-money> with the row integers', async () => {
+    const el = await montar();
+    const wc = el as unknown as { detail: unknown; detailLines: unknown[]; updateComplete: Promise<unknown> };
+    wc.detail = DETAIL_MONEY;
+    wc.detailLines = [LINE];
+    await wc.updateComplete;
+    const root = el.shadowRoot;
+    expect(money(root, '[data-testid="invoice-detail-base"]')).toEqual({ value: '10000', decimals: 2, currency: '€' });
+    expect(money(root, '[data-testid="invoice-detail-taxes"]')).toEqual({ value: '2100', decimals: 2, currency: '€' });
+    expect(money(root, '[data-testid="invoice-detail-total"]')).toEqual({ value: '12100', decimals: 2, currency: '€' });
+    const cells = [...root.querySelectorAll('[data-testid="invoice-detail-lines"] tbody ok-money')].map((m) => String((m as unknown as { value: unknown }).value));
+    expect(cells).toEqual(['10000', '10000', '2100', '12100']);
+  });
+
+  it('a hub in yen cuts zero decimals (the scale comes from the hub, ADR-0123 §7)', async () => {
+    (globalThis as Record<string, unknown>).erplora = { ...(globalThis as { erplora: object }).erplora, locale: 'en', currency: 'JPY', currencyDecimals: 0 };
+    // `en` so Intl gives «¥» (Spanish CLDR writes the code «JPY», as the shell's formatter did).
+    const el = await montar();
+    const wc = el as unknown as { detail: unknown; detailLines: unknown[]; updateComplete: Promise<unknown> };
+    wc.detail = { ...DETAIL_MONEY, currency: 'JPY', total_amount: 1999 };
+    wc.detailLines = [];
+    await wc.updateComplete;
+    expect(money(el.shadowRoot, '[data-testid="invoice-detail-total"]')).toEqual({ value: '1999', decimals: 0, currency: '¥' });
   });
 });
 

@@ -129,6 +129,8 @@ describe('la columna TOTAL está dentro del pliegue (invoice#51)', () => {
   it('total sigue alineada a la derecha y con el símbolo de moneda (como la tarjeta en móvil)', async () => {
     const total = (await columnas()).find((c) => c.key === 'total_amount');
     expect(total?.align).toBe('right');
-    expect(total?.format?.(FACTURA)).toBe('121.00 €');
+    // pm#289: the amount is an <ok-money> (render), not a pre-formatted string.
+    expect(total?.format).toBeUndefined();
+    expect(typeof total?.render).toBe('function');
   });
 });

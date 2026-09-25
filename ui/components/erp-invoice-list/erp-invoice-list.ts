@@ -4,6 +4,7 @@ import { define } from '@erplora/outfitkit/define';
 import '@erplora/outfitkit/ok-inline-feedback';
 import '@erplora/outfitkit/ok-data-table';
 import '@erplora/outfitkit/ok-invoice';
+import '@erplora/outfitkit/ok-money';
 import '@erplora/outfitkit/ok-qr';
 import type { DataTableColumn, DataTableAction, InvoiceData } from '@erplora/outfitkit';
 import { createListController, eurosToCents } from '@erplora/module-sdk';
@@ -11,6 +12,7 @@ import type { ListController, ListClient, ListParams, ListPage } from '@erplora/
 // Aduana de la escala de cantidades (ADR-0147): la UI habla lógico (0,5), el cable habla µ (500000).
 import { QUANTITY_SCALE, parseQuantity, formatQuantity, fromMicro } from '../../lib/quantity';
 import { lineTaxLabel } from '../../lib/line-tax';
+import { currencySymbol } from '../../lib/currency-symbol';
 import { ionTone, type IonTone } from '../../lib/ion-tone';
 import { invoiceToPrintDocument, qrLegalTexts, reprintJobId, QR_TRIBUTARIO_HEADING, VERIFACTU_LEGEND } from '../../lib/print-document';
 
@@ -68,15 +70,11 @@ interface ErploraClientLike extends ListClient {
   /** i18n del módulo (ADR-0055): idioma activo + traducción del catálogo `ui`. */
   locale: string;
   t(catalog: Record<string, unknown>, key: string, params?: Record<string, unknown>): string;
-  /** Moneda del hub + formateo de dinero (ADR-0059). `opts.currency` sobreescribe (factura en otra divisa).
-   *  `formatMoney` recibe CÉNTIMOS y divide; `formatAmount` recibe unidades mayores y NO divide.
-   *  Los importes de factura son céntimos (ADR-0123) → SIEMPRE `formatMoney`. */
+  /** ISO code of the hub currency (ADR-0059). Amounts are painted by `<ok-money>` (pm#289). */
   currency: string;
   /** Decimals of the hub currency (ADR-0123 §7): EUR 2, JPY 0, KWD 3. The printable documents
    *  carry integers in the minor unit and need this scale to cut them (ADR-0400). */
   currencyDecimals?: number;
-  formatMoney(cents: number, opts?: { currency?: string; locale?: string }): string;
-  formatAmount(units: number, opts?: { currency?: string; locale?: string }): string;
 }
 
 interface Invoice {
@@ -154,20 +152,22 @@ const STATUS_COLOR: Record<string, IonTone> = {
   draft: 'medium', issued: 'primary', paid: 'success', cancelled: 'danger',
 };
 
-// Los importes de factura son CÉNTIMOS enteros en BD y JSON (ADR-0123; migración 001: «-- céntimos»)
-// → SIEMPRE `formatMoney`, que divide según la moneda. El comentario anterior («la factura guarda
-// decimales») era falso y justificaba `formatAmount` (que NO divide): 23100 céntimos se pintaban
-// como «23100,00 €» (bug ×100, el mismo que inventory ya corrigió). `fmtDoc` usa la moneda propia
-// de la factura; `num` es para valores NO monetarios (% de impuesto) que solo quieren 2 decimales.
-const fmtMoney = (v: unknown) => erplora().formatMoney(Number(v || 0));
 /** Scale of the hub currency for the papers (ADR-0400). An SDK that does not expose it is a
  *  two-decimal hub — the same default `<ok-invoice>` applies. */
 const currencyDecimals = (): number => {
   const d = erplora().currencyDecimals;
   return typeof d === 'number' && Number.isFinite(d) ? d : 2;
 };
-const fmtDoc = (v: unknown, currency: string) => erplora().formatMoney(Number(v || 0), { currency });
-const num = (v: unknown) => Number(v || 0).toFixed(2);
+// Invoice amounts are INTEGERS in the minor unit in the DB and the JSON (ADR-0123). `<ok-money>`
+// cuts them by string with the hub's scale — never a division (pm#289; before, `formatMoney`
+// divided in a float and 23100 once painted as «23100,00 €» through `formatAmount`). `currency` is
+// the invoice's own ISO code, else the hub's.
+const money = (v: unknown, currency?: string) => html`<ok-money
+  .value=${Number(v || 0)}
+  .decimals=${currencyDecimals()}
+  .currency=${currencySymbol(currency || erplora().currency, erplora().locale)}
+  .locale=${erplora().locale || ''}
+></ok-money>`;
 /** La primera línea de un alta recién abierta. Congelado para que el QA lo pueda predecir. */
 const FIRST_ITEM_UID = 1;
 
@@ -329,7 +329,7 @@ export class ErpInvoiceList extends LitElement {
       width: 'minmax(10rem, 12rem)',
       format: (r) => (r.customer_name as string) || '—',
     },
-    { key: 'total_amount', header: t('ui.colTotal'), align: 'right', sortable: true, filterable: true, filterType: 'range', width: 'minmax(7rem, 8rem)', format: (r) => fmtMoney(r.total_amount) },
+    { key: 'total_amount', header: t('ui.colTotal'), align: 'right', sortable: true, filterable: true, filterType: 'range', width: 'minmax(7rem, 8rem)', render: (r) => money(r.total_amount) },
     {
       key: 'status',
       header: t('ui.colStatus'),
@@ -798,14 +798,14 @@ export class ErpInvoiceList extends LitElement {
           <thead><tr><th>#</th><th>${erploraT('ui.lineDescription')}</th><th>${erploraT('ui.lineQty')}</th><th>${erploraT('ui.linePrice')}</th><th>${erploraT('ui.lineTaxPct')}</th><th>${erploraT('ui.lineBase')}</th><th>${erploraT('ui.lineTax')}</th><th>${erploraT('ui.lineTotal')}</th></tr></thead>
           <tbody>${this.detailLines.map((l) => html`<tr>
             <td>${l.line_number}</td><td>${l.description}</td><td>${formatQuantity(Number(l.quantity) || 0)}</td>
-            <td>${fmtDoc(l.unit_price, d.currency)}</td><td>${lineTaxLabel(l, erploraT)}</td>
-            <td>${fmtDoc(l.base_amount, d.currency)}</td><td>${fmtDoc(l.tax_amount, d.currency)}</td><td>${fmtDoc(l.total_amount, d.currency)}</td>
+            <td>${money(l.unit_price, d.currency)}</td><td>${lineTaxLabel(l, erploraT)}</td>
+            <td>${money(l.base_amount, d.currency)}</td><td>${money(l.tax_amount, d.currency)}</td><td>${money(l.total_amount, d.currency)}</td>
           </tr>`)}</tbody>
         </table>` : html`<p data-testid="invoice-detail-no-lines">${erploraT('ui.noLines')}</p>`}
         <div class="totals">
-          <span data-testid="invoice-detail-base">${erploraT('ui.totalBase')}: ${fmtDoc(d.base_amount, d.currency)}</span>
-          <span data-testid="invoice-detail-taxes">${erploraT('ui.totalTaxes')}: ${fmtDoc(d.tax_amount, d.currency)}</span>
-          <span data-testid="invoice-detail-total">${erploraT('ui.totalTotal')}: ${fmtDoc(d.total_amount, d.currency)}</span>
+          <span data-testid="invoice-detail-base">${erploraT('ui.totalBase')}: ${money(d.base_amount, d.currency)}</span>
+          <span data-testid="invoice-detail-taxes">${erploraT('ui.totalTaxes')}: ${money(d.tax_amount, d.currency)}</span>
+          <span data-testid="invoice-detail-total">${erploraT('ui.totalTotal')}: ${money(d.total_amount, d.currency)}</span>
         </div>
         <div class="row-actions">
           ${this.canAdd && d.status === 'issued' ? html`<ion-button data-testid="invoice-detail-mark-paid" class="tone-success" ?disabled=${this.busy} @click=${() => this.markPaid(d)}>${erploraT('ui.actionMarkPaid')}</ion-button>` : nothing}

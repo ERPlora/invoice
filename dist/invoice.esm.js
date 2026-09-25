@@ -4863,6 +4863,18 @@ function lineTaxLabel(line, t5) {
   return surcharge > 0 ? `${main} + ${t5("ui.taxSurcharge")} ${pct(surcharge)}` : main;
 }
 
+// ui/lib/currency-symbol.ts
+function currencySymbol(code, locale) {
+  const iso = (code ?? "").trim();
+  if (!iso) return "";
+  try {
+    const parts = new Intl.NumberFormat(locale, { style: "currency", currency: iso }).formatToParts(0);
+    return parts.find((p4) => p4.type === "currency")?.value ?? iso;
+  } catch {
+    return iso;
+  }
+}
+
 // ui/lib/ion-tone.ts
 var PALETTE = {
   danger: { base: "#c5000f", contrast: "#fff", shade: "#ad000d", tint: "#cb1a27" },
@@ -5296,12 +5308,16 @@ var STATUS_COLOR = {
   paid: "success",
   cancelled: "danger"
 };
-var fmtMoney = (v3) => erplora().formatMoney(Number(v3 || 0));
 var currencyDecimals = () => {
   const d3 = erplora().currencyDecimals;
   return typeof d3 === "number" && Number.isFinite(d3) ? d3 : 2;
 };
-var fmtDoc = (v3, currency) => erplora().formatMoney(Number(v3 || 0), { currency });
+var money = (v3, currency) => b2`<ok-money
+  .value=${Number(v3 || 0)}
+  .decimals=${currencyDecimals()}
+  .currency=${currencySymbol(currency || erplora().currency, erplora().locale)}
+  .locale=${erplora().locale || ""}
+></ok-money>`;
 var FIRST_ITEM_UID = 1;
 var emptyItem = (uid) => ({ uid, description: "", quantity: "1", unit_price: "", tax_rate: "21" });
 var ErpInvoiceList = class extends i3 {
@@ -5438,7 +5454,7 @@ var ErpInvoiceList = class extends i3 {
         width: "minmax(10rem, 12rem)",
         format: (r6) => r6.customer_name || "\u2014"
       },
-      { key: "total_amount", header: t5("ui.colTotal"), align: "right", sortable: true, filterable: true, filterType: "range", width: "minmax(7rem, 8rem)", format: (r6) => fmtMoney(r6.total_amount) },
+      { key: "total_amount", header: t5("ui.colTotal"), align: "right", sortable: true, filterable: true, filterType: "range", width: "minmax(7rem, 8rem)", render: (r6) => money(r6.total_amount) },
       {
         key: "status",
         header: t5("ui.colStatus"),
@@ -5882,14 +5898,14 @@ var ErpInvoiceList = class extends i3 {
           <thead><tr><th>#</th><th>${erploraT("ui.lineDescription")}</th><th>${erploraT("ui.lineQty")}</th><th>${erploraT("ui.linePrice")}</th><th>${erploraT("ui.lineTaxPct")}</th><th>${erploraT("ui.lineBase")}</th><th>${erploraT("ui.lineTax")}</th><th>${erploraT("ui.lineTotal")}</th></tr></thead>
           <tbody>${this.detailLines.map((l3) => b2`<tr>
             <td>${l3.line_number}</td><td>${l3.description}</td><td>${formatQuantity2(Number(l3.quantity) || 0)}</td>
-            <td>${fmtDoc(l3.unit_price, d3.currency)}</td><td>${lineTaxLabel(l3, erploraT)}</td>
-            <td>${fmtDoc(l3.base_amount, d3.currency)}</td><td>${fmtDoc(l3.tax_amount, d3.currency)}</td><td>${fmtDoc(l3.total_amount, d3.currency)}</td>
+            <td>${money(l3.unit_price, d3.currency)}</td><td>${lineTaxLabel(l3, erploraT)}</td>
+            <td>${money(l3.base_amount, d3.currency)}</td><td>${money(l3.tax_amount, d3.currency)}</td><td>${money(l3.total_amount, d3.currency)}</td>
           </tr>`)}</tbody>
         </table>` : b2`<p data-testid="invoice-detail-no-lines">${erploraT("ui.noLines")}</p>`}
         <div class="totals">
-          <span data-testid="invoice-detail-base">${erploraT("ui.totalBase")}: ${fmtDoc(d3.base_amount, d3.currency)}</span>
-          <span data-testid="invoice-detail-taxes">${erploraT("ui.totalTaxes")}: ${fmtDoc(d3.tax_amount, d3.currency)}</span>
-          <span data-testid="invoice-detail-total">${erploraT("ui.totalTotal")}: ${fmtDoc(d3.total_amount, d3.currency)}</span>
+          <span data-testid="invoice-detail-base">${erploraT("ui.totalBase")}: ${money(d3.base_amount, d3.currency)}</span>
+          <span data-testid="invoice-detail-taxes">${erploraT("ui.totalTaxes")}: ${money(d3.tax_amount, d3.currency)}</span>
+          <span data-testid="invoice-detail-total">${erploraT("ui.totalTotal")}: ${money(d3.total_amount, d3.currency)}</span>
         </div>
         <div class="row-actions">
           ${this.canAdd && d3.status === "issued" ? b2`<ion-button data-testid="invoice-detail-mark-paid" class="tone-success" ?disabled=${this.busy} @click=${() => this.markPaid(d3)}>${erploraT("ui.actionMarkPaid")}</ion-button>` : A}
