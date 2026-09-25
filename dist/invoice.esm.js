@@ -4835,9 +4835,6 @@ function majorToMinor(amount, decimals) {
   const n6 = Number(amount);
   return Number.isFinite(n6) ? Math.round(n6 * 10 ** decimals) : 0;
 }
-function eurosToCents(euros) {
-  return majorToMinor(euros, 2);
-}
 
 // ui/lib/quantity.ts
 var QUANTITY_SCALE2 = 1e6;
@@ -5312,6 +5309,10 @@ var currencyDecimals = () => {
   const d3 = erplora().currencyDecimals;
   return typeof d3 === "number" && Number.isFinite(d3) ? d3 : 2;
 };
+var moneyStep = () => {
+  const d3 = currencyDecimals();
+  return d3 <= 0 ? "1" : `0.${"0".repeat(d3 - 1)}1`;
+};
 var money = (v3, currency) => b2`<ok-money
   .value=${Number(v3 || 0)}
   .decimals=${currencyDecimals()}
@@ -5657,13 +5658,14 @@ var ErpInvoiceList = class extends i3 {
         customer_address: this.newCustomerAddress.trim(),
         notes: this.newNotes.trim(),
         source_type: "manual",
-        // Frontera de contrato: el humano teclea EUROS y cantidades LÓGICAS; el cable lleva
-        // CÉNTIMOS (ADR-0123) y punto fijo 10⁶ (ADR-0147). Antes se mandaba lo tecleado tal
-        // cual: «50 €» llegaba como 50 CÉNTIMOS al schema `unit_price: integer`.
+        // Contract boundary: the human types the price in the hub currency's MAJOR unit and
+        // logical quantities; the wire carries MINOR units (ADR-0123) with the hub currency scale
+        // — the same one that paints and prints the invoice (JPY 0, KWD 3; invoice#95) — and
+        // quantities in 10⁶ fixed point (ADR-0147).
         items: this.newItems.map((it) => ({
           description: it.description.trim(),
           quantity: parseQuantity2(it.quantity) ?? QUANTITY_SCALE2,
-          unit_price: eurosToCents(it.unit_price),
+          unit_price: majorToMinor(it.unit_price, currencyDecimals()),
           tax_rate: Number(it.tax_rate) || 0,
           product_id: null
         }))
@@ -5932,7 +5934,7 @@ var ErpInvoiceList = class extends i3 {
         ${this.newItems.map((it, i7) => b2`<div class="item-row">
           <ion-input data-testid="invoice-line-${it.uid}-description" class="desc" fill="outline" label-placement="floating" label=${erploraT("ui.lineDescription")} .value=${it.description} @ionInput=${(e5) => this.setItem(i7, "description", e5.target.value)}></ion-input>
           <ion-input data-testid="invoice-line-${it.uid}-quantity" class="num" fill="outline" label-placement="floating" label=${erploraT("ui.lineQty")} type="number" .value=${it.quantity} @ionInput=${(e5) => this.setItem(i7, "quantity", e5.target.value)}></ion-input>
-          <ion-input data-testid="invoice-line-${it.uid}-price" class="num" fill="outline" label-placement="floating" label=${erploraT("ui.linePrice")} type="number" .value=${it.unit_price} @ionInput=${(e5) => this.setItem(i7, "unit_price", e5.target.value)}></ion-input>
+          <ion-input data-testid="invoice-line-${it.uid}-price" class="num" fill="outline" label-placement="floating" label=${erploraT("ui.linePrice")} type="number" step=${moneyStep()} .value=${it.unit_price} @ionInput=${(e5) => this.setItem(i7, "unit_price", e5.target.value)}></ion-input>
           <ion-input data-testid="invoice-line-${it.uid}-tax-rate" class="num" fill="outline" label-placement="floating" label=${erploraT("ui.lineTaxPct")} type="number" .value=${it.tax_rate} @ionInput=${(e5) => this.setItem(i7, "tax_rate", e5.target.value)}></ion-input>
           ${this.newItems.length > 1 ? b2`<ion-button data-testid="invoice-line-${it.uid}-remove" fill="clear" class="tone-danger" aria-label=${erploraT("ui.removeLine")} @click=${() => this.newItems = this.newItems.filter((_2, j2) => j2 !== i7)}><ion-icon slot="icon-only" name="close-outline"></ion-icon></ion-button>` : A}
         </div>`)}
