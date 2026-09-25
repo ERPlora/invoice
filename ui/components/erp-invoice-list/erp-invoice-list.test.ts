@@ -93,7 +93,7 @@ describe('el alta manual vive DENTRO de la tabla (paridad con /employees e inven
 // CAMBIO DE CONTRATO (ADR-0123 + ADR-0147, 2026-07-19): el payload anterior mandaba lo tecleado
 // TAL CUAL (`unit_price: 50` por «50 €», `quantity: 2` lógica). El schema y la BD siempre fueron
 // céntimos enteros, y la cantidad ahora es punto fijo 10⁶ — la conversión ocurre en la frontera
-// de la UI (eurosToCents / toMicro), como en inventory y sales.
+// de la UI (majorToMinor with the hub currency scale / toMicro), como en inventory y sales.
 describe('la cadena fiscal habla el contrato: céntimos y punto fijo 10⁶', () => {
   it('emitir manda invoice.create con precios en CÉNTIMOS y cantidades en µ, y cierra el panel', async () => {
     const el = await montar();
@@ -137,6 +137,41 @@ describe('la cadena fiscal habla el contrato: céntimos y punto fijo 10⁶', () 
     expect((alta!.payload.items as Array<{ quantity: number; unit_price: number }>)[0]).toMatchObject({
       quantity: 500_000, unit_price: 1200,
     });
+  });
+
+  // invoice#95: the typed price is converted with the HUB currency scale (the same one that
+  // paints and prints the invoice), not a fixed ×100 — 480 JPY was stored as 48000 JPY.
+  it.each([
+    { currency: 'JPY', decimals: 0, typed: '480', minor: 480 },
+    { currency: 'KWD', decimals: 3, typed: '1.234', minor: 1234 },
+    { currency: 'EUR', decimals: 2, typed: '12.5', minor: 1250 },
+  ])('the typed line price in $currency is sent in minor units of that currency', async ({ currency, decimals, typed, minor }) => {
+    const el = await montar();
+    Object.assign(globalThis.erplora as unknown as Record<string, unknown>, { currency, currencyDecimals: decimals });
+    const wc = el as unknown as {
+      newSeriesCode: string;
+      newItems: { uid: number; description: string; quantity: string; unit_price: string; tax_rate: string }[];
+      create: (ev: Event) => Promise<void>;
+    };
+    wc.newSeriesCode = 'FACT';
+    wc.newItems = [{ uid: 1, description: 'Item', quantity: '1', unit_price: typed, tax_rate: '10' }];
+    await wc.create(new Event('submit'));
+    const alta = comandos.find((c) => c.name === 'invoice.create');
+    expect((alta!.payload.items as Array<{ unit_price: number }>)[0].unit_price).toBe(minor);
+  });
+
+  // The submit button clicks a native one, so the browser validates the form: a `type="number"`
+  // input with no `step` only accepts integers and «1.234» KWD (or «12.50» EUR) would be refused.
+  it.each([
+    { currency: 'JPY', decimals: 0, step: '1' },
+    { currency: 'EUR', decimals: 2, step: '0.01' },
+    { currency: 'KWD', decimals: 3, step: '0.001' },
+  ])('the line price input accepts the smallest unit of $currency', async ({ currency, decimals, step }) => {
+    Object.assign(globalThis.erplora as unknown as Record<string, unknown>, { currency, currencyDecimals: decimals });
+    const el = await montar();
+    const input = el.shadowRoot.querySelector('[data-testid="invoice-line-1-price"]') as (HTMLElement & { step?: string }) | null;
+    expect(input, 'the line price input is not rendered').toBeTruthy();
+    expect(input!.step ?? input!.getAttribute('step')).toBe(step);
   });
 });
 

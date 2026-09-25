@@ -6,6 +6,10 @@
 // SDK's `formatMoney`/`formatAmount`, which divide in a float — paints the same amount with its own
 // separators and its own rounding, and the invoice detail stops matching the invoice paper.
 //
+// The same goes for the SDK's `eurosToCents`/`centsToEuros`: they pin the scale to two decimals, so
+// in a JPY or KWD hub a typed price is stored 100× or 10× wrong (invoice#95) — convert with
+// `majorToMinor(x, currencyDecimals())` instead.
+//
 // This guard reads the source of `ui/` (tests excluded) and fails if any of those comes back. The
 // only `toFixed(2)` allowed is on something that is NOT money, and it has to be listed below with
 // the reason; a listed file that no longer needs it fails too, so the list cannot rot.
@@ -16,7 +20,7 @@ import { join, relative } from 'node:path';
 /** `ui/` from the module root — where the gate runs vitest from (see form-testids.test.ts). */
 const UI = join(process.cwd(), 'ui');
 
-type Rule = 'toFixed' | 'sdk-format' | 'intl-currency';
+type Rule = 'toFixed' | 'sdk-format' | 'intl-currency' | 'fixed-scale';
 type Violation = { rule: Rule; line: number; text: string };
 
 /** Files allowed to break ONE rule, and why what they format is not an amount. */
@@ -52,6 +56,7 @@ function moneyViolations(src: string): Violation[] {
   const add = (rule: Rule, i: number) => out.push({ rule, line: lineAt(i), text: textAt(i) });
   for (const m of code.matchAll(/\.toFixed\(\s*2\s*,?\s*\)/g)) add('toFixed', m.index!);
   for (const m of code.matchAll(/\bformat(Money|Amount)\s*\(/g)) add('sdk-format', m.index!);
+  for (const m of code.matchAll(/\b(eurosToCents|centsToEuros)\s*\(/g)) add('fixed-scale', m.index!);
   for (const m of code.matchAll(/NumberFormat\s*\(/g)) {
     if (/\bcurrency\b/.test(callArgs(code, m.index! + m[0].length - 1))) add('intl-currency', m.index!);
   }
@@ -82,6 +87,11 @@ describe('the scanner catches hand-formatted money (positive control)', () => {
   it('follows a call across lines (the prettier shape), not just one line', () => {
     const src = ['export const f = new Intl.NumberFormat("es-ES", {', '  style: "currency",', '  currency: "EUR",', '});', 'const g = (v: number) => v', '  .toFixed(', '    2,', '  );'].join('\n');
     expect(moneyViolations(src).map((v) => [v.rule, v.line])).toEqual([['intl-currency', 1], ['toFixed', 6]]);
+  });
+
+  it('flags the SDK conversions that pin the scale to two decimals (invoice#95)', () => {
+    const src = ['const a = eurosToCents(it.unit_price);', 'const b = centsToEuros(', '  row.price,', ');'].join('\n');
+    expect(moneyViolations(src).map((v) => [v.rule, v.line])).toEqual([['fixed-scale', 1], ['fixed-scale', 2]]);
   });
 
   it('a NumberFormat without a currency is not money', () => {

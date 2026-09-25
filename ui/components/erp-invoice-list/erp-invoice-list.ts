@@ -7,7 +7,7 @@ import '@erplora/outfitkit/ok-invoice';
 import '@erplora/outfitkit/ok-money';
 import '@erplora/outfitkit/ok-qr';
 import type { DataTableColumn, DataTableAction, InvoiceData } from '@erplora/outfitkit';
-import { createListController, eurosToCents } from '@erplora/module-sdk';
+import { createListController, majorToMinor } from '@erplora/module-sdk';
 import type { ListController, ListClient, ListParams, ListPage } from '@erplora/module-sdk';
 // Aduana de la escala de cantidades (ADR-0147): la UI habla lógico (0,5), el cable habla µ (500000).
 import { QUANTITY_SCALE, parseQuantity, formatQuantity, fromMicro } from '../../lib/quantity';
@@ -157,6 +157,12 @@ const STATUS_COLOR: Record<string, IonTone> = {
 const currencyDecimals = (): number => {
   const d = erplora().currencyDecimals;
   return typeof d === 'number' && Number.isFinite(d) ? d : 2;
+};
+/** `step` of a money input: the smallest unit of the hub currency (JPY «1», EUR «0.01», KWD
+ *  «0.001»). Without it a `type="number"` input only accepts integers and the form is refused. */
+const moneyStep = (): string => {
+  const d = currencyDecimals();
+  return d <= 0 ? '1' : `0.${'0'.repeat(d - 1)}1`;
 };
 // Invoice amounts are INTEGERS in the minor unit in the DB and the JSON (ADR-0123). `<ok-money>`
 // cuts them by string with the hub's scale — never a division (pm#289; before, `formatMoney`
@@ -542,13 +548,14 @@ export class ErpInvoiceList extends LitElement {
         customer_address: this.newCustomerAddress.trim(),
         notes: this.newNotes.trim(),
         source_type: 'manual',
-        // Frontera de contrato: el humano teclea EUROS y cantidades LÓGICAS; el cable lleva
-        // CÉNTIMOS (ADR-0123) y punto fijo 10⁶ (ADR-0147). Antes se mandaba lo tecleado tal
-        // cual: «50 €» llegaba como 50 CÉNTIMOS al schema `unit_price: integer`.
+        // Contract boundary: the human types the price in the hub currency's MAJOR unit and
+        // logical quantities; the wire carries MINOR units (ADR-0123) with the hub currency scale
+        // — the same one that paints and prints the invoice (JPY 0, KWD 3; invoice#95) — and
+        // quantities in 10⁶ fixed point (ADR-0147).
         items: this.newItems.map((it) => ({
           description: it.description.trim(),
           quantity: parseQuantity(it.quantity) ?? QUANTITY_SCALE,
-          unit_price: eurosToCents(it.unit_price),
+          unit_price: majorToMinor(it.unit_price, currencyDecimals()),
           tax_rate: Number(it.tax_rate) || 0,
           product_id: null,
         })),
@@ -835,7 +842,7 @@ export class ErpInvoiceList extends LitElement {
         ${this.newItems.map((it, i) => html`<div class="item-row">
           <ion-input data-testid="invoice-line-${it.uid}-description" class="desc" fill="outline" label-placement="floating" label=${erploraT('ui.lineDescription')} .value=${it.description} @ionInput=${(e: any) => this.setItem(i, 'description', e.target.value)}></ion-input>
           <ion-input data-testid="invoice-line-${it.uid}-quantity" class="num" fill="outline" label-placement="floating" label=${erploraT('ui.lineQty')} type="number" .value=${it.quantity} @ionInput=${(e: any) => this.setItem(i, 'quantity', e.target.value)}></ion-input>
-          <ion-input data-testid="invoice-line-${it.uid}-price" class="num" fill="outline" label-placement="floating" label=${erploraT('ui.linePrice')} type="number" .value=${it.unit_price} @ionInput=${(e: any) => this.setItem(i, 'unit_price', e.target.value)}></ion-input>
+          <ion-input data-testid="invoice-line-${it.uid}-price" class="num" fill="outline" label-placement="floating" label=${erploraT('ui.linePrice')} type="number" step=${moneyStep()} .value=${it.unit_price} @ionInput=${(e: any) => this.setItem(i, 'unit_price', e.target.value)}></ion-input>
           <ion-input data-testid="invoice-line-${it.uid}-tax-rate" class="num" fill="outline" label-placement="floating" label=${erploraT('ui.lineTaxPct')} type="number" .value=${it.tax_rate} @ionInput=${(e: any) => this.setItem(i, 'tax_rate', e.target.value)}></ion-input>
           ${this.newItems.length > 1 ? html`<ion-button data-testid="invoice-line-${it.uid}-remove" fill="clear" class="tone-danger" aria-label=${erploraT('ui.removeLine')} @click=${() => (this.newItems = this.newItems.filter((_, j) => j !== i))}><ion-icon slot="icon-only" name="close-outline"></ion-icon></ion-button>` : nothing}
         </div>`)}
