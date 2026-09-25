@@ -32,16 +32,30 @@ function stripComments(src: string): string {
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
+/** The argument list of the call whose `(` is at `open`, up to its matching `)`. */
+function callArgs(src: string, open: number): string {
+  let depth = 0;
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === '(') depth++;
+    else if (src[i] === ')' && --depth === 0) return src.slice(open, i + 1);
+  }
+  return src.slice(open);
+}
+
+/** Scans the WHOLE source, not line by line: prettier splits a call over several lines and a
+ *  `currency` two lines below its `NumberFormat(` must still count (HALLAZGO rv-sales-376). */
 function moneyViolations(src: string): Violation[] {
+  const code = stripComments(src);
+  const lineAt = (i: number) => code.slice(0, i).split('\n').length;
+  const textAt = (i: number) => code.split('\n')[lineAt(i) - 1].trim();
   const out: Violation[] = [];
-  stripComments(src)
-    .split('\n')
-    .forEach((text, i) => {
-      if (/\.toFixed\(\s*2\s*\)/.test(text)) out.push({ rule: 'toFixed', line: i + 1, text: text.trim() });
-      if (/\bformat(Money|Amount)\s*\(/.test(text)) out.push({ rule: 'sdk-format', line: i + 1, text: text.trim() });
-      if (/NumberFormat\s*\(/.test(text) && /currency/.test(text)) out.push({ rule: 'intl-currency', line: i + 1, text: text.trim() });
-    });
-  return out;
+  const add = (rule: Rule, i: number) => out.push({ rule, line: lineAt(i), text: textAt(i) });
+  for (const m of code.matchAll(/\.toFixed\(\s*2\s*,?\s*\)/g)) add('toFixed', m.index!);
+  for (const m of code.matchAll(/\bformat(Money|Amount)\s*\(/g)) add('sdk-format', m.index!);
+  for (const m of code.matchAll(/NumberFormat\s*\(/g)) {
+    if (/\bcurrency\b/.test(callArgs(code, m.index! + m[0].length - 1))) add('intl-currency', m.index!);
+  }
+  return out.sort((a, b) => a.line - b.line);
 }
 
 function sources(dir: string): string[] {
@@ -63,6 +77,15 @@ describe('the scanner catches hand-formatted money (positive control)', () => {
       ].join('\n'),
     ).map((v) => v.rule);
     expect(rules).toEqual(['toFixed', 'sdk-format', 'sdk-format', 'intl-currency']);
+  });
+
+  it('follows a call across lines (the prettier shape), not just one line', () => {
+    const src = ['export const f = new Intl.NumberFormat("es-ES", {', '  style: "currency",', '  currency: "EUR",', '});', 'const g = (v: number) => v', '  .toFixed(', '    2,', '  );'].join('\n');
+    expect(moneyViolations(src).map((v) => [v.rule, v.line])).toEqual([['intl-currency', 1], ['toFixed', 6]]);
+  });
+
+  it('a NumberFormat without a currency is not money', () => {
+    expect(moneyViolations("const n = new Intl.NumberFormat('es', {\n  maximumFractionDigits: 3,\n});\nconst c = 'currency';")).toEqual([]);
   });
 
   it('ignores the same words inside comments', () => {
