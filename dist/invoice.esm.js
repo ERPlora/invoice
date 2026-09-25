@@ -5314,6 +5314,7 @@ var moneyStep = () => {
   return d3 <= 0 ? "1" : `0.${"0".repeat(d3 - 1)}1`;
 };
 var QUANTITY_STEP = `0.${"0".repeat(String(QUANTITY_SCALE2).length - 2)}1`;
+var TAX_RATE_STEP = "any";
 var money = (v3, currency) => b2`<ok-money
   .value=${Number(v3 || 0)}
   .decimals=${currencyDecimals()}
@@ -5936,7 +5937,7 @@ var ErpInvoiceList = class extends i3 {
           <ion-input data-testid="invoice-line-${it.uid}-description" class="desc" fill="outline" label-placement="floating" label=${erploraT("ui.lineDescription")} .value=${it.description} @ionInput=${(e5) => this.setItem(i7, "description", e5.target.value)}></ion-input>
           <ion-input data-testid="invoice-line-${it.uid}-quantity" class="num" fill="outline" label-placement="floating" label=${erploraT("ui.lineQty")} type="number" step=${QUANTITY_STEP} .value=${it.quantity} @ionInput=${(e5) => this.setItem(i7, "quantity", e5.target.value)}></ion-input>
           <ion-input data-testid="invoice-line-${it.uid}-price" class="num" fill="outline" label-placement="floating" label=${erploraT("ui.linePrice")} type="number" step=${moneyStep()} .value=${it.unit_price} @ionInput=${(e5) => this.setItem(i7, "unit_price", e5.target.value)}></ion-input>
-          <ion-input data-testid="invoice-line-${it.uid}-tax-rate" class="num" fill="outline" label-placement="floating" label=${erploraT("ui.lineTaxPct")} type="number" .value=${it.tax_rate} @ionInput=${(e5) => this.setItem(i7, "tax_rate", e5.target.value)}></ion-input>
+          <ion-input data-testid="invoice-line-${it.uid}-tax-rate" class="num" fill="outline" label-placement="floating" label=${erploraT("ui.lineTaxPct")} type="number" step=${TAX_RATE_STEP} .value=${it.tax_rate} @ionInput=${(e5) => this.setItem(i7, "tax_rate", e5.target.value)}></ion-input>
           ${this.newItems.length > 1 ? b2`<ion-button data-testid="invoice-line-${it.uid}-remove" fill="clear" class="tone-danger" aria-label=${erploraT("ui.removeLine")} @click=${() => this.newItems = this.newItems.filter((_2, j2) => j2 !== i7)}><ion-icon slot="icon-only" name="close-outline"></ion-icon></ion-button>` : A}
         </div>`)}
         <div class="row-actions">

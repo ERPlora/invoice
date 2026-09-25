@@ -1733,6 +1733,18 @@ mod tests {
         quotas_add_up(&out);
     }
 
+    #[test]
+    fn a_decimal_caller_rate_is_charged_and_declared_as_is() {
+        // invoice#98: the manual form now sends IGIC 9.5 %; the rate is unscaled, never rounded.
+        let out = create_invoice_pure(inp(manual_line("service.general", 9.5), 8));
+        assert!(out.error.is_none(), "{:?}", out.error);
+        assert_eq!(out.operations[2].params["tax_amount"], json!(950));
+        assert_eq!(out.operations[2].params["total_amount"], json!(10950));
+        assert_eq!(out.operations[3].params["tax_rate"], json!(9.5));
+        assert_eq!(desglose(&out)[0]["rate"], json!(9.5));
+        quotas_add_up(&out);
+    }
+
     /// El orden del array no puede depender del orden de las líneas de la factura: el XML que sale
     /// de aquí tiene que ser estable entre ejecuciones.
     #[test]

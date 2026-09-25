@@ -183,6 +183,34 @@ describe('la cadena fiscal habla el contrato: céntimos y punto fijo 10⁶', () 
     expect(input, 'the line quantity input is not rendered').toBeTruthy();
     expect(input!.step ?? input!.getAttribute('step')).toBe('0.000001');
   });
+
+  // invoice#98: same native validation on the tax rate. With no `step` IGIC «9.5» (or a 5.2 %
+  // surcharge) was refused on «Issue». A percentage is neither money nor quantity: no currency or
+  // 10⁶ scale applies (JPY must still take 9.5 %), and the engine keeps the rate unscaled.
+  it.each([
+    { currency: 'EUR', decimals: 2 },
+    { currency: 'JPY', decimals: 0 },
+  ])('the line tax rate input accepts a decimal rate in $currency', async ({ currency, decimals }) => {
+    Object.assign(globalThis.erplora as unknown as Record<string, unknown>, { currency, currencyDecimals: decimals });
+    const el = await montar();
+    const input = el.shadowRoot.querySelector('[data-testid="invoice-line-1-tax-rate"]') as (HTMLElement & { step?: string }) | null;
+    expect(input, 'the line tax rate input is not rendered').toBeTruthy();
+    expect(input!.step ?? input!.getAttribute('step')).toBe('any');
+  });
+
+  it('a decimal tax rate typed on the line travels as that rate', async () => {
+    const el = await montar();
+    const wc = el as unknown as {
+      newSeriesCode: string;
+      newItems: { uid: number; description: string; quantity: string; unit_price: string; tax_rate: string }[];
+      create: (ev: Event) => Promise<void>;
+    };
+    wc.newSeriesCode = 'FACT';
+    wc.newItems = [{ uid: 1, description: 'Item', quantity: '1', unit_price: '10', tax_rate: '9.5' }];
+    await wc.create(new Event('submit'));
+    const alta = comandos.find((c) => c.name === 'invoice.create');
+    expect((alta!.payload.items as Array<{ tax_rate: number }>)[0].tax_rate).toBe(9.5);
+  });
 });
 
 // pm#289: money is painted by <ok-money> from the integer in minor units — the one formatter that
