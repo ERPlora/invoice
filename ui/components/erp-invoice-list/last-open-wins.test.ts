@@ -46,6 +46,14 @@ function hold(name: string, id: string): Deferred<unknown> {
   held.set(key(name, id), d);
   return d;
 }
+// Holds only the FIRST call of (query, id); later calls answer at once — for a reopening of the
+// SAME invoice, where the first reply must be the slow one.
+let heldOnce: Map<string, Deferred<unknown>>;
+function holdFirst(name: string, id: string): Deferred<unknown> {
+  const d = deferred<unknown>();
+  heldOnce.set(key(name, id), d);
+  return d;
+}
 const answer = (name: string, id: string): unknown =>
   name === 'invoice.get' ? (id === 'i1' ? INV1 : INV2)
   : name === 'invoice.lines' ? linesOf(id)
@@ -55,9 +63,13 @@ const answer = (name: string, id: string): unknown =>
 beforeEach(() => {
   document.body.innerHTML = '';
   held = new Map();
+  heldOnce = new Map();
   printed = [];
   const reply = (name: string, params: Record<string, unknown> = {}) => {
-    const d = held.get(key(name, params.invoice_id));
+    const k = key(name, params.invoice_id);
+    const once = heldOnce.get(k);
+    if (once) { heldOnce.delete(k); return once.promise; }
+    const d = held.get(k);
     return d ? d.promise : Promise.resolve(answer(name, String(params.invoice_id)));
   };
   (globalThis as Record<string, unknown>).erplora = {
@@ -226,6 +238,30 @@ describe('two invoices opened in a row: the last one wins (invoice#102, pm#459)'
     get2.resolve(INV2);
     await settle(el);
     expect(sheet(el).id).toBe('i2');
+  });
+
+  // rv-staff-69: a guard by invoice ID (instead of by opening generation) survives a reopening of
+  // the SAME invoice — the late reply carries the same id as the sheet on screen. With the sheet
+  // open the list is gone, so the real door is «Mark paid», which reloads the open invoice (and
+  // reads its AEAT record again). A late load FAILURE is not observable here: the load error only
+  // renders in the list view, and «Back» clears it.
+  it('«Mark paid» on the open invoice: a late AEAT record of the first reading does not overwrite the fresh one', async () => {
+    const el = await mount();
+    const firstAeat = holdFirst('verifactu.records.by_invoice', 'i1');
+    tapRow(el, INV1);
+    await settle(el);
+    expect(sheet(el)).toEqual({ id: 'i1', lines: ['Line of i1'], csv: null, qr: null });
+
+    (q(el, 'invoice-detail-mark-paid') as HTMLElement).click();
+    await settle(el);
+    const wc = el as unknown as { aeat: { status?: string } | null };
+    expect(wc.aeat?.status, 'the reload painted the fresh record').toBe('accepted');
+
+    firstAeat.resolve(aeatOf('i1', 'pending'));
+    await settle(el);
+
+    expect(wc.aeat?.status, 'the stale record of the first reading is painted over the fresh one').toBe('accepted');
+    expect(sheet(el).qr).toBe(qrOf('i1'));
   });
 
   it('control: a single invoice still opens with its lines, CSV and QR', async () => {
