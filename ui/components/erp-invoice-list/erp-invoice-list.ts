@@ -271,6 +271,10 @@ export class ErpInvoiceList extends LitElement {
   /** Justificante VeriFactu de la factura abierta (estado AEAT + CSV + QR). */
   @state() aeat: { status?: string; csv?: string; qr?: string; record_type?: string } | null = null;
 
+  /** Generation of the detail opening (invoice#102): a reply is painted only if no newer opening
+   *  or «Back» happened while it was in flight. */
+  private detailSeq = 0;
+
   // ── alta manual (vive en el panel `create` de la tabla) ──
   @state() saving = false;
 
@@ -421,23 +425,31 @@ export class ErpInvoiceList extends LitElement {
     window.removeEventListener('erplora:locale-changed', this.onLocaleChange);
     super.disconnectedCallback(); this.unsub?.(); }
 
-  // ── detalle (invoice.get + invoice.lines) ─────────────────────────────────
+  // ── detail (invoice.get + invoice.lines) ──────────────────────────────────
 
   private async openDetail(id: string) {
+    const seq = ++this.detailSeq;
     this.detailError = '';
     try {
       const [inv, lines] = await Promise.all([
         erplora().query<InvoiceDetail[] | InvoiceDetail>('invoice.get', { invoice_id: id }),
         erplora().query<InvoiceLine[]>('invoice.lines', { invoice_id: id }),
       ]);
+      // The last opening wins: a late reply of an earlier opening (header, lines, AEAT record, or
+      // its own error) must never paint over another invoice — checked before the not-found branch
+      // too, so a stale not-found does not paint an error under the newer invoice.
+      if (seq !== this.detailSeq) return;
       const row = Array.isArray(inv) ? inv[0] : inv;
       if (!row) { this.detailError = erploraT('ui.errNotFound'); return; }
       this.detail = row;
       this.detailLines = Array.isArray(lines) ? lines : [];
-      // Justificante VeriFactu (estado AEAT + CSV + QR) — best-effort: si no hay registro o permiso,
-      // la factura se muestra igual sin el bloque AEAT.
-      this.aeat = await this.loadAeat(id);
+      // VeriFactu record (AEAT status + CSV + QR) — best-effort: with no record or no permission
+      // the invoice still shows, without the AEAT block.
+      const aeat = await this.loadAeat(id);
+      if (seq !== this.detailSeq) return;
+      this.aeat = aeat;
     } catch (e) {
+      if (seq !== this.detailSeq) return;
       this.detailError = e instanceof Error ? e.message : erploraT('ui.errLoadDetail');
     }
   }
@@ -463,7 +475,7 @@ export class ErpInvoiceList extends LitElement {
     }
   }
 
-  private closeDetail() { this.detail = null; this.detailLines = []; this.detailError = ''; this.rectifyTarget = null; this.aeat = null; }
+  private closeDetail() { this.detailSeq++; this.detail = null; this.detailLines = []; this.detailError = ''; this.rectifyTarget = null; this.aeat = null; }
 
   // ── acciones (mark_paid / rectify) ────────────────────────────────────────
 
