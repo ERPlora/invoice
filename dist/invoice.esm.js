@@ -578,7 +578,7 @@ var ElementShim = class Element extends NodeShim {
     return value ?? null;
   }
 };
-var HTMLElementShim = class HTMLElement extends ElementShim {
+var HTMLElementShim = class HTMLElement2 extends ElementShim {
 };
 var HTMLElementShimWithRealType = HTMLElementShim;
 var ShadowRootShim = class ShadowRoot extends NodeShim {
@@ -6068,6 +6068,7 @@ var ErpInvoiceSettings = class extends i3 {
     this.formError = "";
     this.formatLocked = false;
     this.preview = "";
+    this.editTitleInHeader = false;
     this.canManage = false;
     // Re-render al cambiar el idioma del shell (ADR-0055): los getters `columns`/`rowActions` y el
     // texto del template se re-evalúan con el nuevo `erplora.locale`.
@@ -6192,8 +6193,9 @@ var ErpInvoiceSettings = class extends i3 {
     this.formatLocked = false;
     this.preview = "";
   }
-  // «Editar» reabre EL MISMO panel `create`, ya relleno: no hay una segunda pantalla de edición.
-  startEdit(row) {
+  // Editing reopens the SAME panel in its «edit» mode (pm#450), pre-filled: there is no second
+  // edit screen.
+  async startEdit(row) {
     this.formError = "";
     this.form = {
       series_id: row.id,
@@ -6209,7 +6211,11 @@ var ErpInvoiceSettings = class extends i3 {
     this.formatLocked = !!row.format_locked || (row.current_number ?? 0) > 0;
     this.preview = "";
     void this.loadPreview(row.id);
-    this.dataTable()?.open("create");
+    const title = erploraT2("ui.seriesEditTitle", { code: row.code });
+    const table = this.dataTable();
+    table?.open("edit", { title });
+    await table?.updateComplete;
+    this.editTitleInHeader = table?.shadowRoot?.querySelector('[role="dialog"]')?.getAttribute("aria-label") === title;
   }
   /** La vista previa la RENDERIZA EL SERVIDOR (`queries/series_peek_next.sql`).
    *  Deliberadamente NO se formatea el número en JS: ya se formatea en tres SQL, y un cuarto
@@ -6282,7 +6288,21 @@ var ErpInvoiceSettings = class extends i3 {
     }
   }
   onRowAction(ev) {
-    if (ev.detail.actionId === "edit") this.startEdit(ev.detail.row);
+    if (ev.detail.actionId === "edit") void this.startEdit(ev.detail.row);
+  }
+  /** pm#450: the table's «Add» emits no event and keeps our form state; after an edit it would
+   *  show the edited series under a «New» header, and the submit would UPDATE it. Resets the form
+   *  WITHOUT closing: cancelForm() closes the panel «Add» has just opened. */
+  onTableClick(e5) {
+    if (!this.isEdit) return;
+    const addId = "invoice-series-table-add";
+    if (e5.composedPath().some((n6) => n6 instanceof HTMLElement && n6.getAttribute("data-testid") === addId)) this.startCreate();
+  }
+  /** Wired natively on the render root, not with a Lit `@click` on the data table: the table
+   *  carries `testid`, not `data-testid`, and a template binding would read as an action element
+   *  that demands one. The click is composed, so it reaches the root from inside the table. */
+  firstUpdated() {
+    this.renderRoot.addEventListener("click", (e5) => this.onTableClick(e5));
   }
   // ── render ───────────────────────────────────────────────────────────────
   // Alta Y edición: se proyecta SIEMPRE en el panel `create` de la tabla (aunque esté cerrado); si
@@ -6291,7 +6311,7 @@ var ErpInvoiceSettings = class extends i3 {
     const f3 = this.form;
     const title = this.isEdit ? erploraT2("ui.seriesEditTitle", { code: f3.code }) : erploraT2("ui.seriesCreateTitle");
     return b2`<form slot="create" data-testid="invoice-series-form" @submit=${(e5) => this.submit(e5)}>
-      <h3>${title}</h3>
+      ${!this.isEdit || !this.editTitleInHeader ? b2`<h3 data-testid="invoice-series-form-title">${title}</h3>` : A}
         <div class="form">
           <ion-input
             data-testid="invoice-series-code"
@@ -6405,4 +6425,7 @@ __decorateClass([
 __decorateClass([
   r5()
 ], ErpInvoiceSettings.prototype, "preview", 2);
+__decorateClass([
+  r5()
+], ErpInvoiceSettings.prototype, "editTitleInHeader", 2);
 define("erp-invoice-settings", ErpInvoiceSettings);
