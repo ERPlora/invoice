@@ -134,6 +134,10 @@ export class ErpInvoiceSettings extends LitElement {
    *  in-form `<h3>` can drop itself instead of duplicating it. */
   @state() private editTitleInHeader = false;
 
+  /** pm#459: bumped by every edit opening and by every reset to create; a late reply of an older
+   *  opening compares its ticket and drops itself. */
+  private editSeq = 0;
+
   private canManage = false;
 
   private unsub?: () => void;
@@ -250,6 +254,7 @@ export class ErpInvoiceSettings extends LitElement {
   // ── alta / edición ─────────────────────────────────────────────────────────
 
   private startCreate() {
+    this.editSeq++;
     this.formError = '';
     this.form = blankForm();
     this.formatLocked = false;
@@ -259,6 +264,7 @@ export class ErpInvoiceSettings extends LitElement {
   // Editing reopens the SAME panel in its «edit» mode (pm#450), pre-filled: there is no second
   // edit screen.
   private async startEdit(row: SeriesRow): Promise<void> {
+    const seq = ++this.editSeq;
     this.formError = '';
     this.form = {
       series_id: row.id,
@@ -276,11 +282,12 @@ export class ErpInvoiceSettings extends LitElement {
     // no, el usuario cree haber guardado algo que no se guardó.
     this.formatLocked = !!row.format_locked || (row.current_number ?? 0) > 0;
     this.preview = '';
-    void this.loadPreview(row.id);
+    void this.loadPreview(row.id, seq);
     const title = erploraT('ui.seriesEditTitle', { code: row.code });
     const table = this.dataTable();
     table?.open('edit', { title });
     await table?.updateComplete;
+    if (seq !== this.editSeq) return;
     // OutfitKit < 0.1.94 ignores the title and keeps «New»: only drop the in-form title when the
     // header REALLY carries it (the dialog is labelled with it).
     this.editTitleInHeader = table?.shadowRoot?.querySelector('[role="dialog"]')?.getAttribute('aria-label') === title;
@@ -290,16 +297,18 @@ export class ErpInvoiceSettings extends LitElement {
    *  Deliberadamente NO se formatea el número en JS: ya se formatea en tres SQL, y un cuarto
    *  renderizador —encima en otro lenguaje— es justo la deuda que invoice#40 vino a no heredar.
    *  Una previa que no coincide con el número emitido es peor que no tener previa. */
-  private async loadPreview(seriesId: string) {
+  private async loadPreview(seriesId: string, seq: number) {
     if (!seriesId) { this.preview = ''; return; }
     try {
       const res = await erplora().query<unknown>('invoice.series.peek_next', { series_id: seriesId });
+      if (seq !== this.editSeq) return;
       const row = (Array.isArray(res) ? res[0] : (res as { rows?: unknown[] })?.rows?.[0]) as
         | { next_number?: string; format_locked?: number }
         | undefined;
       this.preview = row?.next_number ?? '';
       if (row?.format_locked !== undefined) this.formatLocked = !!row.format_locked;
     } catch {
+      if (seq !== this.editSeq) return;
       this.preview = ''; // una previa que falla no rompe la pantalla: es información, no un gate
     }
   }
