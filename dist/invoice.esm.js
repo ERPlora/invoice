@@ -6069,6 +6069,9 @@ var ErpInvoiceSettings = class extends i3 {
     this.formatLocked = false;
     this.preview = "";
     this.editTitleInHeader = false;
+    /** pm#459: bumped by every edit opening and by every reset to create; a late reply of an older
+     *  opening compares its ticket and drops itself. */
+    this.editSeq = 0;
     this.canManage = false;
     // Re-render al cambiar el idioma del shell (ADR-0055): los getters `columns`/`rowActions` y el
     // texto del template se re-evalúan con el nuevo `erplora.locale`.
@@ -6188,6 +6191,7 @@ var ErpInvoiceSettings = class extends i3 {
   }
   // ── alta / edición ─────────────────────────────────────────────────────────
   startCreate() {
+    this.editSeq++;
     this.formError = "";
     this.form = blankForm();
     this.formatLocked = false;
@@ -6196,6 +6200,7 @@ var ErpInvoiceSettings = class extends i3 {
   // Editing reopens the SAME panel in its «edit» mode (pm#450), pre-filled: there is no second
   // edit screen.
   async startEdit(row) {
+    const seq = ++this.editSeq;
     this.formError = "";
     this.form = {
       series_id: row.id,
@@ -6210,28 +6215,31 @@ var ErpInvoiceSettings = class extends i3 {
     };
     this.formatLocked = !!row.format_locked || (row.current_number ?? 0) > 0;
     this.preview = "";
-    void this.loadPreview(row.id);
+    void this.loadPreview(row.id, seq);
     const title = erploraT2("ui.seriesEditTitle", { code: row.code });
     const table = this.dataTable();
     table?.open("edit", { title });
     await table?.updateComplete;
+    if (seq !== this.editSeq) return;
     this.editTitleInHeader = table?.shadowRoot?.querySelector('[role="dialog"]')?.getAttribute("aria-label") === title;
   }
   /** La vista previa la RENDERIZA EL SERVIDOR (`queries/series_peek_next.sql`).
    *  Deliberadamente NO se formatea el número en JS: ya se formatea en tres SQL, y un cuarto
    *  renderizador —encima en otro lenguaje— es justo la deuda que invoice#40 vino a no heredar.
    *  Una previa que no coincide con el número emitido es peor que no tener previa. */
-  async loadPreview(seriesId) {
+  async loadPreview(seriesId, seq) {
     if (!seriesId) {
       this.preview = "";
       return;
     }
     try {
       const res = await erplora2().query("invoice.series.peek_next", { series_id: seriesId });
+      if (seq !== this.editSeq) return;
       const row = Array.isArray(res) ? res[0] : res?.rows?.[0];
       this.preview = row?.next_number ?? "";
       if (row?.format_locked !== void 0) this.formatLocked = !!row.format_locked;
     } catch {
+      if (seq !== this.editSeq) return;
       this.preview = "";
     }
   }

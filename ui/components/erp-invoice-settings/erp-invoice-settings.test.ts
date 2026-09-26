@@ -404,3 +404,165 @@ describe('editing titles the panel header, not its body (pm#450)', () => {
     expect(wc(el).form.code).toBe('ABONO');
   });
 });
+
+describe('two «edit» in a row: the last opening wins (pm#459)', () => {
+  type Mounted = HTMLElement & { shadowRoot: ShadowRoot };
+  type Table = HTMLElement & { open: (panel?: unknown, opts?: { title?: string }) => void; shadowRoot: ShadowRoot };
+  type Wc = {
+    onRowAction: (ev: CustomEvent<{ actionId: string; row: Record<string, unknown> }>) => Promise<void> | void;
+    form: { series_id: string; code: string; name: string };
+    formatLocked: boolean;
+    preview: string;
+    cancelForm: () => void;
+  };
+  const table = (el: Mounted) => el.shadowRoot.querySelector('ok-data-table') as Table;
+  const wc = (el: Mounted) => el as unknown as Wc;
+  const sdk = () => (globalThis as Record<string, unknown>).erplora as Record<string, unknown>;
+  const settle = async (el: Mounted) => {
+    for (let i = 0; i < 3; i++) {
+      await new Promise((r) => setTimeout(r, 0));
+      await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    }
+  };
+  // A: a series that has already issued (its template is frozen). B: a fresh one, still free.
+  const ROW_A = SERIES[0];
+  const ROW_B = { id: 'sr3', code: 'NUEVA', name: 'Nueva', invoice_type: 'F1', year: 2026, current_number: 0, prefix: '', is_active: 1, is_default: 0 };
+  const editRow = (el: Mounted, row: Record<string, unknown>) =>
+    wc(el).onRowAction(new CustomEvent('rowAction', { detail: { actionId: 'edit', row } }));
+  const previewText = (el: Mounted) =>
+    el.shadowRoot.querySelector('[data-testid="invoice-series-preview"]')?.textContent ?? '';
+
+  /** The next-number preview of series A is held until `release()`; B answers at once. */
+  const holdPreviewOfA = (outcome: 'ok' | 'error' = 'ok') => {
+    let release: () => void = () => {};
+    const held = new Promise<void>((r) => (release = r));
+    sdk().query = async (name: string, params?: Record<string, unknown>) => {
+      if (name === 'invoice.series.list') return [...SERIES, ROW_B];
+      if (name !== 'invoice.series.peek_next') return [];
+      if (params?.series_id === ROW_A.id) {
+        await held;
+        if (outcome === 'error') throw new Error('network');
+        return [{ next_number: 'FACT-2026-000013', format_locked: 1 }];
+      }
+      return [{ next_number: 'NUEVA-2026-000001', format_locked: 0 }];
+    };
+    return () => release();
+  };
+
+  // The first opening's render is held and settles AFTER the second one.
+  const holdFirstRender = (el: Mounted) => {
+    const t = table(el);
+    let releaseFirst: () => void = () => {};
+    const firstHeld = new Promise<void>((r) => (releaseFirst = r));
+    let opens = 0;
+    let rendered: Promise<void> = Promise.resolve();
+    Object.defineProperty(t, 'updateComplete', { get: () => rendered, configurable: true });
+    t.open = () => {
+      rendered = ++opens === 1 ? firstHeld : Promise.resolve();
+    };
+    return () => releaseFirst();
+  };
+
+  it('the form itself is filled BEFORE any wait: the second row always owns it', async () => {
+    const el = await montar();
+    const releaseA = holdPreviewOfA();
+    const releaseRender = holdFirstRender(el);
+    const first = editRow(el, ROW_A);
+    await editRow(el, ROW_B);
+    releaseRender();
+    releaseA();
+    await first;
+    await settle(el);
+    expect(wc(el).form.series_id, 'a submit here would UPDATE the first series').toBe('sr3');
+    expect(wc(el).form.code).toBe('NUEVA');
+  });
+
+  it("a slow preview of the FIRST series does not paint its number nor its lock under the second", async () => {
+    const el = await montar();
+    const releaseA = holdPreviewOfA();
+    editRow(el, ROW_A);
+    editRow(el, ROW_B);
+    await settle(el);
+    releaseA();
+    await settle(el);
+    expect(previewText(el), 'the next number shown is the one of the series being edited').toContain('NUEVA-2026-000001');
+    expect(previewText(el)).not.toContain('FACT-2026-000013');
+    expect(wc(el).formatLocked, 'a fresh series must keep its format editable').toBe(false);
+  });
+
+  it('a slow FAILED preview of the first series does not wipe the preview of the second', async () => {
+    const el = await montar();
+    const releaseA = holdPreviewOfA('error');
+    editRow(el, ROW_A);
+    editRow(el, ROW_B);
+    await settle(el);
+    releaseA();
+    await settle(el);
+    expect(previewText(el)).toContain('NUEVA-2026-000001');
+  });
+
+  it('«Cancel» while the preview is still loading keeps the clean create form', async () => {
+    const el = await montar();
+    const releaseA = holdPreviewOfA();
+    editRow(el, ROW_A);
+    wc(el).cancelForm();
+    releaseA();
+    await settle(el);
+    expect(wc(el).form.series_id).toBe('');
+    expect(previewText(el), 'a create form has no next number yet').toBe('');
+    expect(wc(el).formatLocked, 'a new series must let the format be chosen').toBe(false);
+  });
+
+  it('«Add» while the preview is still loading keeps the clean create form', async () => {
+    const el = await montar();
+    const releaseA = holdPreviewOfA();
+    editRow(el, ROW_A);
+    (table(el).shadowRoot.querySelector('[data-testid="invoice-series-table-add"]') as HTMLElement).click();
+    releaseA();
+    await settle(el);
+    expect(wc(el).form.series_id).toBe('');
+    expect(previewText(el)).toBe('');
+    expect(wc(el).formatLocked).toBe(false);
+  });
+
+  it('when the FIRST render settles last, the body does not bring the editing line back', async () => {
+    const el = await montar();
+    holdPreviewOfA()();
+    (sdk() as Record<string, unknown>).t = (_c: unknown, key: string, params?: Record<string, unknown>) =>
+      params?.code ? `${key}:${String(params.code)}` : key;
+    const t = table(el);
+    const dialog = document.createElement('aside');
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-label', 'Form');
+    const root = document.createElement('div');
+    root.appendChild(dialog);
+    Object.defineProperty(t, 'shadowRoot', { value: root, configurable: true });
+    // The shell titles the header (OutfitKit >= 0.1.94); the first open's render is held and
+    // resolves AFTER the second one.
+    let releaseFirst: () => void = () => {};
+    const firstHeld = new Promise<void>((r) => (releaseFirst = r));
+    let opens = 0;
+    let rendered: Promise<void> = Promise.resolve();
+    Object.defineProperty(t, 'updateComplete', { get: () => rendered, configurable: true });
+    t.open = (_panel: unknown, opts?: { title?: string }) => {
+      const n = ++opens;
+      const label = Promise.resolve().then(() => {
+        if (opts?.title) dialog.setAttribute('aria-label', opts.title);
+      });
+      rendered = n === 1 ? label.then(() => firstHeld) : label;
+    };
+    const first = editRow(el, ROW_A);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(opens).toBe(1);
+    const second = editRow(el, ROW_B);
+    await second;
+    releaseFirst();
+    await first;
+    await settle(el);
+    expect(dialog.getAttribute('aria-label')).toBe('ui.seriesEditTitle:NUEVA');
+    expect(
+      el.shadowRoot.querySelector('form[slot="create"] [data-testid="invoice-series-form-title"]'),
+      'the header carries «NUEVA»: a stale check against «FACT» must not repaint the line',
+    ).toBeNull();
+  });
+});
