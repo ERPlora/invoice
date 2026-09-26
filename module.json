@@ -50,8 +50,8 @@
     },
     {
       "id": "settings",
-      "label": "Settings",
-      "icon": "settings-outline",
+      "label": "Series",
+      "icon": "bookmark-outline",
       "component": "erp-invoice-settings",
       "permission": "invoice.manage_series"
     }

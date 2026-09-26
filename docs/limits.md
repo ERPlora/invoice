@@ -54,7 +54,7 @@ two of the sale's five frozen fiscal fields travel in the event.
 By role: **admin** and **manager** have everything. **employee** can only **see** invoices and
 **create** them — an employee **cannot rectify** an invoice and cannot touch the series.
 
-**Who sees the Settings tab.** The navigation entry is gated by `invoice.manage_series`: the menu
+**Who sees the Series tab.** The navigation entry is gated by `invoice.manage_series`: the menu
 does not offer the tab to anyone who cannot open it. That is the third layer, not the only one —
 the tab still hides the series form without the permission, and the runtime refuses
 `invoice.series.create` / `invoice.series.update` without it regardless of what the screen shows.
