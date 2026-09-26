@@ -4959,7 +4959,7 @@ var es_default = {
       label: "Facturas"
     },
     settings: {
-      label: "Ajustes"
+      label: "Series"
     }
   },
   setup: {
@@ -5112,7 +5112,7 @@ var en_default = {
       label: "Invoices"
     },
     settings: {
-      label: "Settings"
+      label: "Series"
     }
   },
   setup: {

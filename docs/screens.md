@@ -1,6 +1,6 @@
 # Invoicing — Screens
 
-The module contributes two tabs to the hub navigation: **Invoices** and **Settings**.
+The module contributes two tabs to the hub navigation: **Invoices** and **Series** (its route id stays `settings`, the address the Home task opens).
 
 ## Invoices
 
@@ -72,9 +72,9 @@ The F2 is never touched. Only **one F3 per F2** can exist.
 
 Requires `invoice.add_invoice`.
 
-## Settings — numbering series
+## Series — numbering series
 
-The Settings tab manages the invoice series (`invoice.series.list`, 50 rows per page). Viewing needs
+The Series tab manages the invoice series (`invoice.series.list`, 50 rows per page). Viewing needs
 `invoice.view_invoice`; changing anything needs `invoice.manage_series`.
 
 - **Search** by code, name or current number.

@@ -28,7 +28,7 @@ documented here):
   invoice  → erp-invoice-list     → invoice.list            → invoice.view_invoice
   settings → erp-invoice-settings → invoice.series.create/update → invoice.manage_series
 
-The Settings tab's first READ (`invoice.series.list`) gates only `invoice.view_invoice` because
+The Series tab's first READ (`invoice.series.list`) gates only `invoice.view_invoice` because
 that same query feeds the series selector of the manual invoice form — it is a shared read, not
 the door. What the tab is FOR is the series CRUD, and both writes gate `invoice.manage_series`;
 the screen itself hides the form without it (`hasPermission`), and the runtime revalidates every
