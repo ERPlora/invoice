@@ -118,7 +118,9 @@ describe('alta y edición usan el MISMO panel', () => {
     };
     wc.onRowAction(new CustomEvent('rowAction', { detail: { actionId: 'edit', row: SERIES[1] } }));
 
-    expect(abiertos, 'editar no abre el panel `create` de la tabla').toEqual(['create']);
+    // pm#450: editing opens the SAME panel in its «edit» mode (with OutfitKit < 0.1.94 that mode
+    // still paints the `create` slot), so the header stops saying «New».
+    expect(abiertos, 'editar no abre el panel de la tabla en modo «edit»').toEqual(['edit']);
     expect(wc.form?.series_id).toBe('sr2');
     expect(wc.form?.code).toBe('TICKET');
   });
@@ -266,5 +268,139 @@ describe('clicking the row opens the series (pm#155)', () => {
     await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
     const wc = el as unknown as { form: { series_id: string } };
     expect(wc.form.series_id, 'the row was clicked and the edit form did not take the series').toBe('sr1');
+  });
+});
+
+// pm#450 (outfitkit#150): editing opened the panel with open('create'), so its header said «New»
+// while the body said «Edit series FACT». The table knows an «edit» mode and takes the whole title:
+// the screen asks for it and drops the repeated line from the body. Only the panel title moves —
+// the series commands and their payloads (fiscal numbering) are untouched.
+describe('editing titles the panel header, not its body (pm#450)', () => {
+  type Mounted = HTMLElement & { shadowRoot: ShadowRoot };
+  type Table = HTMLElement & { open: (panel?: unknown, opts?: { title?: string }) => void; shadowRoot: ShadowRoot };
+  type Wc = {
+    onRowAction: (ev: CustomEvent<{ actionId: string; row: Record<string, unknown> }>) => void;
+    form: { series_id: string; code: string; name: string };
+    startCreate: () => void;
+    cancelForm: () => void;
+  };
+  const table = (el: Mounted) => el.shadowRoot.querySelector('ok-data-table') as Table;
+  const wc = (el: Mounted) => el as unknown as Wc;
+  const settle = async (el: Mounted) => {
+    for (let i = 0; i < 3; i++) {
+      await new Promise((r) => setTimeout(r, 0));
+      await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    }
+  };
+  const edit = (el: Mounted) =>
+    wc(el).onRowAction(new CustomEvent('rowAction', { detail: { actionId: 'edit', row: SERIES[0] } }));
+  const EDIT_TITLE = 'ui.seriesEditTitle:FACT';
+
+  beforeEach(() => {
+    const sdk = (globalThis as Record<string, unknown>).erplora as Record<string, unknown>;
+    sdk.t = (_catalog: unknown, key: string, params?: Record<string, unknown>) =>
+      params?.code ? `${key}:${String(params.code)}` : key;
+  });
+
+  it("opens the panel with open('edit', { title }) — «Edit series <code>» in the header", async () => {
+    const el = await montar();
+    const calls: unknown[][] = [];
+    table(el).open = (...args: unknown[]) => void calls.push(args);
+    edit(el);
+    await settle(el);
+    expect(calls).toEqual([['edit', { title: EDIT_TITLE }]]);
+  });
+
+  // The header only carries the title with OutfitKit >= 0.1.94 (outfitkit#150); an older shell
+  // (hub:stable ships 0.1.73) ignores it and keeps «New». The body line only goes away when the
+  // table REALLY painted the title — its dialog is labelled with it — never on faith.
+  const shellTable = (el: Mounted, honoursTitle: boolean) => {
+    const t = table(el);
+    const dialog = document.createElement('aside');
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-label', 'Form');
+    const root = document.createElement('div');
+    root.appendChild(dialog);
+    Object.defineProperty(t, 'shadowRoot', { value: root, configurable: true });
+    // Like the real Lit table, open() only schedules the render: the dialog is labelled on the
+    // next microtask and `updateComplete` resolves once it is (M10 of the services review).
+    let rendered: Promise<void> = Promise.resolve();
+    Object.defineProperty(t, 'updateComplete', { get: () => rendered, configurable: true });
+    t.open = (_panel?: unknown, opts?: { title?: string }) => {
+      rendered = Promise.resolve().then(() => {
+        if (honoursTitle && opts?.title) dialog.setAttribute('aria-label', opts.title);
+      });
+    };
+  };
+  const formTitle = (el: Mounted) =>
+    el.shadowRoot.querySelector('form[slot="create"] [data-testid="invoice-series-form-title"]') as HTMLElement | null;
+
+  it('the form body no longer repeats the editing title once the header carries it', async () => {
+    const el = await montar();
+    shellTable(el, true);
+    edit(el);
+    await settle(el);
+    const form = el.shadowRoot.querySelector('form[slot="create"]') as HTMLElement;
+    expect(formTitle(el)).toBeNull();
+    expect(form.textContent).not.toContain('ui.seriesEditTitle');
+  });
+
+  it('with a shell whose table ignores the title (OutfitKit < 0.1.94), the body keeps the editing line', async () => {
+    const el = await montar();
+    shellTable(el, false);
+    edit(el);
+    await settle(el);
+    const line = formTitle(el);
+    expect(line, 'the header says «New»: without this line nothing says it is an edit').toBeTruthy();
+    expect(line!.textContent).toContain(EDIT_TITLE);
+  });
+
+  it('the create form keeps its own title (creating is unchanged)', async () => {
+    const el = await montar();
+    expect(formTitle(el)?.textContent).toContain('ui.seriesCreateTitle');
+  });
+
+  it('cancelling the edit shows the create title again', async () => {
+    const el = await montar();
+    shellTable(el, false);
+    edit(el);
+    await settle(el);
+    wc(el).cancelForm();
+    await settle(el);
+    expect(formTitle(el)?.textContent).toContain('ui.seriesCreateTitle');
+  });
+
+  it('«Add» after an edit opens a CLEAN create form, and keeps the panel open (the header says «New»: the form must agree)', async () => {
+    const el = await montar();
+    edit(el);
+    await settle(el);
+    expect(wc(el).form.series_id).toBe('sr1');
+    const add = table(el).shadowRoot.querySelector('[data-testid="invoice-series-table-add"]') as HTMLElement;
+    expect(add, 'the table paints its «Add» button').toBeTruthy();
+    add.click();
+    await settle(el);
+    expect(wc(el).form.series_id, 'a submit here would UPDATE the edited series under a «New» header').toBe('');
+    expect(wc(el).form.code).toBe('');
+    // cancelForm() also closes the panel: «Add» must only reset the form, or it would shut the
+    // panel it has just opened (TRAMPA 3 of the pm#450 recipe).
+    expect((table(el) as unknown as { panel: unknown }).panel).toBe('create');
+  });
+
+  it('a click INSIDE the edit form (a field, the table) does not drop the edit — only «Add» does', async () => {
+    const el = await montar();
+    edit(el);
+    await settle(el);
+    (el.shadowRoot.querySelector('[data-testid="invoice-series-name"]') as HTMLElement).click();
+    table(el).click();
+    await settle(el);
+    expect(wc(el).form.series_id, 'the table host hears every click of the projected form').toBe('sr1');
+  });
+
+  it('«Add» with no edit in progress keeps what was typed', async () => {
+    const el = await montar();
+    wc(el).form = { ...wc(el).form, code: 'ABONO' };
+    (table(el).shadowRoot.querySelector('[data-testid="invoice-series-table-add"]') as HTMLElement).click();
+    await settle(el);
+    expect(wc(el).form.code).toBe('ABONO');
   });
 });

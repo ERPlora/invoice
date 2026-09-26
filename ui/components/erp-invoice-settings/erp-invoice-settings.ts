@@ -130,6 +130,9 @@ export class ErpInvoiceSettings extends LitElement {
   @state() formatLocked = false;
   /** Siguiente número, RENDERIZADO POR EL SERVIDOR (`invoice.series.peek_next`). */
   @state() preview = '';
+  /** pm#450: whether the table's «edit» panel header actually carries the series title, so the
+   *  in-form `<h3>` can drop itself instead of duplicating it. */
+  @state() private editTitleInHeader = false;
 
   private canManage = false;
 
@@ -193,9 +196,21 @@ export class ErpInvoiceSettings extends LitElement {
   }
 
   // Referencia al ok-data-table para abrir/cerrar su panel lateral (alta y edición comparten panel).
-  private dataTable(): { open(p?: 'filters' | 'create'): void; close(): void } | null {
+  private dataTable():
+    | {
+        open(p?: 'filters' | 'create' | 'edit', opts?: { title?: string }): void;
+        close(): void;
+        updateComplete?: Promise<unknown>;
+        shadowRoot: ShadowRoot | null;
+      }
+    | null {
     return this.renderRoot.querySelector('ok-data-table') as
-      | { open(p?: 'filters' | 'create'): void; close(): void }
+      | {
+          open(p?: 'filters' | 'create' | 'edit', opts?: { title?: string }): void;
+          close(): void;
+          updateComplete?: Promise<unknown>;
+          shadowRoot: ShadowRoot | null;
+        }
       | null;
   }
 
@@ -241,8 +256,9 @@ export class ErpInvoiceSettings extends LitElement {
     this.preview = '';
   }
 
-  // «Editar» reabre EL MISMO panel `create`, ya relleno: no hay una segunda pantalla de edición.
-  private startEdit(row: SeriesRow) {
+  // Editing reopens the SAME panel in its «edit» mode (pm#450), pre-filled: there is no second
+  // edit screen.
+  private async startEdit(row: SeriesRow): Promise<void> {
     this.formError = '';
     this.form = {
       series_id: row.id,
@@ -261,7 +277,13 @@ export class ErpInvoiceSettings extends LitElement {
     this.formatLocked = !!row.format_locked || (row.current_number ?? 0) > 0;
     this.preview = '';
     void this.loadPreview(row.id);
-    this.dataTable()?.open('create');
+    const title = erploraT('ui.seriesEditTitle', { code: row.code });
+    const table = this.dataTable();
+    table?.open('edit', { title });
+    await table?.updateComplete;
+    // OutfitKit < 0.1.94 ignores the title and keeps «New»: only drop the in-form title when the
+    // header REALLY carries it (the dialog is labelled with it).
+    this.editTitleInHeader = table?.shadowRoot?.querySelector('[role="dialog"]')?.getAttribute('aria-label') === title;
   }
 
   /** La vista previa la RENDERIZA EL SERVIDOR (`queries/series_peek_next.sql`).
@@ -342,7 +364,23 @@ export class ErpInvoiceSettings extends LitElement {
   }
 
   private onRowAction(ev: CustomEvent<{ actionId: string; row: Record<string, unknown> }>) {
-    if (ev.detail.actionId === 'edit') this.startEdit(ev.detail.row as unknown as SeriesRow);
+    if (ev.detail.actionId === 'edit') void this.startEdit(ev.detail.row as unknown as SeriesRow);
+  }
+
+  /** pm#450: the table's «Add» emits no event and keeps our form state; after an edit it would
+   *  show the edited series under a «New» header, and the submit would UPDATE it. Resets the form
+   *  WITHOUT closing: cancelForm() closes the panel «Add» has just opened. */
+  private onTableClick(e: Event): void {
+    if (!this.isEdit) return;
+    const addId = 'invoice-series-table-add';
+    if (e.composedPath().some((n) => n instanceof HTMLElement && n.getAttribute('data-testid') === addId)) this.startCreate();
+  }
+
+  /** Wired natively on the render root, not with a Lit `@click` on the data table: the table
+   *  carries `testid`, not `data-testid`, and a template binding would read as an action element
+   *  that demands one. The click is composed, so it reaches the root from inside the table. */
+  firstUpdated(): void {
+    this.renderRoot.addEventListener('click', (e) => this.onTableClick(e));
   }
 
   // ── render ───────────────────────────────────────────────────────────────
@@ -353,7 +391,7 @@ export class ErpInvoiceSettings extends LitElement {
     const f = this.form;
     const title = this.isEdit ? erploraT('ui.seriesEditTitle', { code: f.code }) : erploraT('ui.seriesCreateTitle');
     return html`<form slot="create" data-testid="invoice-series-form" @submit=${(e: Event) => this.submit(e)}>
-      <h3>${title}</h3>
+      ${!this.isEdit || !this.editTitleInHeader ? html`<h3 data-testid="invoice-series-form-title">${title}</h3>` : nothing}
         <div class="form">
           <ion-input
             data-testid="invoice-series-code"

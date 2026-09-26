@@ -131,6 +131,7 @@ const COVERED: Record<
       'invoice-series-default',
       'invoice-series-form',
       'invoice-series-form-error',
+      'invoice-series-form-title',
       'invoice-series-format',
       'invoice-series-format-locked',
       'invoice-series-list-error',
