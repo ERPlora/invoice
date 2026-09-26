@@ -5331,6 +5331,9 @@ var ErpInvoiceList = class extends i3 {
     this.detailLines = [];
     this.detailError = "";
     this.aeat = null;
+    /** Generation of the detail opening (invoice#102): a reply is painted only if no newer opening
+     *  or «Back» happened while it was in flight. */
+    this.detailSeq = 0;
     this.saving = false;
     this.formError = "";
     this.newCustomerName = "";
@@ -5529,14 +5532,16 @@ var ErpInvoiceList = class extends i3 {
     super.disconnectedCallback();
     this.unsub?.();
   }
-  // ── detalle (invoice.get + invoice.lines) ─────────────────────────────────
+  // ── detail (invoice.get + invoice.lines) ──────────────────────────────────
   async openDetail(id) {
+    const seq = ++this.detailSeq;
     this.detailError = "";
     try {
       const [inv, lines] = await Promise.all([
         erplora().query("invoice.get", { invoice_id: id }),
         erplora().query("invoice.lines", { invoice_id: id })
       ]);
+      if (seq !== this.detailSeq) return;
       const row = Array.isArray(inv) ? inv[0] : inv;
       if (!row) {
         this.detailError = erploraT("ui.errNotFound");
@@ -5544,8 +5549,11 @@ var ErpInvoiceList = class extends i3 {
       }
       this.detail = row;
       this.detailLines = Array.isArray(lines) ? lines : [];
-      this.aeat = await this.loadAeat(id);
+      const aeat = await this.loadAeat(id);
+      if (seq !== this.detailSeq) return;
+      this.aeat = aeat;
     } catch (e5) {
+      if (seq !== this.detailSeq) return;
       this.detailError = e5 instanceof Error ? e5.message : erploraT("ui.errLoadDetail");
     }
   }
@@ -5569,6 +5577,7 @@ var ErpInvoiceList = class extends i3 {
     }
   }
   closeDetail() {
+    this.detailSeq++;
     this.detail = null;
     this.detailLines = [];
     this.detailError = "";
