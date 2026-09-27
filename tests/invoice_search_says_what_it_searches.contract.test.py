@@ -24,8 +24,9 @@ would "search" anything):
      — that is the exact lie of invoice#117 («estado»);
   4. every searched field is named in the placeholder, in `en` AND in `es`: by its column header,
      or by the word in `SENTENCE_WORD` (the tax ID has no column header);
-  5. the status stays pickable in its column filter, with a label in `en` and in `es` for every
-     status — that is where the box sends the person looking for «Pagada»;
+  5. the status stays pickable in its column filter, offering EVERY status the table stores (the
+     `draft|issued|paid|cancelled` domain of `001_init.sql`), each with a label in `en` and in
+     `es` — that is where the box sends the person looking for «Pagada»;
   6. no ENUMERATED column (a `select` filter over codes the cell translates: status, type) is
      searched — the query would match the raw code (`paid`), never the «Pagada» the row shows, so
      «search status» plus «the box says status» would pass 1-4 and still find nothing
@@ -56,6 +57,8 @@ NAMED_HIDDEN = {"customer_tax_id"}
 #: (lang, field) → the word the box must use for a field with no column header.
 SENTENCE_WORD = {("en", "customer_tax_id"): "tax ID", ("es", "customer_tax_id"): "NIF"}
 MUST_SEARCH = ("number", "customer_name", "customer_tax_id")
+#: `status TEXT … -- draft|issued|paid|cancelled`: the only place the status domain is declared.
+STATUS_DOMAIN_RE = re.compile(r"^\s*status\s+TEXT\b[^\n]*--\s*([a-z_]+(?:\|[a-z_]+)+)", re.MULTILINE)
 
 failures: list[str] = []
 
@@ -111,6 +114,13 @@ def status_filter_keys(src: str, columns_block: str) -> list[str]:
     code_list = re.findall(r"'([a-z_]+)'", codes.group(1))
     if not code_list or any(c not in mapping for c in code_list):
         return []
+    domain = STATUS_DOMAIN_RE.search(
+        (MODULE_DIR / "migrations/postgres/001_init.sql").read_text(encoding="utf-8")
+    )
+    # A filter that drops a status (say `paid`) leaves «Pagada» unreachable once the box stops
+    # promising it; a stale domain comment must fail loudly, not pass for the wrong reason.
+    if not domain or set(code_list) != set(domain.group(1).split("|")):
+        return []
     return [mapping[c] for c in code_list]
 
 
@@ -153,8 +163,9 @@ def main() -> int:
     status_keys = status_filter_keys(src, columns_block)
     if not status_keys:
         failures.append(
-            "the status column lost its translated select filter: the box no longer promises "
-            "the status, so the filter is the only way to find «Pagada» (invoice#117)"
+            "the status column lost its translated select filter (or it no longer offers every "
+            "stored status): the box no longer promises the status, so the filter is the only "
+            "way to find «Pagada» (invoice#117)"
         )
 
     for lang in ("en", "es"):
