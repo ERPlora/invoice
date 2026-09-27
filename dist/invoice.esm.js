@@ -4714,6 +4714,12 @@ __decorateClass6([
 ], OkInvoice.prototype, "labels");
 define("ok-invoice", OkInvoice);
 
+// @erplora/module-sdk/src/quantity.ts
+var QUANTITY_SCALE = 1e6;
+function toMicro(quantity) {
+  return Math.round(quantity * QUANTITY_SCALE);
+}
+
 // @erplora/module-sdk/src/index.ts
 function isEmpty(v3) {
   return v3 === null || v3 === void 0 || v3 === "";
@@ -4739,6 +4745,29 @@ var ListController = class {
       filters: { ...opts.filters ?? {} },
       context: { ...opts.context ?? {} }
     };
+    this.moneyFilters = new Set(opts.moneyFilters ?? []);
+    this.quantityFilters = new Set(opts.quantityFilters ?? []);
+    if (this.moneyFilters.size > 0 && typeof client.currencyDecimals !== "number") {
+      throw new ErploraError(
+        "list_money_filters_need_currency_decimals",
+        "moneyFilters needs a list client that exposes currencyDecimals"
+      );
+    }
+  }
+  /**
+   * The filters as the runtime compares them: money and quantity columns scaled from what the
+   * person typed to the stored integer. `state.filters` stays as typed, so a table that echoes it
+   * back keeps showing «12», not «1200».
+   */
+  wireFilters() {
+    if (this.moneyFilters.size === 0 && this.quantityFilters.size === 0) return this.state.filters;
+    const decimals = this.client.currencyDecimals ?? 0;
+    const out = {};
+    for (const [col, value] of Object.entries(this.state.filters)) {
+      const scale = this.moneyFilters.has(col) ? (n6) => majorToMinor(n6, decimals) : this.quantityFilters.has(col) ? toMicro : null;
+      out[col] = scale ? scaleFilterValue(value, scale) : value;
+    }
+    return out;
   }
   /** Nº de páginas según el total del servidor (mínimo 1). */
   get pageCount() {
@@ -4758,7 +4787,7 @@ var ListController = class {
         search: s5.search,
         sort: s5.sort,
         dir: s5.dir,
-        filters: s5.filters,
+        filters: this.wireFilters(),
         params: s5.context
       });
       if (mySeq !== this.seq) return;
@@ -4827,10 +4856,33 @@ var ListController = class {
     void this.load();
   }
 };
+function scaleFilterEdge(edge, scale) {
+  const text = typeof edge === "string" ? edge.trim().replace(",", ".") : edge;
+  if (text === "" || text === null || text === void 0) return "";
+  const n6 = Number(text);
+  return Number.isFinite(n6) ? scale(n6) : "";
+}
+function scaleFilterValue(value, scale) {
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([edge, v3]) => [edge, scaleFilterEdge(v3, scale)])
+    );
+  }
+  return scaleFilterEdge(value, scale);
+}
 function createListController(client, queryName, onChange = () => {
 }, opts = {}) {
   return new ListController(client, queryName, onChange, opts);
 }
+var ErploraError = class extends Error {
+  constructor(code, message, permission, fields) {
+    super(message);
+    this.code = code;
+    this.permission = permission;
+    this.fields = fields;
+    this.name = "ErploraError";
+  }
+};
 function majorToMinor(amount, decimals) {
   const n6 = Number(amount);
   return Number.isFinite(n6) ? Math.round(n6 * 10 ** decimals) : 0;
@@ -4977,7 +5029,7 @@ var es_default = {
     cancel: "Cancelar",
     loading: "Cargando\u2026",
     empty: "A\xFAn no hay facturas.",
-    searchPlaceholder: "Buscar n\xFAmero, cliente o estado\u2026",
+    searchPlaceholder: "Buscar n\xFAmero, cliente o NIF\u2026",
     colNumber: "N\xFAmero",
     colType: "Tipo",
     colDate: "Fecha",
@@ -5131,7 +5183,7 @@ var en_default = {
     cancel: "Cancel",
     loading: "Loading\u2026",
     empty: "No invoices yet.",
-    searchPlaceholder: "Search number, customer or status\u2026",
+    searchPlaceholder: "Search number, customer or tax ID\u2026",
     colNumber: "Number",
     colType: "Type",
     colDate: "Date",
