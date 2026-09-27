@@ -325,10 +325,23 @@ export class ErpInvoiceList extends LitElement {
 
   @state() seriesOptions: SeriesRow[] = [];
 
-  // ── rectificar ──
+  // ── rectify (invoice#107: a dialog, never a card in the page flow) ──
   @state() rectifyTarget: Invoice | null = null;
 
   @state() rectifyReason = '';
+
+  /** Drives the dialog's `isOpen`; the rest of the state is dropped on `ionModalDidDismiss`, so the
+   *  dialog does not repaint as an empty form while it animates out. */
+  @state() rectifyOpen = false;
+
+  /** A refusal or an error of the rectification, painted INSIDE its dialog. */
+  @state() rectifyError = '';
+
+  /** The document cannot be rectified: the dialog only says why. */
+  @state() rectifyBlocked = false;
+
+  /** The rectifying invoice was issued: the dialog shows the result until the user closes it. */
+  @state() rectifyDone = false;
 
   @state() actionError = '';
 
@@ -507,7 +520,7 @@ export class ErpInvoiceList extends LitElement {
     }
   }
 
-  private closeDetail() { this.detailSeq++; this.detail = null; this.detailLines = []; this.detailError = ''; this.rectifyTarget = null; this.aeat = null; }
+  private closeDetail() { this.detailSeq++; this.detail = null; this.detailLines = []; this.detailError = ''; this.resetRectify(); this.aeat = null; }
 
   // ── acciones (mark_paid / rectify) ────────────────────────────────────────
 
@@ -526,19 +539,36 @@ export class ErpInvoiceList extends LitElement {
     }
   }
 
+  /** invoice#107 — «Refund» opens the dialog wherever the page is scrolled: the reason, a refusal
+   *  and the result are all read there, next to what the user just pressed. */
   private startRectify(inv: Invoice) {
-    if (inv.invoice_type?.startsWith('R')) { this.actionError = erploraT('ui.errRectifyRectifying'); return; }
-    if (inv.status === 'cancelled') { this.actionError = erploraT('ui.errAlreadyCancelled'); return; }
-    this.actionError = '';
-    this.rectifyReason = '';
+    const refusal = inv.invoice_type?.startsWith('R') ? 'ui.errRectifyRectifying'
+      : inv.status === 'cancelled' ? 'ui.errAlreadyCancelled'
+      : '';
     this.rectifyTarget = inv;
+    this.rectifyReason = '';
+    this.rectifyDone = false;
+    this.rectifyBlocked = !!refusal;
+    this.rectifyError = refusal ? erploraT(refusal) : '';
+    this.rectifyOpen = true;
+  }
+
+  private resetRectify() {
+    this.rectifyOpen = false;
+    this.rectifyTarget = null;
+    this.rectifyReason = '';
+    this.rectifyError = '';
+    this.rectifyBlocked = false;
+    this.rectifyDone = false;
   }
 
   private async confirmRectify() {
     const target = this.rectifyTarget;
-    if (!target || !this.rectifyReason.trim()) return;
+    // One fiscal document per press: a second call while the first is in flight (`busy`), or after
+    // it was issued (`rectifyDone`), must never reach the server.
+    if (!target || this.busy || this.rectifyBlocked || this.rectifyDone || !this.rectifyReason.trim()) return;
     this.busy = true;
-    this.actionError = '';
+    this.rectifyError = '';
     try {
       // No date and no year (invoice#78): the server dates the document on the BUSINESS clock
       // (`:now` in `:timezone`). The browser's `toISOString()` is the UTC date and its
@@ -547,14 +577,17 @@ export class ErpInvoiceList extends LitElement {
         original_id: target.id,
         reason: this.rectifyReason.trim(),
       });
-      this.rectifyTarget = null;
-      await this.ctrl.load();
-      if (this.detail?.id === target.id) await this.openDetail(target.id);
     } catch (e) {
-      this.actionError = e instanceof Error ? e.message : erploraT('ui.errRectify');
+      // Dismissed while in flight and reopened for another invoice: this answer is not about it.
+      if (this.rectifyTarget === target) this.rectifyError = domainErrorText(e, 'ui.errRectify');
+      return;
     } finally {
       this.busy = false;
     }
+    // Issued: the result stays on screen until closed, and the page behind it catches up.
+    if (this.rectifyTarget === target) this.rectifyDone = true;
+    await this.ctrl.load();
+    if (this.detail?.id === target.id) await this.openDetail(target.id);
   }
 
   private onRowAction(ev: CustomEvent<{ actionId: string; row: Record<string, unknown> }>) {
@@ -755,20 +788,33 @@ export class ErpInvoiceList extends LitElement {
     </div>`;
   }
 
-  private renderRectifyCard() {
+  /** The rectify dialog. `ion-modal` reparents itself to <body> when it presents, out of this
+   *  shadow root: inside it only Ionic classes and INLINE tones paint (no shadow CSS, and `color=`
+   *  is banned in modules, pm#392). Its body exists only while a rectification is in course, and
+   *  stays until `ionModalDidDismiss` so the dialog does not go blank while it animates out. */
+  private renderRectifyDialog() {
     const t = this.rectifyTarget;
-    if (!t) return nothing;
-    return html`<div class="card" data-testid="invoice-rectify">
-      <h3>${erploraT('ui.rectifyTitle', { number: t.number })}</h3>
-      <p>${erploraT('ui.rectifyNote')}</p>
-      <div class="form">
-        <ion-textarea data-testid="invoice-rectify-reason" fill="outline" label-placement="floating" label=${erploraT('ui.lblReason')} placeholder=${erploraT('ui.rectifyReasonPlaceholder')} auto-grow .value=${this.rectifyReason} @ionInput=${(e: any) => (this.rectifyReason = e.target.value)}></ion-textarea>
-      </div>
-      <div class="row-actions">
-        <ion-button data-testid="invoice-rectify-submit" class="tone-danger" ?disabled=${this.busy || !this.rectifyReason.trim()} @click=${() => this.confirmRectify()}>${this.busy ? erploraT('ui.rectifying') : erploraT('ui.issueRectifying')}</ion-button>
-        <ion-button data-testid="invoice-rectify-cancel" fill="outline" class="tone-medium" @click=${() => (this.rectifyTarget = null)}>${erploraT('ui.cancel')}</ion-button>
-      </div>
-    </div>`;
+    return html`<ion-modal data-testid="invoice-rectify" .isOpen=${this.rectifyOpen} @ionModalDidDismiss=${() => this.resetRectify()}>
+      ${t
+        ? html`<ion-header class="ion-no-border"><ion-toolbar><ion-title>${erploraT('ui.rectifyTitle', { number: t.number })}</ion-title></ion-toolbar></ion-header>
+          <ion-content class="ion-padding">${this.renderRectifyBody(t.number)}</ion-content>`
+        : nothing}
+    </ion-modal>`;
+  }
+
+  private renderRectifyBody(number: string) {
+    const close = html`<ion-button data-testid="invoice-rectify-close" class="ion-margin-top" expand="block" fill="outline" style=${ionTone('outline', 'medium')} @click=${() => (this.rectifyOpen = false)}>${erploraT('ui.close')}</ion-button>`;
+    if (this.rectifyDone) {
+      return html`<ok-inline-feedback data-testid="invoice-rectify-done" tone="success" icon="checkmark-circle-outline">${erploraT('ui.rectifyDone', { number })}</ok-inline-feedback>${close}`;
+    }
+    if (this.rectifyBlocked) {
+      return html`<ok-inline-feedback data-testid="invoice-rectify-error" tone="warning" icon="alert-circle-outline">${this.rectifyError}</ok-inline-feedback>${close}`;
+    }
+    return html`<p>${erploraT('ui.rectifyNote')}</p>
+      <ion-textarea data-testid="invoice-rectify-reason" fill="outline" mode="md" label-placement="floating" label=${erploraT('ui.lblReason')} placeholder=${erploraT('ui.rectifyReasonPlaceholder')} auto-grow .value=${this.rectifyReason} @ionInput=${(e: CustomEvent<{ value?: string | null }>) => (this.rectifyReason = e.detail?.value ?? '')}></ion-textarea>
+      ${this.rectifyError ? html`<ok-inline-feedback class="ion-margin-top" data-testid="invoice-rectify-error" tone="danger" icon="alert-circle-outline">${this.rectifyError}</ok-inline-feedback>` : nothing}
+      <ion-button data-testid="invoice-rectify-submit" class="ion-margin-top" expand="block" style=${ionTone('solid', 'danger')} ?disabled=${this.busy || !this.rectifyReason.trim()} @click=${() => this.confirmRectify()}>${this.busy ? erploraT('ui.rectifying') : erploraT('ui.issueRectifying')}</ion-button>
+      <ion-button data-testid="invoice-rectify-cancel" expand="block" fill="outline" style=${ionTone('outline', 'medium')} ?disabled=${this.busy} @click=${() => (this.rectifyOpen = false)}>${erploraT('ui.cancel')}</ion-button>`;
   }
 
   /**
@@ -836,7 +882,6 @@ export class ErpInvoiceList extends LitElement {
       ${this.missingCustomerTaxId(d)
         ? html`<ok-inline-feedback class="screen-only" tone="warning" icon="alert-circle-outline" data-testid="invoice-missing-tax-id">${erploraT('ui.invoiceMissingCustomerTaxId')}</ok-inline-feedback>`
         : nothing}
-      <div class="screen-only">${this.renderRectifyCard()}</div>
       ${this.renderAeatCard()}
       <div class="card screen-only">
         <dl class="grid">
@@ -909,9 +954,13 @@ export class ErpInvoiceList extends LitElement {
   // El título de la vista lo pinta el topbar del shell: repetirlo aquí lo duplicaba en pantalla.
   // El alta manual ya no tiene botón propio: es el «+» de la barra de la tabla (`addable`).
   render() {
-    if (this.detail) return this.renderDetail();
+    // The dialog sits OUTSIDE the detail/list switch: a presented `ion-modal` lives in <body>, and
+    // one dropped with the template it was painted in would stay open there, orphaned.
+    return html`${this.detail ? this.renderDetail() : this.renderList()}${this.renderRectifyDialog()}`;
+  }
+
+  private renderList() {
     return html`<div class="page">
-        ${this.renderRectifyCard()}
         ${this.actionError ? html`<ok-inline-feedback data-testid="invoice-action-error" tone="danger" icon="alert-circle-outline">${this.actionError}</ok-inline-feedback>` : nothing}
         ${this.detailError ? html`<ok-inline-feedback data-testid="invoice-detail-load-error" tone="danger" icon="alert-circle-outline">${this.detailError}</ok-inline-feedback>` : nothing}
         ${this.ctrl?.error ? html`<ok-inline-feedback data-testid="invoice-list-error" tone="danger" icon="alert-circle-outline">${this.ctrl.error}</ok-inline-feedback>` : nothing}

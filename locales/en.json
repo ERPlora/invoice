@@ -91,6 +91,7 @@
     "rectifyReasonPlaceholder": "Reason for the correction",
     "rectifying": "Rectifying…",
     "issueRectifying": "Issue corrective",
+    "rectifyDone": "Corrective invoice issued. {number} is now cancelled.",
     "createTitle": "New manual invoice",
     "placeholderTaxId": "Tax ID",
     "addLine": "+ Line",

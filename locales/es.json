@@ -92,6 +92,7 @@
     "rectifyReasonPlaceholder": "Motivo de la rectificación",
     "rectifying": "Rectificando…",
     "issueRectifying": "Emitir rectificativa",
+    "rectifyDone": "Rectificativa emitida. {number} queda cancelada.",
     "createTitle": "Nueva factura manual",
     "placeholderTaxId": "NIF",
     "addLine": "+ Línea",

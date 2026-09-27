@@ -5,7 +5,7 @@
 // ITS OWN shadow root. Custom properties set on the element itself paint the same in the component's
 // shadow root and in the table's cell.
 
-export type IonToneKind = 'solid';
+export type IonToneKind = 'solid' | 'outline';
 export type IonTone = 'danger' | 'warning' | 'success' | 'medium' | 'primary';
 
 /** Ionic 8's default palette: the fallback when the theme does not define the token. */
@@ -19,11 +19,16 @@ const PALETTE: Record<IonTone, { base: string; contrast: string; shade: string; 
 
 /**
  * The `style` value that paints an element in `tone`. `solid`: a filled `ion-badge` (background, its
- * pressed/focused/hover states and its text) — what `color=` does in Ionic.
+ * pressed/focused/hover states and its text) — what `color=` does in Ionic. `outline`: an
+ * `ion-button fill="outline"` — its text and border only (invoice#107, the buttons of a dialog that
+ * `ion-modal` reparents to <body>, out of the component's `static styles`).
  */
-export function ionTone(_kind: IonToneKind, tone: IonTone): string {
+export function ionTone(kind: IonToneKind, tone: IonTone): string {
   const p = PALETTE[tone];
   const token = (suffix: string, fallback: string) => `var(--ion-color-${tone}${suffix}, ${fallback})`;
+  if (kind === 'outline') {
+    return [`--color: ${token('', p.base)}`, `--border-color: ${token('', p.base)};`].join('; ');
+  }
   return [
     `--background: ${token('', p.base)}`,
     `--background-activated: ${token('-shade', p.shade)}`,
