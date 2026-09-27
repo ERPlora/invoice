@@ -578,13 +578,14 @@ export class ErpInvoiceList extends LitElement {
         reason: this.rectifyReason.trim(),
       });
     } catch (e) {
-      this.rectifyError = domainErrorText(e, 'ui.errRectify');
+      // Dismissed while in flight and reopened for another invoice: this answer is not about it.
+      if (this.rectifyTarget === target) this.rectifyError = domainErrorText(e, 'ui.errRectify');
       return;
     } finally {
       this.busy = false;
     }
     // Issued: the result stays on screen until closed, and the page behind it catches up.
-    this.rectifyDone = true;
+    if (this.rectifyTarget === target) this.rectifyDone = true;
     await this.ctrl.load();
     if (this.detail?.id === target.id) await this.openDetail(target.id);
   }

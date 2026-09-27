@@ -5658,12 +5658,12 @@ var ErpInvoiceList = class extends i3 {
         reason: this.rectifyReason.trim()
       });
     } catch (e5) {
-      this.rectifyError = domainErrorText(e5, "ui.errRectify");
+      if (this.rectifyTarget === target) this.rectifyError = domainErrorText(e5, "ui.errRectify");
       return;
     } finally {
       this.busy = false;
     }
-    this.rectifyDone = true;
+    if (this.rectifyTarget === target) this.rectifyDone = true;
     await this.ctrl.load();
     if (this.detail?.id === target.id) await this.openDetail(target.id);
   }

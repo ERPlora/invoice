@@ -134,7 +134,7 @@ describe('«Refund» opens a dialog next to what the user is looking at (invoice
     // `ion-button` is not defined under happy-dom: the boolean binding lands as the attribute.
     const submit = q(el, 'invoice-rectify-submit')!;
     expect(submit.hasAttribute('disabled'), 'with no reason the issue button must be disabled').toBe(true);
-    await typeReason(el, 'Wrong amount');
+    await typeReason(el, '  Wrong amount  ');
     expect(submit.hasAttribute('disabled')).toBe(false);
 
     submit.click();
@@ -231,6 +231,35 @@ describe('«Refund» opens a dialog next to what the user is looking at (invoice
     // And once issued, whatever calls it again (a stale Enter, a retry) is ignored.
     await wc.confirmRectify();
     expect(comandos.filter((c) => c.name === 'invoice.rectify').length, 'two rectifying invoices for one refund').toBe(1);
+  });
+
+  it('the answer of a dismissed rectification never paints on the dialog of ANOTHER invoice', async () => {
+    const pending: ((ok: boolean) => void)[] = [];
+    commandImpl = () => new Promise((resolve, reject) => {
+      pending.push((ok) => (ok ? resolve({}) : reject(Object.assign(new Error('late'), { code: 'late' }))));
+    });
+    for (const ok of [true, false]) {
+      pending.length = 0;
+      const el = await mount();
+      const table = el.shadowRoot.querySelector('ok-data-table')!;
+      table.dispatchEvent(new CustomEvent('rowAction', { detail: { actionId: 'rectify', row: FACTURA } }));
+      await el.updateComplete;
+      await typeReason(el, 'Wrong amount');
+      q(el, 'invoice-rectify-submit')!.click();
+      await el.updateComplete;
+      // Backdrop/Esc while FACT-0001 is in flight, then «Refund» on FACT-0002.
+      dialog(el)!.dispatchEvent(new CustomEvent('ionModalDidDismiss'));
+      table.dispatchEvent(new CustomEvent('rowAction', { detail: { actionId: 'rectify', row: { ...FACTURA, id: 'i2', number: 'FACT-0002' } } }));
+      await el.updateComplete;
+      pending.forEach((settleIt) => settleIt(ok));
+      await settle(el);
+
+      expect(dialog(el)!.textContent).toContain('FACT-0002');
+      expect(q(el, 'invoice-rectify-done'), `FACT-0001's result told the user FACT-0002 is cancelled (ok=${ok})`).toBeNull();
+      expect(q(el, 'invoice-rectify-error'), `FACT-0001's answer painted on FACT-0002 (ok=${ok})`).toBeNull();
+      expect(q(el, 'invoice-rectify-reason'), `FACT-0002 can no longer be rectified (ok=${ok})`).toBeTruthy();
+      el.remove();
+    }
   });
 
   it('opening it again for another invoice starts clean, even if the dialog was never dismissed', async () => {
