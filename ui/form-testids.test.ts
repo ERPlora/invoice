@@ -67,7 +67,7 @@ const COVERED: Record<
   // walks to issue an invoice, collect it and rectify it without touching a selector by text.
   'components/erp-invoice-list/erp-invoice-list.ts': {
     prefix: 'invoice-',
-    controlCount: 21,
+    controlCount: 22, // invoice#107: + «Close» of the rectify dialog
     tables: ['invoice-table'],
     contract: [
       'invoice-action-error',
@@ -103,6 +103,9 @@ const COVERED: Record<
       'invoice-missing-tax-id',
       'invoice-rectify',
       'invoice-rectify-cancel',
+      'invoice-rectify-close',
+      'invoice-rectify-done',
+      'invoice-rectify-error',
       'invoice-rectify-reason',
       'invoice-rectify-submit',
     ],

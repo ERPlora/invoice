@@ -144,7 +144,7 @@ describe('the invoice screen paints the hooks it declares (invoice#76)', () => {
 
   it('the rectification panel is addressable by name', async () => {
     const el = await mount('erp-invoice-list');
-    (el as unknown as { rectifyTarget: unknown }).rectifyTarget = INVOICE;
+    (el as unknown as { startRectify: (i: unknown) => void }).startRectify(INVOICE);
     await settle(el);
     for (const name of ['invoice-rectify', 'invoice-rectify-reason', 'invoice-rectify-submit', 'invoice-rectify-cancel']) {
       expect(byTestId(el, name), `getByTestId("${name}") finds nothing on the rectify panel`).not.toBeNull();

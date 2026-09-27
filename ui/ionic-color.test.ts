@@ -11,8 +11,10 @@
 //     inside ITS OWN shadow root, where this component's `static styles` never arrive → the tone goes
 //     INLINE, as custom properties read from the theme token (`ionTone`). The detail and AEAT chips
 //     share the same map, so they use the same inline tone;
-//   · the buttons live in this component's shadow root (detail, rectify card, the `create` panel,
-//     which is a native <slot>) → a `tone-*` class painted from `static styles`.
+//   · the buttons live in this component's shadow root (detail, the `create` panel, which is a
+//     native <slot>) → a `tone-*` class painted from `static styles`;
+//   · the buttons of the rectify dialog (invoice#107) live in an `ion-modal`, which reparents itself
+//     to <body> when it presents → out of `static styles` too, so their tone goes inline (`ionTone`).
 //
 // happy-dom neither lays out nor loads Ionic's CSS, so what is pinned here is the CONTRACT; the
 // computed colours were measured in a real browser in `ios` mode.
@@ -214,12 +216,27 @@ describe('pm#392: the invoice list paints its buttons from a tone class', () => 
     expectToneButton(el, byTestId(el, 'invoice-detail-rectify'), 'outline', 'danger');
   });
 
-  it('rectify card: «Issue rectifying» solid danger, «Cancel» outline medium', async () => {
+  // invoice#107 — the rectification moved into an `ion-modal`, which reparents itself to <body>
+  // when it presents: out of this shadow root, a `tone-*` class from `static styles` paints nothing
+  // there. So its buttons take the third recipe: the tone INLINE, like the chips of the table.
+  it('rectify dialog: «Issue rectifying» solid danger, «Cancel»/«Close» outline medium, all inline', async () => {
     const el = await mount('erp-invoice-list');
-    el.rectifyTarget = INVOICE;
+    (el as unknown as { startRectify: (i: unknown) => void }).startRectify(INVOICE);
     await el.updateComplete;
-    expectToneButton(el, byTestId(el, 'invoice-rectify-submit'), null, 'danger');
-    expectToneButton(el, byTestId(el, 'invoice-rectify-cancel'), 'outline', 'medium');
+    const submit = byTestId(el, 'invoice-rectify-submit');
+    expect(submit!.hasAttribute('color')).toBe(false);
+    expect(submit!.hasAttribute('fill')).toBe(false);
+    expect(styleOf(submit)).toContain(ionTone('solid', 'danger'));
+    const cancel = byTestId(el, 'invoice-rectify-cancel');
+    expect(cancel!.hasAttribute('color')).toBe(false);
+    expect(cancel!.getAttribute('fill')).toBe('outline');
+    expect(styleOf(cancel)).toContain(ionTone('outline', 'medium'));
+
+    (el as unknown as { startRectify: (i: unknown) => void }).startRectify({ ...INVOICE, invoice_type: 'R1' });
+    await el.updateComplete;
+    const close = byTestId(el, 'invoice-rectify-close');
+    expect(close!.hasAttribute('color')).toBe(false);
+    expect(styleOf(close)).toContain(ionTone('outline', 'medium'));
   });
 
   it('create panel: the line ✕ clear danger, «Cancel» clear medium', async () => {

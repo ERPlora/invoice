@@ -22,4 +22,13 @@ describe('ionTone: the inline custom properties, read from the theme token', () 
     expect(ionTone('solid', 'warning')).toContain('--background: var(--ion-color-warning, #ffc409)');
     expect(ionTone('solid', 'warning')).toContain('--color: var(--ion-color-warning-contrast, #000)');
   });
+
+  // invoice#107 — the buttons of the rectify dialog: `ion-modal` reparents to <body>, out of the
+  // component's `static styles`, so an outline button carries its tone inline too.
+  it('an outline button paints its text and border from the tone, and no fill', () => {
+    const s = ionTone('outline', 'medium');
+    expect(s).toContain('--color: var(--ion-color-medium, #636469)');
+    expect(s).toContain('--border-color: var(--ion-color-medium, #636469)');
+    expect(s).not.toContain('--background:');
+  });
 });

@@ -4880,9 +4880,12 @@ var PALETTE = {
   medium: { base: "#636469", contrast: "#fff", shade: "#57585c", tint: "#737478" },
   primary: { base: "#0054e9", contrast: "#fff", shade: "#004acd", tint: "#1a65eb" }
 };
-function ionTone(_kind, tone) {
+function ionTone(kind, tone) {
   const p4 = PALETTE[tone];
   const token = (suffix, fallback) => `var(--ion-color-${tone}${suffix}, ${fallback})`;
+  if (kind === "outline") {
+    return [`--color: ${token("", p4.base)}`, `--border-color: ${token("", p4.base)};`].join("; ");
+  }
   return [
     `--background: ${token("", p4.base)}`,
     `--background-activated: ${token("-shade", p4.shade)}`,
@@ -5035,6 +5038,7 @@ var es_default = {
     rectifyReasonPlaceholder: "Motivo de la rectificaci\xF3n",
     rectifying: "Rectificando\u2026",
     issueRectifying: "Emitir rectificativa",
+    rectifyDone: "Rectificativa emitida. {number} queda cancelada.",
     createTitle: "Nueva factura manual",
     placeholderTaxId: "NIF",
     addLine: "+ L\xEDnea",
@@ -5188,6 +5192,7 @@ var en_default = {
     rectifyReasonPlaceholder: "Reason for the correction",
     rectifying: "Rectifying\u2026",
     issueRectifying: "Issue corrective",
+    rectifyDone: "Corrective invoice issued. {number} is now cancelled.",
     createTitle: "New manual invoice",
     placeholderTaxId: "Tax ID",
     addLine: "+ Line",
@@ -5361,6 +5366,10 @@ var ErpInvoiceList = class extends i3 {
     this.seriesOptions = [];
     this.rectifyTarget = null;
     this.rectifyReason = "";
+    this.rectifyOpen = false;
+    this.rectifyError = "";
+    this.rectifyBlocked = false;
+    this.rectifyDone = false;
     this.actionError = "";
     this.busy = false;
     this.canAdd = true;
@@ -5598,7 +5607,7 @@ var ErpInvoiceList = class extends i3 {
     this.detail = null;
     this.detailLines = [];
     this.detailError = "";
-    this.rectifyTarget = null;
+    this.resetRectify();
     this.aeat = null;
   }
   // ── acciones (mark_paid / rectify) ────────────────────────────────────────
@@ -5619,37 +5628,44 @@ var ErpInvoiceList = class extends i3 {
       this.busy = false;
     }
   }
+  /** invoice#107 — «Refund» opens the dialog wherever the page is scrolled: the reason, a refusal
+   *  and the result are all read there, next to what the user just pressed. */
   startRectify(inv) {
-    if (inv.invoice_type?.startsWith("R")) {
-      this.actionError = erploraT("ui.errRectifyRectifying");
-      return;
-    }
-    if (inv.status === "cancelled") {
-      this.actionError = erploraT("ui.errAlreadyCancelled");
-      return;
-    }
-    this.actionError = "";
-    this.rectifyReason = "";
+    const refusal = inv.invoice_type?.startsWith("R") ? "ui.errRectifyRectifying" : inv.status === "cancelled" ? "ui.errAlreadyCancelled" : "";
     this.rectifyTarget = inv;
+    this.rectifyReason = "";
+    this.rectifyDone = false;
+    this.rectifyBlocked = !!refusal;
+    this.rectifyError = refusal ? erploraT(refusal) : "";
+    this.rectifyOpen = true;
+  }
+  resetRectify() {
+    this.rectifyOpen = false;
+    this.rectifyTarget = null;
+    this.rectifyReason = "";
+    this.rectifyError = "";
+    this.rectifyBlocked = false;
+    this.rectifyDone = false;
   }
   async confirmRectify() {
     const target = this.rectifyTarget;
-    if (!target || !this.rectifyReason.trim()) return;
+    if (!target || this.busy || this.rectifyBlocked || this.rectifyDone || !this.rectifyReason.trim()) return;
     this.busy = true;
-    this.actionError = "";
+    this.rectifyError = "";
     try {
       await erplora().command("invoice.rectify", {
         original_id: target.id,
         reason: this.rectifyReason.trim()
       });
-      this.rectifyTarget = null;
-      await this.ctrl.load();
-      if (this.detail?.id === target.id) await this.openDetail(target.id);
     } catch (e5) {
-      this.actionError = e5 instanceof Error ? e5.message : erploraT("ui.errRectify");
+      this.rectifyError = domainErrorText(e5, "ui.errRectify");
+      return;
     } finally {
       this.busy = false;
     }
+    this.rectifyDone = true;
+    await this.ctrl.load();
+    if (this.detail?.id === target.id) await this.openDetail(target.id);
   }
   onRowAction(ev) {
     const inv = ev.detail.row;
@@ -5834,20 +5850,30 @@ var ErpInvoiceList = class extends i3 {
           </div>` : b2`<p class="muted">${erploraT("ui.aeatNoRecord")}</p>`}
     </div>`;
   }
-  renderRectifyCard() {
+  /** The rectify dialog. `ion-modal` reparents itself to <body> when it presents, out of this
+   *  shadow root: inside it only Ionic classes and INLINE tones paint (no shadow CSS, and `color=`
+   *  is banned in modules, pm#392). Its body exists only while a rectification is in course, and
+   *  stays until `ionModalDidDismiss` so the dialog does not go blank while it animates out. */
+  renderRectifyDialog() {
     const t5 = this.rectifyTarget;
-    if (!t5) return A;
-    return b2`<div class="card" data-testid="invoice-rectify">
-      <h3>${erploraT("ui.rectifyTitle", { number: t5.number })}</h3>
-      <p>${erploraT("ui.rectifyNote")}</p>
-      <div class="form">
-        <ion-textarea data-testid="invoice-rectify-reason" fill="outline" label-placement="floating" label=${erploraT("ui.lblReason")} placeholder=${erploraT("ui.rectifyReasonPlaceholder")} auto-grow .value=${this.rectifyReason} @ionInput=${(e5) => this.rectifyReason = e5.target.value}></ion-textarea>
-      </div>
-      <div class="row-actions">
-        <ion-button data-testid="invoice-rectify-submit" class="tone-danger" ?disabled=${this.busy || !this.rectifyReason.trim()} @click=${() => this.confirmRectify()}>${this.busy ? erploraT("ui.rectifying") : erploraT("ui.issueRectifying")}</ion-button>
-        <ion-button data-testid="invoice-rectify-cancel" fill="outline" class="tone-medium" @click=${() => this.rectifyTarget = null}>${erploraT("ui.cancel")}</ion-button>
-      </div>
-    </div>`;
+    return b2`<ion-modal data-testid="invoice-rectify" .isOpen=${this.rectifyOpen} @ionModalDidDismiss=${() => this.resetRectify()}>
+      ${t5 ? b2`<ion-header class="ion-no-border"><ion-toolbar><ion-title>${erploraT("ui.rectifyTitle", { number: t5.number })}</ion-title></ion-toolbar></ion-header>
+          <ion-content class="ion-padding">${this.renderRectifyBody(t5.number)}</ion-content>` : A}
+    </ion-modal>`;
+  }
+  renderRectifyBody(number) {
+    const close = b2`<ion-button data-testid="invoice-rectify-close" class="ion-margin-top" expand="block" fill="outline" style=${ionTone("outline", "medium")} @click=${() => this.rectifyOpen = false}>${erploraT("ui.close")}</ion-button>`;
+    if (this.rectifyDone) {
+      return b2`<ok-inline-feedback data-testid="invoice-rectify-done" tone="success" icon="checkmark-circle-outline">${erploraT("ui.rectifyDone", { number })}</ok-inline-feedback>${close}`;
+    }
+    if (this.rectifyBlocked) {
+      return b2`<ok-inline-feedback data-testid="invoice-rectify-error" tone="warning" icon="alert-circle-outline">${this.rectifyError}</ok-inline-feedback>${close}`;
+    }
+    return b2`<p>${erploraT("ui.rectifyNote")}</p>
+      <ion-textarea data-testid="invoice-rectify-reason" fill="outline" mode="md" label-placement="floating" label=${erploraT("ui.lblReason")} placeholder=${erploraT("ui.rectifyReasonPlaceholder")} auto-grow .value=${this.rectifyReason} @ionInput=${(e5) => this.rectifyReason = e5.detail?.value ?? ""}></ion-textarea>
+      ${this.rectifyError ? b2`<ok-inline-feedback class="ion-margin-top" data-testid="invoice-rectify-error" tone="danger" icon="alert-circle-outline">${this.rectifyError}</ok-inline-feedback>` : A}
+      <ion-button data-testid="invoice-rectify-submit" class="ion-margin-top" expand="block" style=${ionTone("solid", "danger")} ?disabled=${this.busy || !this.rectifyReason.trim()} @click=${() => this.confirmRectify()}>${this.busy ? erploraT("ui.rectifying") : erploraT("ui.issueRectifying")}</ion-button>
+      <ion-button data-testid="invoice-rectify-cancel" expand="block" fill="outline" style=${ionTone("outline", "medium")} ?disabled=${this.busy} @click=${() => this.rectifyOpen = false}>${erploraT("ui.cancel")}</ion-button>`;
   }
   /**
    * Prints through the shell's single print gate (`sdk.print`, ADR-0196): the shell routes to a
@@ -5908,7 +5934,6 @@ var ErpInvoiceList = class extends i3 {
       </header>
       ${this.actionError ? b2`<p class="err screen-only" data-testid="invoice-detail-error">${this.actionError}</p>` : A}
       ${this.missingCustomerTaxId(d3) ? b2`<ok-inline-feedback class="screen-only" tone="warning" icon="alert-circle-outline" data-testid="invoice-missing-tax-id">${erploraT("ui.invoiceMissingCustomerTaxId")}</ok-inline-feedback>` : A}
-      <div class="screen-only">${this.renderRectifyCard()}</div>
       ${this.renderAeatCard()}
       <div class="card screen-only">
         <dl class="grid">
@@ -5977,9 +6002,10 @@ var ErpInvoiceList = class extends i3 {
   // El título de la vista lo pinta el topbar del shell: repetirlo aquí lo duplicaba en pantalla.
   // El alta manual ya no tiene botón propio: es el «+» de la barra de la tabla (`addable`).
   render() {
-    if (this.detail) return this.renderDetail();
+    return b2`${this.detail ? this.renderDetail() : this.renderList()}${this.renderRectifyDialog()}`;
+  }
+  renderList() {
     return b2`<div class="page">
-        ${this.renderRectifyCard()}
         ${this.actionError ? b2`<ok-inline-feedback data-testid="invoice-action-error" tone="danger" icon="alert-circle-outline">${this.actionError}</ok-inline-feedback>` : A}
         ${this.detailError ? b2`<ok-inline-feedback data-testid="invoice-detail-load-error" tone="danger" icon="alert-circle-outline">${this.detailError}</ok-inline-feedback>` : A}
         ${this.ctrl?.error ? b2`<ok-inline-feedback data-testid="invoice-list-error" tone="danger" icon="alert-circle-outline">${this.ctrl.error}</ok-inline-feedback>` : A}
@@ -6039,6 +6065,18 @@ __decorateClass([
 __decorateClass([
   r5()
 ], ErpInvoiceList.prototype, "rectifyReason", 2);
+__decorateClass([
+  r5()
+], ErpInvoiceList.prototype, "rectifyOpen", 2);
+__decorateClass([
+  r5()
+], ErpInvoiceList.prototype, "rectifyError", 2);
+__decorateClass([
+  r5()
+], ErpInvoiceList.prototype, "rectifyBlocked", 2);
+__decorateClass([
+  r5()
+], ErpInvoiceList.prototype, "rectifyDone", 2);
 __decorateClass([
   r5()
 ], ErpInvoiceList.prototype, "actionError", 2);
