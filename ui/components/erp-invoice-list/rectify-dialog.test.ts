@@ -56,6 +56,7 @@ beforeEach(() => {
     t: (_catalog: unknown, key: string, params?: Record<string, unknown>) =>
       params ? `${key} ${JSON.stringify(params)}` : key,
     currency: 'EUR',
+    currencyDecimals: 2,
     formatMoney: (cents: number) => `${(cents / 100).toFixed(2)} €`,
     formatAmount: (units: number) => `${units.toFixed(2)} €`,
   };

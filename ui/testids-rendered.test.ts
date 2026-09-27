@@ -36,6 +36,7 @@ beforeEach(() => {
     locale: 'es',
     t: (_catalog: unknown, key: string) => key,
     currency: 'EUR',
+    currencyDecimals: 2,
     formatMoney: (cents: number) => `${(cents / 100).toFixed(2)} €`,
     formatAmount: (units: number) => `${units.toFixed(2)} €`,
   };
