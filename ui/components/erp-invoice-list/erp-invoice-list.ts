@@ -498,7 +498,7 @@ export class ErpInvoiceList extends LitElement {
     }
   }
 
-  private closeDetail() { this.detailSeq++; this.detail = null; this.detailLines = []; this.detailError = ''; this.detailActionError = ''; this.resetRectify(); this.aeat = null; }
+  private closeDetail() { this.detailSeq++; this.detail = null; this.detailLines = []; this.detailError = ''; this.resetRectify(); this.aeat = null; }
 
   // ── acciones (mark_paid / rectify) ────────────────────────────────────────
 

@@ -258,6 +258,19 @@ describe('pm#513 · invoices: a refused «Mark as paid» of the OPEN invoice is 
     expect(whereIs(el, REFUSAL)).toEqual(['detail']);
   });
 
+  it('while «Mark as paid» is pressed again, the previous refusal is already gone', async () => {
+    const el = await mountList();
+    await openAndRefuse(el);
+    refuse = null;
+    let release!: () => void;
+    hold = new Promise((r) => (release = r));
+    q(el, 'invoice-detail-mark-paid')!.click();
+    await settle(el);
+    expect(whereIs(el, REFUSAL)).toEqual([]);
+    release();
+    await settle(el);
+  });
+
   it('is not revealed again when the detail repaints', async () => {
     const el = await mountList();
     await openAndRefuse(el);
@@ -409,6 +422,19 @@ describe('pm#513 · series: a refused «Create series» / «Save» is shown INSI
     await settle(el);
     expect(q(el, 'invoice-series-form-error'), 'the refusal is still there').not.toBeNull();
     expect(revealed, 'but the sheet stays where the person is typing').toEqual([]);
+  });
+
+  it('while the new attempt is being saved, the previous refusal is already gone', async () => {
+    const el = await mountSeries();
+    await refusedSeriesCreate(el);
+    refuse = null;
+    let release!: () => void;
+    hold = new Promise((r) => (release = r));
+    const attempt = el.submit(submitEvent());
+    await settle(el);
+    expect(q(el, 'invoice-series-form-error')).toBeNull();
+    release();
+    await attempt;
   });
 
   it('does not travel to the next series the person opens', async () => {
