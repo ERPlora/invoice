@@ -92,7 +92,8 @@ function moneyViolations(src: string): Violation[] {
   for (const m of code.matchAll(/\.toLocaleString\s*\(/g)) {
     if (/\bcurrency\b/.test(callArgs(code, m.index! + m[0].length - 1))) add('intl-currency', m.index!);
   }
-  for (const m of code.matchAll(/\bimport\s+(?!type\b)[^;'"]*?\bfrom\s+['"]@erplora\/outfitkit['"]/g)) add('barrel', m.index!);
+  // A bare `import '@erplora/outfitkit'` or an `export … from` it inlines the barrel just the same.
+  for (const m of code.matchAll(/\b(?:import|export)\s+(?!type\b)(?:[^;'"]*?\bfrom\s+)?['"]@erplora\/outfitkit['"]/g)) add('barrel', m.index!);
   return out.sort((a, b) => a.line - b.line);
 }
 
@@ -146,8 +147,12 @@ describe('the scanner catches hand-formatted money (positive control)', () => {
       "import type { DataTableColumn } from '@erplora/outfitkit';",
       "import { formatMinor } from '@erplora/outfitkit/ok-money';",
       "import '@erplora/outfitkit/ok-money';",
+      "import '@erplora/outfitkit';",
+      "export { formatMinor } from '@erplora/outfitkit';",
+      "export type { DataTableColumn } from '@erplora/outfitkit';",
+      "export const pkg = '@erplora/outfitkit';",
     ].join('\n');
-    expect(moneyViolations(src).map((v) => [v.rule, v.line])).toEqual([['barrel', 1], ['barrel', 2]]);
+    expect(moneyViolations(src).map((v) => [v.rule, v.line])).toEqual([['barrel', 1], ['barrel', 2], ['barrel', 8], ['barrel', 9]]);
   });
 
   it('a NumberFormat without a currency is not money', () => {
