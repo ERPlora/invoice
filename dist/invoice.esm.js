@@ -5410,6 +5410,7 @@ var ErpInvoiceList = class extends i3 {
     this.rectifyBlocked = false;
     this.rectifyDone = false;
     this.actionError = "";
+    this.detailActionError = "";
     this.busy = false;
     this.canAdd = true;
     this.canRectify = true;
@@ -5430,7 +5431,6 @@ var ErpInvoiceList = class extends i3 {
     ion-button { min-height:44px; --min-height:44px; }
     h2 { margin:0; font-size:1.15rem; flex:1; }
     h3 { margin:0 0 .5rem; font-size:1rem; }
-    .err { color:#d9480f; font-weight:600; }
     .card { border:1px solid var(--ion-border-color,#e7e2d6); border-radius: var(--ok-radius-sm, 10px); padding:1rem; margin-bottom:1rem; background:var(--ion-card-background,#fffdf7); }
     .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap:.35rem .75rem; margin:.5rem 0; }
     .grid dt { font-size:.72rem; text-transform:uppercase; letter-spacing:.03em; color:var(--ion-color-medium,#8a8577); margin:0; }
@@ -5598,6 +5598,7 @@ var ErpInvoiceList = class extends i3 {
   async openDetail(id) {
     const seq = ++this.detailSeq;
     this.detailError = "";
+    this.detailActionError = "";
     try {
       const [inv, lines] = await Promise.all([
         erplora().query("invoice.get", { invoice_id: id }),
@@ -5647,19 +5648,26 @@ var ErpInvoiceList = class extends i3 {
     this.aeat = null;
   }
   // ── acciones (mark_paid / rectify) ────────────────────────────────────────
-  async markPaid(inv) {
+  /** `from` says where the button was: a row of the table (the refusal goes on the page) or the card
+   *  of the open invoice (it goes next to the button, pm#513). */
+  async markPaid(inv, from = "row") {
+    const refuse = (text) => {
+      if (from === "detail") this.detailActionError = text;
+      else this.actionError = text;
+    };
     if (inv.status !== "issued") {
-      this.actionError = erploraT("ui.errMarkPaidStatus");
+      refuse(erploraT("ui.errMarkPaidStatus"));
       return;
     }
     this.actionError = "";
+    this.detailActionError = "";
     this.busy = true;
     try {
       await erplora().command("invoice.mark_paid", { invoice_id: inv.id });
       await this.ctrl.load();
       if (this.detail?.id === inv.id) await this.openDetail(inv.id);
     } catch (e5) {
-      this.actionError = e5 instanceof Error ? e5.message : erploraT("ui.errMarkPaid");
+      refuse(e5 instanceof Error ? e5.message : erploraT("ui.errMarkPaid"));
     } finally {
       this.busy = false;
     }
@@ -5730,6 +5738,7 @@ var ErpInvoiceList = class extends i3 {
     if (!this.itemsValid) return;
     this.saving = true;
     this.formError = "";
+    this.actionError = "";
     try {
       await erplora().command("invoice.create", {
         series_code: this.newSeriesCode || "FACT",
@@ -5968,7 +5977,6 @@ var ErpInvoiceList = class extends i3 {
         </ion-button>
         <ion-button data-testid="invoice-detail-back" fill="outline" class="tone-medium" @click=${() => this.closeDetail()}>← ${erploraT("ui.back")}</ion-button>
       </header>
-      ${this.actionError ? b2`<p class="err screen-only" data-testid="invoice-detail-error">${this.actionError}</p>` : A}
       ${this.missingCustomerTaxId(d3) ? b2`<ok-inline-feedback class="screen-only" tone="warning" icon="alert-circle-outline" data-testid="invoice-missing-tax-id">${erploraT("ui.invoiceMissingCustomerTaxId")}</ok-inline-feedback>` : A}
       ${this.renderAeatCard()}
       <div class="card screen-only">
@@ -5998,8 +6006,11 @@ var ErpInvoiceList = class extends i3 {
           <span data-testid="invoice-detail-taxes">${erploraT("ui.totalTaxes")}: ${money(d3.tax_amount, d3.currency)}</span>
           <span data-testid="invoice-detail-total">${erploraT("ui.totalTotal")}: ${money(d3.total_amount, d3.currency)}</span>
         </div>
+        <!-- pm#513: the refusal sits above the button that was pressed — at the top of the detail it
+             was scrolled out of a phone's screen. -->
+        ${this.detailActionError ? b2`<ok-inline-feedback data-testid="invoice-detail-error" tone="danger" icon="alert-circle-outline">${this.detailActionError}</ok-inline-feedback>` : A}
         <div class="row-actions">
-          ${this.canAdd && d3.status === "issued" ? b2`<ion-button data-testid="invoice-detail-mark-paid" class="tone-success" ?disabled=${this.busy} @click=${() => this.markPaid(d3)}>${erploraT("ui.actionMarkPaid")}</ion-button>` : A}
+          ${this.canAdd && d3.status === "issued" ? b2`<ion-button data-testid="invoice-detail-mark-paid" class="tone-success" ?disabled=${this.busy} @click=${() => this.markPaid(d3, "detail")}>${erploraT("ui.actionMarkPaid")}</ion-button>` : A}
           ${this.canRectify && !(d3.invoice_type ?? "").startsWith("R") && d3.status !== "cancelled" ? b2`<ion-button data-testid="invoice-detail-rectify" fill="outline" class="tone-danger" ?disabled=${this.busy} @click=${() => this.startRectify(d3)}>${erploraT("ui.actionRectify")}</ion-button>` : A}
         </div>
       </div>
@@ -6027,13 +6038,28 @@ var ErpInvoiceList = class extends i3 {
           <ion-input data-testid="invoice-line-${it.uid}-tax-rate" class="num" fill="outline" label-placement="floating" label=${erploraT("ui.lineTaxPct")} type="number" step=${TAX_RATE_STEP} .value=${it.tax_rate} @ionInput=${(e5) => this.setItem(i7, "tax_rate", e5.target.value)}></ion-input>
           ${this.newItems.length > 1 ? b2`<ion-button data-testid="invoice-line-${it.uid}-remove" fill="clear" class="tone-danger" aria-label=${erploraT("ui.removeLine")} @click=${() => this.newItems = this.newItems.filter((_2, j2) => j2 !== i7)}><ion-icon slot="icon-only" name="close-outline"></ion-icon></ion-button>` : A}
         </div>`)}
+        <!-- pm#513: the refusal sits above «Issue invoice» — under the buttons it was painted below
+             the bottom edge of the sheet on a phone. -->
+        ${this.formError ? b2`<ok-inline-feedback data-testid="invoice-create-error" tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : A}
         <div class="row-actions">
           <ion-button data-testid="invoice-create-add-line" fill="outline" @click=${() => this.addItem()}>${erploraT("ui.addLine")}</ion-button>
           <ion-button data-testid="invoice-create-submit" type="submit" ?disabled=${this.saving || !this.itemsValid}>${this.saving ? erploraT("ui.issuing") : erploraT("ui.issueInvoice")}</ion-button>
           <ion-button data-testid="invoice-create-cancel" fill="clear" class="tone-medium" @click=${() => this.dataTable()?.close()}>${erploraT("ui.cancel")}</ion-button>
         </div>
-        ${this.formError ? b2`<ok-inline-feedback data-testid="invoice-create-error" tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : A}
       </form>`;
+  }
+  /** pm#513: a refusal appears above the button that was pressed — on a phone that can still leave it
+   *  off the screen. Bring it into view when it appears, not again on every keystroke or repaint. */
+  updated(changed) {
+    super.updated(changed);
+    if (changed.has("formError") && this.formError) void this.revealRefusal('[data-testid="invoice-create-error"]');
+    if (changed.has("detailActionError") && this.detailActionError) void this.revealRefusal('[data-testid="invoice-detail-error"]');
+  }
+  /** ok-inline-feedback lays itself out in its own update: scrolled to before it, the box is empty. */
+  async revealRefusal(selector) {
+    const banner = this.renderRoot.querySelector(selector);
+    await banner?.updateComplete;
+    banner?.scrollIntoView?.({ block: "center" });
   }
   // El título de la vista lo pinta el topbar del shell: repetirlo aquí lo duplicaba en pantalla.
   // El alta manual ya no tiene botón propio: es el «+» de la barra de la tabla (`addable`).
@@ -6116,6 +6142,9 @@ __decorateClass([
 __decorateClass([
   r5()
 ], ErpInvoiceList.prototype, "actionError", 2);
+__decorateClass([
+  r5()
+], ErpInvoiceList.prototype, "detailActionError", 2);
 __decorateClass([
   r5()
 ], ErpInvoiceList.prototype, "busy", 2);
@@ -6471,14 +6500,28 @@ var ErpInvoiceSettings = class extends i3 {
             <ion-toggle data-testid="invoice-series-default" .checked=${f3.is_default} @ionChange=${(e5) => this.setField("is_default", e5.target.checked)}>${erploraT2("ui.fieldDefault")}</ion-toggle>
           </ion-item>
         </div>
+        <!-- pm#513: the refusal sits above «Create series»/«Save» — under the buttons it was painted
+             below the bottom edge of the sheet on a phone. -->
+        ${this.formError ? b2`<ok-inline-feedback data-testid="invoice-series-form-error" tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : A}
         <div class="row-actions">
           <ion-button data-testid="invoice-series-submit" type="submit" ?disabled=${this.saving}>
             ${this.saving ? erploraT2(this.isEdit ? "ui.saving" : "ui.creating") : erploraT2(this.isEdit ? "ui.save" : "ui.create")}
           </ion-button>
           <ion-button data-testid="invoice-series-cancel" fill="clear" class="tone-medium" @click=${() => this.cancelForm()}>${erploraT2("ui.cancel")}</ion-button>
         </div>
-        ${this.formError ? b2`<ok-inline-feedback data-testid="invoice-series-form-error" tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : A}
       </form>`;
+  }
+  /** pm#513: the refusal appears above the button that was pressed — on a phone that can still leave
+   *  it off the sheet. Bring it into view when it appears, not again on every keystroke. */
+  updated(changed) {
+    super.updated(changed);
+    if (changed.has("formError") && this.formError) void this.revealRefusal();
+  }
+  /** ok-inline-feedback lays itself out in its own update: scrolled to before it, the box is empty. */
+  async revealRefusal() {
+    const banner = this.renderRoot.querySelector('[data-testid="invoice-series-form-error"]');
+    await banner?.updateComplete;
+    banner?.scrollIntoView?.({ block: "center" });
   }
   // El título de la vista lo pinta el topbar del shell: repetirlo aquí lo duplicaba en pantalla.
   // El alta ya no tiene botón propio: es el «+» de la barra de la tabla (`addable`), con permiso.

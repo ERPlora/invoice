@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
+import type { PropertyValues } from 'lit';
 import { state } from 'lit/decorators.js';
 import { define } from '@erplora/outfitkit/define';
 import '@erplora/outfitkit/ok-inline-feedback';
@@ -200,7 +201,6 @@ export class ErpInvoiceList extends LitElement {
     ion-button { min-height:44px; --min-height:44px; }
     h2 { margin:0; font-size:1.15rem; flex:1; }
     h3 { margin:0 0 .5rem; font-size:1rem; }
-    .err { color:#d9480f; font-weight:600; }
     .card { border:1px solid var(--ion-border-color,#e7e2d6); border-radius: var(--ok-radius-sm, 10px); padding:1rem; margin-bottom:1rem; background:var(--ion-card-background,#fffdf7); }
     .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap:.35rem .75rem; margin:.5rem 0; }
     .grid dt { font-size:.72rem; text-transform:uppercase; letter-spacing:.03em; color:var(--ion-color-medium,#8a8577); margin:0; }
@@ -317,7 +317,11 @@ export class ErpInvoiceList extends LitElement {
   /** The rectifying invoice was issued: the dialog shows the result until the user closes it. */
   @state() rectifyDone = false;
 
+  /** What a row action («Mark as paid» from the table) was refused: no panel is open then, so it goes on the page. */
   @state() actionError = '';
+
+  /** What an action pressed in the OPEN invoice was refused: painted in its card, above that button (pm#513). */
+  @state() detailActionError = '';
 
   @state() busy = false;
 
@@ -448,6 +452,7 @@ export class ErpInvoiceList extends LitElement {
   private async openDetail(id: string) {
     const seq = ++this.detailSeq;
     this.detailError = '';
+    this.detailActionError = ''; // a refusal is about the invoice it was pressed on, not the next one
     try {
       const [inv, lines] = await Promise.all([
         erplora().query<InvoiceDetail[] | InvoiceDetail>('invoice.get', { invoice_id: id }),
@@ -497,16 +502,21 @@ export class ErpInvoiceList extends LitElement {
 
   // ── acciones (mark_paid / rectify) ────────────────────────────────────────
 
-  private async markPaid(inv: { id: string; status: string }) {
-    if (inv.status !== 'issued') { this.actionError = erploraT('ui.errMarkPaidStatus'); return; }
+  /** `from` says where the button was: a row of the table (the refusal goes on the page) or the card
+   *  of the open invoice (it goes next to the button, pm#513). */
+  private async markPaid(inv: { id: string; status: string }, from: 'row' | 'detail' = 'row') {
+    const refuse = (text: string) => { if (from === 'detail') this.detailActionError = text; else this.actionError = text; };
+    if (inv.status !== 'issued') { refuse(erploraT('ui.errMarkPaidStatus')); return; }
+    // Pressed again, from either place: an older refusal on the page or in the card is stale (staff#75).
     this.actionError = '';
+    this.detailActionError = '';
     this.busy = true;
     try {
       await erplora().command('invoice.mark_paid', { invoice_id: inv.id });
       await this.ctrl.load();
       if (this.detail?.id === inv.id) await this.openDetail(inv.id);
     } catch (e) {
-      this.actionError = e instanceof Error ? e.message : erploraT('ui.errMarkPaid');
+      refuse(e instanceof Error ? e.message : erploraT('ui.errMarkPaid'));
     } finally {
       this.busy = false;
     }
@@ -597,6 +607,7 @@ export class ErpInvoiceList extends LitElement {
     if (!this.itemsValid) return;
     this.saving = true;
     this.formError = '';
+    this.actionError = ''; // issuing is the next thing the person did: an older row refusal is stale (staff#75)
     try {
       await erplora().command('invoice.create', {
         series_code: this.newSeriesCode || 'FACT',
@@ -851,7 +862,6 @@ export class ErpInvoiceList extends LitElement {
         </ion-button>
         <ion-button data-testid="invoice-detail-back" fill="outline" class="tone-medium" @click=${() => this.closeDetail()}>← ${erploraT('ui.back')}</ion-button>
       </header>
-      ${this.actionError ? html`<p class="err screen-only" data-testid="invoice-detail-error">${this.actionError}</p>` : nothing}
       ${this.missingCustomerTaxId(d)
         ? html`<ok-inline-feedback class="screen-only" tone="warning" icon="alert-circle-outline" data-testid="invoice-missing-tax-id">${erploraT('ui.invoiceMissingCustomerTaxId')}</ok-inline-feedback>`
         : nothing}
@@ -883,8 +893,11 @@ export class ErpInvoiceList extends LitElement {
           <span data-testid="invoice-detail-taxes">${erploraT('ui.totalTaxes')}: ${money(d.tax_amount, d.currency)}</span>
           <span data-testid="invoice-detail-total">${erploraT('ui.totalTotal')}: ${money(d.total_amount, d.currency)}</span>
         </div>
+        <!-- pm#513: the refusal sits above the button that was pressed — at the top of the detail it
+             was scrolled out of a phone's screen. -->
+        ${this.detailActionError ? html`<ok-inline-feedback data-testid="invoice-detail-error" tone="danger" icon="alert-circle-outline">${this.detailActionError}</ok-inline-feedback>` : nothing}
         <div class="row-actions">
-          ${this.canAdd && d.status === 'issued' ? html`<ion-button data-testid="invoice-detail-mark-paid" class="tone-success" ?disabled=${this.busy} @click=${() => this.markPaid(d)}>${erploraT('ui.actionMarkPaid')}</ion-button>` : nothing}
+          ${this.canAdd && d.status === 'issued' ? html`<ion-button data-testid="invoice-detail-mark-paid" class="tone-success" ?disabled=${this.busy} @click=${() => this.markPaid(d, 'detail')}>${erploraT('ui.actionMarkPaid')}</ion-button>` : nothing}
           ${this.canRectify && !(d.invoice_type ?? '').startsWith('R') && d.status !== 'cancelled' ? html`<ion-button data-testid="invoice-detail-rectify" fill="outline" class="tone-danger" ?disabled=${this.busy} @click=${() => this.startRectify(d)}>${erploraT('ui.actionRectify')}</ion-button>` : nothing}
         </div>
       </div>
@@ -915,13 +928,30 @@ export class ErpInvoiceList extends LitElement {
           <ion-input data-testid="invoice-line-${it.uid}-tax-rate" class="num" fill="outline" label-placement="floating" label=${erploraT('ui.lineTaxPct')} type="number" step=${TAX_RATE_STEP} .value=${it.tax_rate} @ionInput=${(e: any) => this.setItem(i, 'tax_rate', e.target.value)}></ion-input>
           ${this.newItems.length > 1 ? html`<ion-button data-testid="invoice-line-${it.uid}-remove" fill="clear" class="tone-danger" aria-label=${erploraT('ui.removeLine')} @click=${() => (this.newItems = this.newItems.filter((_, j) => j !== i))}><ion-icon slot="icon-only" name="close-outline"></ion-icon></ion-button>` : nothing}
         </div>`)}
+        <!-- pm#513: the refusal sits above «Issue invoice» — under the buttons it was painted below
+             the bottom edge of the sheet on a phone. -->
+        ${this.formError ? html`<ok-inline-feedback data-testid="invoice-create-error" tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : nothing}
         <div class="row-actions">
           <ion-button data-testid="invoice-create-add-line" fill="outline" @click=${() => this.addItem()}>${erploraT('ui.addLine')}</ion-button>
           <ion-button data-testid="invoice-create-submit" type="submit" ?disabled=${this.saving || !this.itemsValid}>${this.saving ? erploraT('ui.issuing') : erploraT('ui.issueInvoice')}</ion-button>
           <ion-button data-testid="invoice-create-cancel" fill="clear" class="tone-medium" @click=${() => this.dataTable()?.close()}>${erploraT('ui.cancel')}</ion-button>
         </div>
-        ${this.formError ? html`<ok-inline-feedback data-testid="invoice-create-error" tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : nothing}
       </form>`;
+  }
+
+  /** pm#513: a refusal appears above the button that was pressed — on a phone that can still leave it
+   *  off the screen. Bring it into view when it appears, not again on every keystroke or repaint. */
+  updated(changed: PropertyValues): void {
+    super.updated(changed);
+    if (changed.has('formError') && this.formError) void this.revealRefusal('[data-testid="invoice-create-error"]');
+    if (changed.has('detailActionError') && this.detailActionError) void this.revealRefusal('[data-testid="invoice-detail-error"]');
+  }
+
+  /** ok-inline-feedback lays itself out in its own update: scrolled to before it, the box is empty. */
+  private async revealRefusal(selector: string): Promise<void> {
+    const banner = this.renderRoot.querySelector(selector) as (HTMLElement & { updateComplete?: Promise<unknown> }) | null;
+    await banner?.updateComplete;
+    banner?.scrollIntoView?.({ block: 'center' });
   }
 
   // El título de la vista lo pinta el topbar del shell: repetirlo aquí lo duplicaba en pantalla.

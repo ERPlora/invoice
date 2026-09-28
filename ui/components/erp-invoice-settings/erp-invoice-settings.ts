@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
+import type { PropertyValues } from 'lit';
 import { state } from 'lit/decorators.js';
 import { define } from '@erplora/outfitkit/define';
 import '@erplora/outfitkit/ok-inline-feedback';
@@ -456,6 +457,9 @@ export class ErpInvoiceSettings extends LitElement {
             <ion-toggle data-testid="invoice-series-default" .checked=${f.is_default} @ionChange=${(e: any) => this.setField('is_default', e.target.checked)}>${erploraT('ui.fieldDefault')}</ion-toggle>
           </ion-item>
         </div>
+        <!-- pm#513: the refusal sits above «Create series»/«Save» — under the buttons it was painted
+             below the bottom edge of the sheet on a phone. -->
+        ${this.formError ? html`<ok-inline-feedback data-testid="invoice-series-form-error" tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : nothing}
         <div class="row-actions">
           <ion-button data-testid="invoice-series-submit" type="submit" ?disabled=${this.saving}>
             ${this.saving
@@ -464,8 +468,21 @@ export class ErpInvoiceSettings extends LitElement {
           </ion-button>
           <ion-button data-testid="invoice-series-cancel" fill="clear" class="tone-medium" @click=${() => this.cancelForm()}>${erploraT('ui.cancel')}</ion-button>
         </div>
-        ${this.formError ? html`<ok-inline-feedback data-testid="invoice-series-form-error" tone="danger" icon="alert-circle-outline">${this.formError}</ok-inline-feedback>` : nothing}
       </form>`;
+  }
+
+  /** pm#513: the refusal appears above the button that was pressed — on a phone that can still leave
+   *  it off the sheet. Bring it into view when it appears, not again on every keystroke. */
+  updated(changed: PropertyValues): void {
+    super.updated(changed);
+    if (changed.has('formError') && this.formError) void this.revealRefusal();
+  }
+
+  /** ok-inline-feedback lays itself out in its own update: scrolled to before it, the box is empty. */
+  private async revealRefusal(): Promise<void> {
+    const banner = this.renderRoot.querySelector('[data-testid="invoice-series-form-error"]') as (HTMLElement & { updateComplete?: Promise<unknown> }) | null;
+    await banner?.updateComplete;
+    banner?.scrollIntoView?.({ block: 'center' });
   }
 
   // El título de la vista lo pinta el topbar del shell: repetirlo aquí lo duplicaba en pantalla.
