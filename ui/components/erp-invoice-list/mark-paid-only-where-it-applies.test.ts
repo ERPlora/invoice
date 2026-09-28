@@ -241,4 +241,47 @@ describe('invoice#109 · the server refuses a row that is stale, and says so in 
     );
     expect(listReads, 'the stale row keeps offering «Mark as paid»').toBe(before + 1);
   });
+
+  it('the same stale refusal from the OPEN invoice: its card catches up too and drops «Mark as paid»', async () => {
+    const el = await mount();
+    await el.openDetail('i1');
+    await settle(el);
+    // Paid in another tab meanwhile: the server knows it, this card still reads «issued».
+    const api = (globalThis as Record<string, any>).erplora;
+    const query = api.query;
+    api.query = async (name: string, params?: { invoice_id?: string }) => {
+      const rows = await query(name, params);
+      return name === 'invoice.get' ? rows.map((r: Record<string, unknown>) => ({ ...r, status: 'paid' })) : rows;
+    };
+    refuseWith = Object.assign(new Error(FALLBACK), { code: CODE });
+    (el.shadowRoot.querySelector('[data-testid="invoice-detail-mark-paid"]') as HTMLElement).click();
+    await settle(el);
+    await press(el, 'confirm');
+    expect(markPaids()).toHaveLength(1);
+    expect(
+      el.shadowRoot.querySelector('[data-testid="invoice-detail-error"]')?.textContent?.trim(),
+      'the refusal goes to the card, translated',
+    ).toBe((es.errors as Record<string, string>)[CODE]);
+    expect(detailButtons(el), 'the card of a paid invoice would keep offering «Mark as paid»').toEqual(['rectify']);
+  });
+});
+
+describe('invoice#109 · a confirmation that cannot be opened is said, not swallowed', () => {
+  it('the person is told «Mark as paid» failed, nothing is marked and no broken dialog is left', async () => {
+    const el = await mount();
+    const create = document.createElement.bind(document);
+    const spy = vi.spyOn(document, 'createElement').mockImplementation(((tag: string, options?: ElementCreationOptions) => {
+      const node = create(tag, options);
+      if (tag === 'ion-alert') (node as unknown as { present: () => Promise<void> }).present = () => Promise.reject(new Error('overlay'));
+      return node;
+    }) as typeof document.createElement);
+    try {
+      await tapRowPaid(el);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(markPaids()).toEqual([]);
+    expect(pageNotice(el), 'a tap that does nothing and says nothing').toBe(es.ui.errMarkPaid);
+    expect(confirmAlert(), 'a dialog that never opened left on document.body').toBeNull();
+  });
 });
