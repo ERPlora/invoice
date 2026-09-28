@@ -214,6 +214,25 @@ describe('«Rectifies» names the original invoice by its number and opens it (i
     expect(el.shadowRoot.querySelector('[data-testid="invoice-detail-rectifies-link"]')).toBeNull();
   });
 
+  it('a refused read of the original (permission, network) still opens the rectifying one, with «—»', async () => {
+    stub({ lang: 'es', originals: { r1: RECTIFYING } });
+    const erp = (globalThis as { erplora: { query: (n: string, p?: Record<string, unknown>) => Promise<unknown> } }).erplora;
+    const base = erp.query;
+    erp.query = async (name, params) => {
+      if (name === 'invoice.get' && params?.invoice_id === ORIGINAL_ID) throw Object.assign(new Error('refused'), { code: 'permission_denied' });
+      return base(name, params);
+    };
+    await import('./erp-invoice-list');
+    const el = document.createElement('erp-invoice-list') as Wc;
+    document.body.appendChild(el);
+    await settle(el);
+    await el.openDetail('r1');
+    await settle(el);
+    expect((el.detail as { id?: string } | null)?.id, 'the rectifying invoice is open').toBe('r1');
+    expect(text(field(el, ui('es', 'fieldRectifies')))).toBe('—');
+    expect(el.shadowRoot.querySelector('[data-testid="invoice-detail-rectifies-link"]')).toBeNull();
+  });
+
   it('a late reply for the original never paints over another invoice opened meanwhile', async () => {
     let release: () => void = () => {};
     const gate = new Promise<void>((r) => { release = r; });
