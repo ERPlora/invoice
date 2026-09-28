@@ -507,7 +507,9 @@ export class ErpInvoiceList extends LitElement {
   private async markPaid(inv: { id: string; status: string }, from: 'row' | 'detail' = 'row') {
     const refuse = (text: string) => { if (from === 'detail') this.detailActionError = text; else this.actionError = text; };
     if (inv.status !== 'issued') { refuse(erploraT('ui.errMarkPaidStatus')); return; }
-    refuse('');
+    // Pressed again, from either place: an older refusal on the page or in the card is stale (staff#75).
+    this.actionError = '';
+    this.detailActionError = '';
     this.busy = true;
     try {
       await erplora().command('invoice.mark_paid', { invoice_id: inv.id });

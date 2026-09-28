@@ -295,6 +295,22 @@ describe('pm#513 · invoices: a refused «Mark as paid» of the OPEN invoice is 
     expect(whereIs(el, REFUSAL), 'the refusal of FACT-0001 is painted on FACT-0002').toEqual([]);
   });
 
+  it('marking it paid from the card also clears the page notice of an earlier refused row «Mark as paid»', async () => {
+    const el = await mountList();
+    refuse = REFUSAL;
+    await rowPaid(el);
+    expect(whereIs(el, REFUSAL)).toEqual(['page']);
+    refuse = null;
+    await el.openDetail('i1');
+    await settle(el);
+    q(el, 'invoice-detail-mark-paid')!.click();
+    await settle(el);
+    expect(commands).toEqual(['invoice.mark_paid', 'invoice.mark_paid']);
+    q(el, 'invoice-detail-back')!.click();
+    await settle(el);
+    expect(whereIs(el, REFUSAL), 'the list still says it could not be marked paid, and it now is').toEqual([]);
+  });
+
   it('a «Mark as paid» that goes through refreshes the list and the open invoice', async () => {
     const el = await mountList();
     await el.openDetail('i1');

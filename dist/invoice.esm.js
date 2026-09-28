@@ -5659,7 +5659,8 @@ var ErpInvoiceList = class extends i3 {
       refuse(erploraT("ui.errMarkPaidStatus"));
       return;
     }
-    refuse("");
+    this.actionError = "";
+    this.detailActionError = "";
     this.busy = true;
     try {
       await erplora().command("invoice.mark_paid", { invoice_id: inv.id });
