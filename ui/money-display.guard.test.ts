@@ -64,8 +64,9 @@ it('money on screen goes through <ok-money> and OutfitKit by entry point (pm#289
 //   `formatMoney`/`formatAmount` (which divide in a float) have no place here: they would paint the
 //   invoice detail with other separators and other rounding than the invoice paper.
 // * fixed-scale — the SDK's `eurosToCents`/`centsToEuros` pin the scale to two decimals, so in a
-//   JPY or KWD hub a typed price is stored 100× or 10× wrong (invoice#95); convert with
-//   `majorToMinor(x, currencyDecimals())` instead.
+//   JPY or KWD hub a typed price is stored 100× or 10× wrong (invoice#95); read a typed price with
+//   `parseMoneyInput(x, currencyDecimals(), …)` of `@erplora/module-toolkit/money-input` instead
+//   (pm#521), which also reads what is pasted.
 
 type ModuleRule = 'sdk-format' | 'fixed-scale';
 
@@ -81,12 +82,12 @@ function uiSources(dir: string): string[] {
 
 /** What the module rules find in code already stripped of comments: each call to the SDK formatters
  *  or to the two-decimal conversions, as `[rule] trimmed line`, and how many times the same code
- *  does it right — paints with `<ok-money>`, converts a typed amount with `majorToMinor(` and a
+ *  does it right — paints with `<ok-money>`, reads a typed amount with `parseMoneyInput(` and a
  *  minor-unit one with `toUnits(` (both at the hub scale). Those counts are the witness on the
  *  detector's OUTPUT (rv-taxes-78): fed empty or cut content, it reports zero of them. The
  *  WHOLE source is scanned, not line by line: prettier splits a call over several lines
  *  (`centsToEuros(\n  row.price,\n)`). */
-export function moduleMoneyScan(code: string): { hits: string[]; okMoney: number; majorToMinor: number; toUnits: number } {
+export function moduleMoneyScan(code: string): { hits: string[]; okMoney: number; parseMoneyInput: number; toUnits: number } {
   const lines = code.split('\n');
   const at = (rule: ModuleRule, i: number) => `[${rule}] ${lines[code.slice(0, i).split('\n').length - 1].trim()}`;
   return {
@@ -95,7 +96,7 @@ export function moduleMoneyScan(code: string): { hits: string[]; okMoney: number
       ...[...code.matchAll(/\b(?:eurosToCents|centsToEuros)\s*\(/g)].map((m) => at('fixed-scale', m.index!)),
     ],
     okMoney: [...code.matchAll(/html`<ok-money\b/g)].length,
-    majorToMinor: [...code.matchAll(/\bmajorToMinor\s*\(/g)].length,
+    parseMoneyInput: [...code.matchAll(/\bparseMoneyInput\s*\(/g)].length,
     toUnits: [...code.matchAll(/\btoUnits\s*\(/g)].length,
   };
 }
@@ -113,13 +114,13 @@ describe('amounts go through <ok-money> and the hub scale, not the SDK helpers (
     }
     // The control that keeps this from passing vacuously, read from what the detector RETURNED, in
     // `components/` and in `lib/`: the list's `money(` helper built on `<ok-money>` and its typed
-    // unit price converted with `majorToMinor(it.unit_price, currencyDecimals())`, and the thermal
+    // unit price read with `parseMoneyInput(typed, currencyDecimals(), …)` (pm#521), and the thermal
     // paper's `toUnits(` (its declaration and the six fields).
     const list = seen.get('components/erp-invoice-list/erp-invoice-list.ts');
     expect(list?.okMoney).toBeGreaterThanOrEqual(1);
-    expect(list?.majorToMinor).toBeGreaterThanOrEqual(1);
+    expect(list?.parseMoneyInput).toBeGreaterThanOrEqual(1);
     expect(seen.get('lib/print-document.ts')?.toUnits).toBeGreaterThanOrEqual(7);
-    expect(found, 'paint with <ok-money>, convert with majorToMinor(x, currencyDecimals())').toEqual([]);
+    expect(found, 'paint with <ok-money>, read a typed amount with parseMoneyInput(x, currencyDecimals())').toEqual([]);
   });
 
   it('the detector catches the SDK formatters and the two-decimal conversions, across lines too', () => {

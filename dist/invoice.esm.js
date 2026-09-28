@@ -4411,8 +4411,8 @@ function formatMinor(value, opts) {
   const { decimal, group } = separatorsOf(opts.locale);
   const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, group);
   const number = decimals > 0 ? `${grouped}${decimal}${fracPart}` : grouped;
-  const signed = negative && /[1-9]/.test(digits) ? `-${number}` : number;
-  return opts.currency ? `${signed} ${opts.currency}` : signed;
+  const signed2 = negative && /[1-9]/.test(digits) ? `-${number}` : number;
+  return opts.currency ? `${signed2} ${opts.currency}` : signed2;
 }
 var OkMoney = class extends i3 {
   constructor() {
@@ -4888,6 +4888,138 @@ function majorToMinor(amount, decimals) {
   return Number.isFinite(n6) ? Math.round(n6 * 10 ** decimals) : 0;
 }
 
+// @erplora/module-toolkit/src/money-input.mjs
+var SPACING = "\\s'\\u2019\\u02bc";
+var GROUP_SEP = new RegExp(`[.,${SPACING}]`);
+var MINUS = /[-\u2212]/;
+var SIGN = /[-+\u2212]/;
+var SIGNS = /[-+\u2212]/g;
+var BRACKET = /[()]/;
+var CURRENCY_SIGNS = /\p{Sc}/gu;
+var AFFIX_FILLER = new RegExp(`^[${SPACING}\\p{Cf}.,+\\-\\u2212]*$`, "u");
+var NOT_AN_AMOUNT2 = Object.freeze({ ok: false, code: "not_an_amount" });
+function checkDecimals(decimals) {
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 4) {
+    throw new RangeError(`money_input_decimals_invalid: ${String(decimals)}`);
+  }
+}
+function currencyWords(currency, locale) {
+  if (currency === void 0) return [];
+  if (typeof currency !== "string" || !/^[A-Za-z]{3}$/.test(currency)) {
+    throw new RangeError(`money_input_currency_invalid: ${String(currency)}`);
+  }
+  const words = /* @__PURE__ */ new Set([currency.toLowerCase()]);
+  for (const lang of [locale || "en", "en"]) {
+    for (const currencyDisplay of ["symbol", "narrowSymbol"]) {
+      const part = new Intl.NumberFormat(lang, { style: "currency", currency, currencyDisplay }).formatToParts(1).find((p4) => p4.type === "currency");
+      if (part) words.add(part.value.toLowerCase());
+    }
+  }
+  return [...words].sort((a3, b3) => b3.length - a3.length);
+}
+function isCurrencyOnly(affixes, words) {
+  let rest = affixes.toLowerCase();
+  if (!words.length) rest = rest.replace(CURRENCY_SIGNS, " ");
+  for (const word of words) rest = rest.split(word).join(" ");
+  return AFFIX_FILLER.test(rest);
+}
+function isGrouping(intPart) {
+  const groups = intPart.split(GROUP_SEP);
+  if (groups.length < 2) return false;
+  const [first, ...rest] = groups;
+  const last = rest.pop();
+  return /^[1-9]\d{0,2}$/.test(first) && rest.every((g3) => /^\d{2,3}$/.test(g3)) && /^\d{3}$/.test(last);
+}
+function digitsToMinor(intDigits2, fracDigits, decimals) {
+  const padded = fracDigits.padEnd(decimals + 1, "0");
+  const kept = (intDigits2 || "0") + padded.slice(0, decimals);
+  let minor = Number(kept);
+  if (Number(padded[decimals]) >= 5) minor += 1;
+  return Number.isSafeInteger(minor) ? minor : null;
+}
+function signed(minor, negative) {
+  return negative && minor !== 0 ? -minor : minor;
+}
+function splitCore(core, decimals) {
+  const dots = (core.match(/\./g) ?? []).length;
+  const commas = (core.match(/,/g) ?? []).length;
+  if (dots && commas) {
+    const dec = core.lastIndexOf(".") > core.lastIndexOf(",") ? "." : ",";
+    if ((dec === "." ? dots : commas) !== 1) return null;
+    const at2 = core.lastIndexOf(dec);
+    return { intPart: core.slice(0, at2), frac: core.slice(at2 + 1) };
+  }
+  if (dots + commas !== 1) return { intPart: core, frac: "" };
+  const at = Math.max(core.lastIndexOf("."), core.lastIndexOf(","));
+  const intPart = core.slice(0, at);
+  const tail = core.slice(at + 1);
+  if (tail.length === 3 && isGrouping(core)) {
+    if (decimals === 0) return { intPart: core, frac: "" };
+    if (decimals !== 3) return { ambiguous: { intPart, tail } };
+  }
+  return { intPart, frac: tail };
+}
+function intDigits(intPart) {
+  if (!GROUP_SEP.test(intPart)) return /^\d*$/.test(intPart) ? intPart : null;
+  return isGrouping(intPart) ? intPart.replace(/\D/g, "") : null;
+}
+function parseMoneyInput(typed, decimals, options = {}) {
+  checkDecimals(decimals);
+  const words = currencyWords(options.currency, options.locale);
+  if (typeof typed === "number") return parseNumber(typed, decimals);
+  const raw = String(typed ?? "").trim();
+  if (!raw) return { ok: true, minor: null };
+  const firstDigit = raw.search(/\d/);
+  if (firstDigit < 0) return NOT_AN_AMOUNT2;
+  const start = firstDigit > 0 && /[.,]/.test(raw[firstDigit - 1]) ? firstDigit - 1 : firstDigit;
+  const end = raw.search(/\d\D*$/) + 1;
+  const prefix = raw.slice(0, start);
+  const suffix = raw.slice(end);
+  const core = raw.slice(start, end);
+  const signs = prefix.match(SIGNS) ?? [];
+  if (signs.length > 1 || SIGN.test(suffix) || BRACKET.test(prefix + suffix)) return NOT_AN_AMOUNT2;
+  if (!isCurrencyOnly(`${prefix} ${suffix}`, words)) return NOT_AN_AMOUNT2;
+  const negative = signs.length === 1 && MINUS.test(signs[0]);
+  const split = splitCore(core, decimals);
+  if (!split) return NOT_AN_AMOUNT2;
+  if ("ambiguous" in split) {
+    const { intPart, tail } = split.ambiguous;
+    const digits = intPart.replace(/\D/g, "");
+    const grouped = digitsToMinor(digits + tail, "", decimals);
+    const decimal = digitsToMinor(digits, tail, decimals);
+    if (grouped === null || decimal === null) return NOT_AN_AMOUNT2;
+    return {
+      ok: false,
+      code: "ambiguous_amount",
+      readings: { grouped: signed(grouped, negative), decimal: signed(decimal, negative) }
+    };
+  }
+  const whole = intDigits(split.intPart);
+  if (whole === null || split.frac && !/^\d+$/.test(split.frac)) return NOT_AN_AMOUNT2;
+  const minor = digitsToMinor(whole, split.frac, decimals);
+  return minor === null ? NOT_AN_AMOUNT2 : { ok: true, minor: signed(minor, negative) };
+}
+function parseNumber(n6, decimals) {
+  const m4 = /^(\d+)(?:\.(\d+))?$/.exec(String(Math.abs(n6)));
+  if (!m4) return NOT_AN_AMOUNT2;
+  const minor = digitsToMinor(m4[1], m4[2] ?? "", decimals);
+  return minor === null ? NOT_AN_AMOUNT2 : { ok: true, minor: signed(minor, n6 < 0) };
+}
+function formatMoneyInput(minor, decimals, locale) {
+  checkDecimals(decimals);
+  if (minor == null) return "";
+  return new Intl.NumberFormat(locale || "en", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+    useGrouping: false,
+    numberingSystem: "latn"
+  }).format(minor / 10 ** decimals);
+}
+function normaliseMoneyInput(typed, decimals, locale, currency) {
+  const parsed = parseMoneyInput(typed, decimals, { currency, locale });
+  return parsed.ok && parsed.minor !== null ? formatMoneyInput(parsed.minor, decimals, locale) : typed;
+}
+
 // ui/lib/quantity.ts
 var QUANTITY_SCALE2 = 1e6;
 function fromMicro2(raw) {
@@ -5105,6 +5237,9 @@ var es_default = {
     errAlreadyCancelled: "La factura ya est\xE1 cancelada.",
     errRectify: "No se pudo rectificar",
     errCreate: "No se pudo crear la factura",
+    errNotAnAmount: "L\xEDnea {line}: el precio no es un importe. Escribe una cifra, por ejemplo 12,50.",
+    errAmbiguousAmount: "L\xEDnea {line}: el precio \xAB{typed}\xBB se puede leer de dos maneras: {grouped} o {decimal}. Escribe los decimales para que no haya duda.",
+    errLinePriceNegative: "L\xEDnea {line}: un precio no puede ser negativo. Para devolver un importe, emite una factura rectificativa de la factura que corrige.",
     seriesTitle: "Series de numeraci\xF3n",
     seriesIntro: "Cada serie define el prefijo y el contador de la numeraci\xF3n de facturas (PREFIX-YYYY-NNNNNN) por tipo de factura (F1, F2, \u2026). El c\xF3digo, el a\xF1o y el contador son inmutables por integridad fiscal; solo se pueden editar el nombre, el prefijo, si est\xE1 activa y si es la predeterminada.",
     newSeries: "Nueva serie",
@@ -5259,6 +5394,9 @@ var en_default = {
     errAlreadyCancelled: "The invoice is already cancelled.",
     errRectify: "Could not rectify",
     errCreate: "Could not create the invoice",
+    errNotAnAmount: "Line {line}: the price is not an amount. Type a figure, for example 12.50.",
+    errAmbiguousAmount: "Line {line}: the price \xAB{typed}\xBB can be read in two ways: {grouped} or {decimal}. Write the decimals so there is no doubt.",
+    errLinePriceNegative: "Line {line}: a price cannot be negative. To give an amount back, issue a corrective invoice of the invoice it corrects.",
     seriesTitle: "Numbering series",
     seriesIntro: "Each series defines the prefix and counter of the invoice numbering (PREFIX-YYYY-NNNNNN) per invoice type (F1, F2, \u2026). The code, year and counter are immutable for fiscal integrity; only the name, prefix, active state and default flag can be edited.",
     newSeries: "New series",
@@ -5366,10 +5504,31 @@ var currencyDecimals = () => {
   const d3 = erplora().currencyDecimals;
   return typeof d3 === "number" && Number.isFinite(d3) ? d3 : 2;
 };
-var moneyStep = () => {
+function readLinePrice(typed, line) {
+  const c5 = erplora();
   const d3 = currencyDecimals();
-  return d3 <= 0 ? "1" : `0.${"0".repeat(d3 - 1)}1`;
-};
+  const read = parseMoneyInput(typed, d3, { currency: c5.currency || void 0, locale: c5.locale });
+  if (read.ok && read.minor !== null) {
+    if (read.minor < 0) return { ok: false, message: erploraT("ui.errLinePriceNegative", { line }) };
+    return { ok: true, minor: read.minor };
+  }
+  if (!read.ok && read.code === "ambiguous_amount") {
+    return {
+      ok: false,
+      message: erploraT("ui.errAmbiguousAmount", {
+        line,
+        typed: typed.trim(),
+        grouped: formatMoneyInput(read.readings.grouped, d3, c5.locale),
+        decimal: formatMoneyInput(read.readings.decimal, d3, c5.locale)
+      })
+    };
+  }
+  return { ok: false, message: erploraT("ui.errNotAnAmount", { line }) };
+}
+function normaliseLinePrice(typed) {
+  const c5 = erplora();
+  return normaliseMoneyInput(typed, currencyDecimals(), c5.locale, c5.currency || void 0);
+}
 var QUANTITY_STEP = `0.${"0".repeat(String(QUANTITY_SCALE2).length - 2)}1`;
 var TAX_RATE_STEP = "any";
 var money = (v3, currency) => b2`<ok-money
@@ -5730,7 +5889,9 @@ var ErpInvoiceList = class extends i3 {
   }
   get itemsValid() {
     return this.newItems.length > 0 && this.newItems.every(
-      (it) => it.description.trim() && (parseQuantity2(it.quantity) ?? 0) > 0 && it.unit_price !== "" && !Number.isNaN(Number(it.unit_price))
+      // The price only has to be there: what cannot be read is refused on «Issue» WITH its reason
+      // (pm#521) — a grey button with no reason was what a pasted «1.250,50» used to get.
+      (it) => it.description.trim() && (parseQuantity2(it.quantity) ?? 0) > 0 && it.unit_price.trim() !== ""
     );
   }
   async create(ev) {
@@ -5740,6 +5901,12 @@ var ErpInvoiceList = class extends i3 {
     this.formError = "";
     this.actionError = "";
     try {
+      const prices = [];
+      for (const [i7, it] of this.newItems.entries()) {
+        const read = readLinePrice(it.unit_price, i7 + 1);
+        if (!read.ok) throw new Error(read.message);
+        prices.push(read.minor);
+      }
       await erplora().command("invoice.create", {
         series_code: this.newSeriesCode || "FACT",
         customer_name: this.newCustomerName.trim(),
@@ -5751,10 +5918,10 @@ var ErpInvoiceList = class extends i3 {
         // logical quantities; the wire carries MINOR units (ADR-0123) with the hub currency scale
         // — the same one that paints and prints the invoice (JPY 0, KWD 3; invoice#95) — and
         // quantities in 10⁶ fixed point (ADR-0147).
-        items: this.newItems.map((it) => ({
+        items: this.newItems.map((it, i7) => ({
           description: it.description.trim(),
           quantity: parseQuantity2(it.quantity) ?? QUANTITY_SCALE2,
-          unit_price: majorToMinor(it.unit_price, currencyDecimals()),
+          unit_price: prices[i7],
           tax_rate: Number(it.tax_rate) || 0,
           product_id: null
         }))
@@ -6034,7 +6201,7 @@ var ErpInvoiceList = class extends i3 {
         ${this.newItems.map((it, i7) => b2`<div class="item-row">
           <ion-input data-testid="invoice-line-${it.uid}-description" class="desc" fill="outline" label-placement="floating" label=${erploraT("ui.lineDescription")} .value=${it.description} @ionInput=${(e5) => this.setItem(i7, "description", e5.target.value)}></ion-input>
           <ion-input data-testid="invoice-line-${it.uid}-quantity" class="num" fill="outline" label-placement="floating" label=${erploraT("ui.lineQty")} type="number" step=${QUANTITY_STEP} .value=${it.quantity} @ionInput=${(e5) => this.setItem(i7, "quantity", e5.target.value)}></ion-input>
-          <ion-input data-testid="invoice-line-${it.uid}-price" class="num" fill="outline" label-placement="floating" label=${erploraT("ui.linePrice")} type="number" step=${moneyStep()} .value=${it.unit_price} @ionInput=${(e5) => this.setItem(i7, "unit_price", e5.target.value)}></ion-input>
+          <ion-input data-testid="invoice-line-${it.uid}-price" class="num" fill="outline" label-placement="floating" label=${erploraT("ui.linePrice")} type="text" inputmode="decimal" .value=${it.unit_price} @ionInput=${(e5) => this.setItem(i7, "unit_price", e5.target.value)} @ionBlur=${() => this.setItem(i7, "unit_price", normaliseLinePrice(this.newItems[i7]?.unit_price ?? ""))}></ion-input>
           <ion-input data-testid="invoice-line-${it.uid}-tax-rate" class="num" fill="outline" label-placement="floating" label=${erploraT("ui.lineTaxPct")} type="number" step=${TAX_RATE_STEP} .value=${it.tax_rate} @ionInput=${(e5) => this.setItem(i7, "tax_rate", e5.target.value)}></ion-input>
           ${this.newItems.length > 1 ? b2`<ion-button data-testid="invoice-line-${it.uid}-remove" fill="clear" class="tone-danger" aria-label=${erploraT("ui.removeLine")} @click=${() => this.newItems = this.newItems.filter((_2, j2) => j2 !== i7)}><ion-icon slot="icon-only" name="close-outline"></ion-icon></ion-button>` : A}
         </div>`)}

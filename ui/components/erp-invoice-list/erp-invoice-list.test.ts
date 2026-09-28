@@ -94,7 +94,7 @@ describe('el alta manual vive DENTRO de la tabla (paridad con /employees e inven
 // CAMBIO DE CONTRATO (ADR-0123 + ADR-0147, 2026-07-19): el payload anterior mandaba lo tecleado
 // TAL CUAL (`unit_price: 50` por «50 €», `quantity: 2` lógica). El schema y la BD siempre fueron
 // céntimos enteros, y la cantidad ahora es punto fijo 10⁶ — la conversión ocurre en la frontera
-// de la UI (majorToMinor with the hub currency scale / toMicro), como en inventory y sales.
+// de la UI (parseMoneyInput with the hub currency scale, pm#521 / toMicro), como en inventory y sales.
 describe('la cadena fiscal habla el contrato: céntimos y punto fijo 10⁶', () => {
   it('emitir manda invoice.create con precios en CÉNTIMOS y cantidades en µ, y cierra el panel', async () => {
     const el = await montar();
@@ -161,18 +161,27 @@ describe('la cadena fiscal habla el contrato: céntimos y punto fijo 10⁶', () 
     expect((alta!.payload.items as Array<{ unit_price: number }>)[0].unit_price).toBe(minor);
   });
 
-  // The submit button clicks a native one, so the browser validates the form: a `type="number"`
-  // input with no `step` only accepts integers and «1.234» KWD (or «12.50» EUR) would be refused.
+  // The line price used to be `type="number"` with a `step` of the currency's smallest unit; a number
+  // field throws a pasted «1.250,50» away, so it is text now (pm#521) and the currency scale is what
+  // the field is REWRITTEN to when the person leaves it («1.234» KWD, «12.50» EUR still go through).
   it.each([
-    { currency: 'JPY', decimals: 0, step: '1' },
-    { currency: 'EUR', decimals: 2, step: '0.01' },
-    { currency: 'KWD', decimals: 3, step: '0.001' },
-  ])('the line price input accepts the smallest unit of $currency', async ({ currency, decimals, step }) => {
+    { currency: 'JPY', decimals: 0, shown: '12' },
+    { currency: 'EUR', decimals: 2, shown: '12,00' },
+    { currency: 'KWD', decimals: 3, shown: '12,000' },
+  ])('the line price is rewritten to the $currency scale on blur', async ({ currency, decimals, shown }) => {
     Object.assign(globalThis.erplora as unknown as Record<string, unknown>, { currency, currencyDecimals: decimals });
     const el = await montar();
-    const input = el.shadowRoot.querySelector('[data-testid="invoice-line-1-price"]') as (HTMLElement & { step?: string }) | null;
+    const wc = el as unknown as {
+      newItems: { uid: number; description: string; quantity: string; unit_price: string; tax_rate: string }[];
+      requestUpdate: () => void; updateComplete: Promise<unknown>;
+    };
+    wc.newItems = [{ uid: 1, description: 'Item', quantity: '1', unit_price: '12', tax_rate: '10' }];
+    wc.requestUpdate();
+    await wc.updateComplete;
+    const input = el.shadowRoot.querySelector('[data-testid="invoice-line-1-price"]');
     expect(input, 'the line price input is not rendered').toBeTruthy();
-    expect(input!.step ?? input!.getAttribute('step')).toBe(step);
+    input!.dispatchEvent(new CustomEvent('ionBlur'));
+    expect(wc.newItems[0].unit_price).toBe(shown);
   });
 
   // invoice#97: same native validation on the quantity. With no `step` «0.5» (half a unit, a quarter
