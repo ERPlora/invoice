@@ -254,6 +254,12 @@ describe('two invoices opened in a row: the last one wins (invoice#102, pm#459)'
 
     (q(el, 'invoice-detail-mark-paid') as HTMLElement).click();
     await settle(el);
+    // invoice#109: «Mark as paid» asks first — confirm the dialog it opens on document.body.
+    const confirm = document.body.querySelector('ion-alert[data-testid="invoice-mark-paid-confirm"]') as
+      (HTMLElement & { buttons: Array<{ role?: string; handler?: () => unknown }> }) | null;
+    expect(confirm, 'the «Mark as paid» confirmation').toBeTruthy();
+    await confirm?.buttons.find((b) => b.role === 'confirm')?.handler?.();
+    await settle(el);
     const wc = el as unknown as { aeat: { status?: string } | null };
     expect(wc.aeat?.status, 'the reload painted the fresh record').toBe('accepted');
 
