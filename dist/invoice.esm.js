@@ -5525,7 +5525,7 @@ function businessZone() {
   }
 }
 function momentText(value) {
-  const at = new Date(value.trim().replace(" ", "T").replace(/(\.\d{3})\d+/, "$1"));
+  const at = new Date(value);
   if (Number.isNaN(at.getTime())) return "";
   return at.toLocaleString(erplora().locale || void 0, { dateStyle: "short", timeStyle: "short", timeZone: businessZone() });
 }
@@ -5872,7 +5872,6 @@ var ErpInvoiceList = class extends i3 {
     this.detail = null;
     this.detailLines = [];
     this.detailError = "";
-    this.rectifiedNumber = "";
     this.resetRectify();
     this.aeat = null;
   }
