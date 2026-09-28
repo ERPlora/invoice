@@ -8,8 +8,10 @@ import '@erplora/outfitkit/ok-invoice';
 import '@erplora/outfitkit/ok-money';
 import '@erplora/outfitkit/ok-qr';
 import type { DataTableColumn, DataTableAction, InvoiceData } from '@erplora/outfitkit';
-import { createListController, majorToMinor } from '@erplora/module-sdk';
+import { createListController } from '@erplora/module-sdk';
 import type { ListController, ListClient, ListParams, ListPage } from '@erplora/module-sdk';
+// What a person types or pastes into a money field, read the one way every module reads it (pm#521).
+import { formatMoneyInput, normaliseMoneyInput, parseMoneyInput } from '@erplora/module-toolkit/money-input';
 // Aduana de la escala de cantidades (ADR-0147): la UI habla lógico (0,5), el cable habla µ (500000).
 import { QUANTITY_SCALE, parseQuantity, formatQuantity, fromMicro } from '../../lib/quantity';
 import { lineTaxLabel } from '../../lib/line-tax';
@@ -159,12 +161,43 @@ const currencyDecimals = (): number => {
   const d = erplora().currencyDecimals;
   return typeof d === 'number' && Number.isFinite(d) ? d : 2;
 };
-/** `step` of a money input: the smallest unit of the hub currency (JPY «1», EUR «0.01», KWD
- *  «0.001»). Without it a `type="number"` input only accepts integers and the form is refused. */
-const moneyStep = (): string => {
+/**
+ * The PRICE typed on line `line` (1-based) → minor units of the hub currency, or the sentence that
+ * says why it cannot be issued (pm#521). It used to be `Number()` + `majorToMinor()`: «1.250,50» —
+ * verbatim what the invoice detail prints — was NaN and left «Issue invoice» grey with no reason,
+ * and «1.250» was issued as 1,25 €. A price below zero is refused here with its own reason: the
+ * command schema has `minimum: 0` (the hub would redact the server's refusal into a generic one,
+ * hub#1074) and money given back is a corrective invoice. Zero is an honest free line.
+ */
+function readLinePrice(typed: string, line: number): { ok: true; minor: number } | { ok: false; message: string } {
+  const c = erplora();
   const d = currencyDecimals();
-  return d <= 0 ? '1' : `0.${'0'.repeat(d - 1)}1`;
-};
+  const read = parseMoneyInput(typed, d, { currency: c.currency || undefined, locale: c.locale });
+  if (read.ok && read.minor !== null) {
+    if (read.minor < 0) return { ok: false, message: erploraT('ui.errLinePriceNegative', { line }) };
+    return { ok: true, minor: read.minor };
+  }
+  if (!read.ok && read.code === 'ambiguous_amount') {
+    // Both readings, in the hub's format, so the person can copy the one they meant back.
+    return {
+      ok: false,
+      message: erploraT('ui.errAmbiguousAmount', {
+        line,
+        typed: typed.trim(),
+        grouped: formatMoneyInput(read.readings.grouped, d, c.locale),
+        decimal: formatMoneyInput(read.readings.decimal, d, c.locale),
+      }),
+    };
+  }
+  // Garbage — or nothing at all, which `itemsValid` already keeps away from «Issue invoice».
+  return { ok: false, message: erploraT('ui.errNotAnAmount', { line }) };
+}
+
+/** The price field once the person leaves it: the hub format when readable, as typed when not. */
+function normaliseLinePrice(typed: string): string {
+  const c = erplora();
+  return normaliseMoneyInput(typed, currencyDecimals(), c.locale, c.currency || undefined);
+}
 /** `step` of the line quantity: one unit of the 10⁶ quantity scale (ADR-0147), so the browser
  *  accepts «0.5» and refuses only what parseQuantity refuses — a 7th decimal (invoice#97). */
 const QUANTITY_STEP = `0.${'0'.repeat(String(QUANTITY_SCALE).length - 2)}1`;
@@ -598,7 +631,9 @@ export class ErpInvoiceList extends LitElement {
   private get itemsValid(): boolean {
     // La cantidad se valida con la aduana (ADR-0147): rechaza >6 decimales y basura, admite coma.
     return this.newItems.length > 0 && this.newItems.every(
-      (it) => it.description.trim() && (parseQuantity(it.quantity) ?? 0) > 0 && it.unit_price !== '' && !Number.isNaN(Number(it.unit_price)),
+      // The price only has to be there: what cannot be read is refused on «Issue» WITH its reason
+      // (pm#521) — a grey button with no reason was what a pasted «1.250,50» used to get.
+      (it) => it.description.trim() && (parseQuantity(it.quantity) ?? 0) > 0 && it.unit_price.trim() !== '',
     );
   }
 
@@ -609,6 +644,13 @@ export class ErpInvoiceList extends LitElement {
     this.formError = '';
     this.actionError = ''; // issuing is the next thing the person did: an older row refusal is stale (staff#75)
     try {
+      // Every price is read before anything is sent: one line that cannot be read issues nothing.
+      const prices: number[] = [];
+      for (const [i, it] of this.newItems.entries()) {
+        const read = readLinePrice(it.unit_price, i + 1);
+        if (!read.ok) throw new Error(read.message);
+        prices.push(read.minor);
+      }
       await erplora().command('invoice.create', {
         series_code: this.newSeriesCode || 'FACT',
         customer_name: this.newCustomerName.trim(),
@@ -620,10 +662,10 @@ export class ErpInvoiceList extends LitElement {
         // logical quantities; the wire carries MINOR units (ADR-0123) with the hub currency scale
         // — the same one that paints and prints the invoice (JPY 0, KWD 3; invoice#95) — and
         // quantities in 10⁶ fixed point (ADR-0147).
-        items: this.newItems.map((it) => ({
+        items: this.newItems.map((it, i) => ({
           description: it.description.trim(),
           quantity: parseQuantity(it.quantity) ?? QUANTITY_SCALE,
-          unit_price: majorToMinor(it.unit_price, currencyDecimals()),
+          unit_price: prices[i],
           tax_rate: Number(it.tax_rate) || 0,
           product_id: null,
         })),
@@ -924,7 +966,7 @@ export class ErpInvoiceList extends LitElement {
         ${this.newItems.map((it, i) => html`<div class="item-row">
           <ion-input data-testid="invoice-line-${it.uid}-description" class="desc" fill="outline" label-placement="floating" label=${erploraT('ui.lineDescription')} .value=${it.description} @ionInput=${(e: any) => this.setItem(i, 'description', e.target.value)}></ion-input>
           <ion-input data-testid="invoice-line-${it.uid}-quantity" class="num" fill="outline" label-placement="floating" label=${erploraT('ui.lineQty')} type="number" step=${QUANTITY_STEP} .value=${it.quantity} @ionInput=${(e: any) => this.setItem(i, 'quantity', e.target.value)}></ion-input>
-          <ion-input data-testid="invoice-line-${it.uid}-price" class="num" fill="outline" label-placement="floating" label=${erploraT('ui.linePrice')} type="number" step=${moneyStep()} .value=${it.unit_price} @ionInput=${(e: any) => this.setItem(i, 'unit_price', e.target.value)}></ion-input>
+          <ion-input data-testid="invoice-line-${it.uid}-price" class="num" fill="outline" label-placement="floating" label=${erploraT('ui.linePrice')} type="text" inputmode="decimal" .value=${it.unit_price} @ionInput=${(e: any) => this.setItem(i, 'unit_price', e.target.value)} @ionBlur=${() => this.setItem(i, 'unit_price', normaliseLinePrice(this.newItems[i]?.unit_price ?? ''))}></ion-input>
           <ion-input data-testid="invoice-line-${it.uid}-tax-rate" class="num" fill="outline" label-placement="floating" label=${erploraT('ui.lineTaxPct')} type="number" step=${TAX_RATE_STEP} .value=${it.tax_rate} @ionInput=${(e: any) => this.setItem(i, 'tax_rate', e.target.value)}></ion-input>
           ${this.newItems.length > 1 ? html`<ion-button data-testid="invoice-line-${it.uid}-remove" fill="clear" class="tone-danger" aria-label=${erploraT('ui.removeLine')} @click=${() => (this.newItems = this.newItems.filter((_, j) => j !== i))}><ion-icon slot="icon-only" name="close-outline"></ion-icon></ion-button>` : nothing}
         </div>`)}
