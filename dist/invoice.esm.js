@@ -5093,6 +5093,7 @@ function toUnits(minor, decimals) {
 function invoiceToPrintDocument(invoice, lines, decimals, fiscal = {}, taxes = []) {
   const taxId = invoice.customer_tax_id?.trim();
   const address = invoice.customer_address?.trim();
+  const note = fiscal.note?.trim();
   return {
     business_name: invoice.issuer_name || "",
     vat_number: invoice.issuer_nif || void 0,
@@ -5117,7 +5118,8 @@ function invoiceToPrintDocument(invoice, lines, decimals, fiscal = {}, taxes = [
       ...row.label ? { label: row.label } : {}
     })),
     qr_data: fiscal.qr || void 0,
-    ...qrLegalTexts(fiscal.qr)
+    ...qrLegalTexts(fiscal.qr),
+    ...note ? { receipt_footer: note } : {}
   };
 }
 var reprintSeq = 0;
@@ -5283,7 +5285,26 @@ var es_default = {
     errSeriesCreate: "No se pudo crear la serie",
     errSeriesUpdate: "No se pudo actualizar la serie",
     errSeriesCodeRequired: "El c\xF3digo es obligatorio.",
-    settingsIntro: "Gestiona aqu\xED la numeraci\xF3n de las facturas mediante series."
+    settingsIntro: "Gestiona aqu\xED la numeraci\xF3n de las facturas mediante series.",
+    docEmptyInvoice: "Sin datos de factura.",
+    docInvoice: "Factura",
+    docRectifyingInvoice: "Factura rectificativa",
+    docSimplifiedInvoice: "Factura simplificada",
+    docNumber: "N\xBA",
+    docDate: "Fecha",
+    docDueDate: "Vencimiento",
+    docBillTo: "Facturar a",
+    docDescription: "Descripci\xF3n",
+    docQty: "Cant.",
+    docPrice: "Precio",
+    docDiscount: "Dto.",
+    docTax: "Impuesto",
+    docAmount: "Importe",
+    docNoLines: "\u2014 Sin l\xEDneas \u2014",
+    docTaxBase: "Base imponible",
+    docDiscountTotal: "Descuento",
+    docTotal: "TOTAL",
+    docPaymentMethod: "Forma de pago"
   }
 };
 
@@ -5442,7 +5463,26 @@ var en_default = {
     errSeriesCreate: "Could not create the series",
     errSeriesUpdate: "Could not update the series",
     errSeriesCodeRequired: "The code is required.",
-    settingsIntro: "Manage invoice numbering here through series."
+    settingsIntro: "Manage invoice numbering here through series.",
+    docEmptyInvoice: "No invoice data.",
+    docInvoice: "Invoice",
+    docRectifyingInvoice: "Corrective invoice",
+    docSimplifiedInvoice: "Simplified invoice",
+    docNumber: "No.",
+    docDate: "Date",
+    docDueDate: "Due date",
+    docBillTo: "Bill to",
+    docDescription: "Description",
+    docQty: "Qty",
+    docPrice: "Price",
+    docDiscount: "Disc.",
+    docTax: "Tax",
+    docAmount: "Amount",
+    docNoLines: "\u2014 No lines \u2014",
+    docTaxBase: "Tax base",
+    docDiscountTotal: "Discount",
+    docTotal: "TOTAL",
+    docPaymentMethod: "Payment method"
   }
 };
 
@@ -5485,6 +5525,28 @@ function typeLabel(code) {
     R5: erploraT("ui.typeRectifying")
   };
   return map[code] ?? code;
+}
+function invoiceLabels(invoiceType) {
+  const title = invoiceType.startsWith("R") ? "ui.docRectifyingInvoice" : invoiceType === "F2" ? "ui.docSimplifiedInvoice" : "ui.docInvoice";
+  return {
+    empty: erploraT("ui.docEmptyInvoice"),
+    invoice: erploraT(title),
+    number: erploraT("ui.docNumber"),
+    date: erploraT("ui.docDate"),
+    dueDate: erploraT("ui.docDueDate"),
+    billTo: erploraT("ui.docBillTo"),
+    description: erploraT("ui.docDescription"),
+    qty: erploraT("ui.docQty"),
+    price: erploraT("ui.docPrice"),
+    discount: erploraT("ui.docDiscount"),
+    tax: erploraT("ui.docTax"),
+    amount: erploraT("ui.docAmount"),
+    noLines: erploraT("ui.docNoLines"),
+    taxBase: erploraT("ui.docTaxBase"),
+    discountTotal: erploraT("ui.docDiscountTotal"),
+    total: erploraT("ui.docTotal"),
+    paymentMethod: erploraT("ui.docPaymentMethod")
+  };
 }
 function statusLabel(code) {
   const map = {
@@ -6131,7 +6193,9 @@ var ErpInvoiceList = class extends i3 {
         format: "a4",
         // The thermal renderer reads ANOTHER shape, in major units (`lib/print-document.ts`):
         // the ok-invoice object is for the A4 path only. The VAT rows are the ones the A4 paints.
-        data: invoiceToPrintDocument(d3, this.detailLines, currencyDecimals(), { qr: this.aeat?.qr || void 0 }, this.parseTaxes(d3)),
+        // invoice#128 — the roll carries the same note as the sheet's foot: a rectificativa names
+        // the invoice it rectifies.
+        data: invoiceToPrintDocument(d3, this.detailLines, currencyDecimals(), { qr: this.aeat?.qr || void 0, note: documentNote(d3) }, this.parseTaxes(d3)),
         // invoice#90 — unique PER ATTEMPT (as sales#92): the queue deduplicates by job id and
         // reports the duplicate as queued, so a fixed key swallowed every copy after the first.
         jobId: reprintJobId(d3.id)
@@ -6195,7 +6259,7 @@ var ErpInvoiceList = class extends i3 {
         </div>
       </div>
       <!-- Documento imprimible (solo al imprimir / Guardar como PDF): layout factura con QR VeriFactu. -->
-      <div class="print-only"><ok-invoice .invoice=${this.invoiceDocData()}></ok-invoice></div>
+      <div class="print-only"><ok-invoice .invoice=${this.invoiceDocData()} .labels=${invoiceLabels(d3.invoice_type ?? "")}></ok-invoice></div>
     </div>`;
   }
   // Alta manual: se proyecta SIEMPRE en el panel `create` de la tabla (aunque esté cerrado); si solo

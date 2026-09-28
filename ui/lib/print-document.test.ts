@@ -139,3 +139,18 @@ describe('reprintJobId — one key per print attempt (invoice#90)', () => {
     expect(reprintJobId(undefined)).toBeUndefined();
   });
 });
+
+// invoice#128 — the renderer's invoice branch prints no field of ours about the original invoice;
+// the one free text it prints on both papers (full invoice and ticket) is `receipt_footer`. The
+// note of the document (the rectificativa sentence, composed in the business language) goes there.
+describe('invoiceToPrintDocument: the note of the document rides in `receipt_footer` (invoice#128)', () => {
+  it('a note is printed at the foot of the roll', () => {
+    const doc = invoiceToPrintDocument(DETAIL, LINES, 2, { note: 'Rectifica la factura FACT-2026-000002.' });
+    expect(doc.receipt_footer).toBe('Rectifica la factura FACT-2026-000002.');
+  });
+
+  it('no note, or only blanks, sends no key at all (the renderer would print an empty line)', () => {
+    expect('receipt_footer' in invoiceToPrintDocument(DETAIL, LINES, 2)).toBe(false);
+    expect('receipt_footer' in invoiceToPrintDocument(DETAIL, LINES, 2, { note: '   ' })).toBe(false);
+  });
+});

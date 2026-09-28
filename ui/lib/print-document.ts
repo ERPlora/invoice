@@ -81,6 +81,9 @@ export interface PrintDocument extends Record<string, unknown> {
   /** invoice#86 — the VAT per rate, required by the renderer for a full invoice: `rate` in percent,
    *  `base`/`tax` in the unit of `total`, `label` naming the row. */
   tax_breakdown?: PrintTaxRow[];
+  /** invoice#128 — the note of the document (a rectificativa names the invoice it rectifies),
+   *  printed at the foot of the roll: the one free text the renderer prints on both papers. */
+  receipt_footer?: string;
 }
 
 /**
@@ -120,11 +123,12 @@ export function invoiceToPrintDocument(
   invoice: PrintableInvoice,
   lines: PrintableLine[],
   decimals: number,
-  fiscal: { qr?: string } = {},
+  fiscal: { qr?: string; note?: string } = {},
   taxes: PrintableTax[] = [],
 ): PrintDocument {
   const taxId = invoice.customer_tax_id?.trim();
   const address = invoice.customer_address?.trim();
+  const note = fiscal.note?.trim();
   return {
     business_name: invoice.issuer_name || '',
     vat_number: invoice.issuer_nif || undefined,
@@ -150,6 +154,7 @@ export function invoiceToPrintDocument(
     })),
     qr_data: fiscal.qr || undefined,
     ...qrLegalTexts(fiscal.qr),
+    ...(note ? { receipt_footer: note } : {}),
   };
 }
 

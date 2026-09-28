@@ -7,7 +7,7 @@ import '@erplora/outfitkit/ok-data-table';
 import '@erplora/outfitkit/ok-invoice';
 import '@erplora/outfitkit/ok-money';
 import '@erplora/outfitkit/ok-qr';
-import type { DataTableColumn, DataTableAction, InvoiceData } from '@erplora/outfitkit';
+import type { DataTableColumn, DataTableAction, InvoiceData, OkInvoiceLabels } from '@erplora/outfitkit';
 import { createListController } from '@erplora/module-sdk';
 import type { ListController, ListClient, ListParams, ListPage } from '@erplora/module-sdk';
 // What a person types or pastes into a money field, read the one way every module reads it (pm#521).
@@ -134,6 +134,35 @@ function typeLabel(code: string): string {
     R4: erploraT('ui.typeRectifying'), R5: erploraT('ui.typeRectifying'),
   };
   return map[code] ?? code;
+}
+
+/** invoice#128 — the rótulos of the printed document (`<ok-invoice .labels>`) from the module
+ *  catalog, the same words the sales invoice prints. Without them OutfitKit paints its English
+ *  defaults on a Spanish business's paper. The title names what the document IS: a rectificativa
+ *  (R1–R5) says so, a simplified invoice (F2) too; F1/F3 are plain invoices. */
+function invoiceLabels(invoiceType: string): OkInvoiceLabels {
+  const title = invoiceType.startsWith('R') ? 'ui.docRectifyingInvoice'
+    : invoiceType === 'F2' ? 'ui.docSimplifiedInvoice'
+    : 'ui.docInvoice';
+  return {
+    empty: erploraT('ui.docEmptyInvoice'),
+    invoice: erploraT(title),
+    number: erploraT('ui.docNumber'),
+    date: erploraT('ui.docDate'),
+    dueDate: erploraT('ui.docDueDate'),
+    billTo: erploraT('ui.docBillTo'),
+    description: erploraT('ui.docDescription'),
+    qty: erploraT('ui.docQty'),
+    price: erploraT('ui.docPrice'),
+    discount: erploraT('ui.docDiscount'),
+    tax: erploraT('ui.docTax'),
+    amount: erploraT('ui.docAmount'),
+    noLines: erploraT('ui.docNoLines'),
+    taxBase: erploraT('ui.docTaxBase'),
+    discountTotal: erploraT('ui.docDiscountTotal'),
+    total: erploraT('ui.docTotal'),
+    paymentMethod: erploraT('ui.docPaymentMethod'),
+  };
 }
 
 function statusLabel(code: string): string {
@@ -896,7 +925,9 @@ export class ErpInvoiceList extends LitElement {
         format: 'a4',
         // The thermal renderer reads ANOTHER shape, in major units (`lib/print-document.ts`):
         // the ok-invoice object is for the A4 path only. The VAT rows are the ones the A4 paints.
-        data: invoiceToPrintDocument(d, this.detailLines, currencyDecimals(), { qr: this.aeat?.qr || undefined }, this.parseTaxes(d)),
+        // invoice#128 — the roll carries the same note as the sheet's foot: a rectificativa names
+        // the invoice it rectifies.
+        data: invoiceToPrintDocument(d, this.detailLines, currencyDecimals(), { qr: this.aeat?.qr || undefined, note: documentNote(d) }, this.parseTaxes(d)),
         // invoice#90 — unique PER ATTEMPT (as sales#92): the queue deduplicates by job id and
         // reports the duplicate as queued, so a fixed key swallowed every copy after the first.
         jobId: reprintJobId(d.id),
@@ -963,7 +994,7 @@ export class ErpInvoiceList extends LitElement {
         </div>
       </div>
       <!-- Documento imprimible (solo al imprimir / Guardar como PDF): layout factura con QR VeriFactu. -->
-      <div class="print-only"><ok-invoice .invoice=${this.invoiceDocData()}></ok-invoice></div>
+      <div class="print-only"><ok-invoice .invoice=${this.invoiceDocData()} .labels=${invoiceLabels(d.invoice_type ?? '')}></ok-invoice></div>
     </div>`;
   }
 
