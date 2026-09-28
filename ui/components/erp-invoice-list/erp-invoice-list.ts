@@ -170,11 +170,9 @@ function businessZone(): string {
 }
 
 /** A stored moment («2026-09-26T17:37:51.346777882+00:00», invoice#108) as a short date and time
- *  in the person's locale on the business clock, or `''` if it is not a moment. The fraction is
- *  cut to milliseconds first: nanoseconds are not ECMAScript's date format and not every engine
- *  accepts them. */
+ *  in the person's locale on the business clock, or `''` if it is not a moment. */
 function momentText(value: string): string {
-  const at = new Date(value.trim().replace(' ', 'T').replace(/(\.\d{3})\d+/, '$1'));
+  const at = new Date(value);
   if (Number.isNaN(at.getTime())) return '';
   return at.toLocaleString(erplora().locale || undefined, { dateStyle: 'short', timeStyle: 'short', timeZone: businessZone() });
 }
@@ -602,7 +600,7 @@ export class ErpInvoiceList extends LitElement {
     }
   }
 
-  private closeDetail() { this.detailSeq++; this.detail = null; this.detailLines = []; this.detailError = ''; this.rectifiedNumber = ''; this.resetRectify(); this.aeat = null; }
+  private closeDetail() { this.detailSeq++; this.detail = null; this.detailLines = []; this.detailError = ''; this.resetRectify(); this.aeat = null; }
 
   // ── acciones (mark_paid / rectify) ────────────────────────────────────────
 
