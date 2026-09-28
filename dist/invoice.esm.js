@@ -5200,6 +5200,12 @@ var es_default = {
     fieldAddress: "Direcci\xF3n",
     fieldIssuer: "Emisor",
     fieldSource: "Origen",
+    sourceSale: "Venta del TPV",
+    sourceOrder: "Pedido",
+    sourceManual: "Alta manual",
+    sourceSubstitution: "Sustituye a una factura simplificada",
+    sourceRectification: "Rectificaci\xF3n",
+    sourceOther: "Otro",
     fieldRectifies: "Rectifica a",
     fieldPaidAt: "Pagada el",
     fieldNotes: "Notas",
@@ -5357,6 +5363,12 @@ var en_default = {
     fieldAddress: "Address",
     fieldIssuer: "Issuer",
     fieldSource: "Source",
+    sourceSale: "POS sale",
+    sourceOrder: "Order",
+    sourceManual: "Created manually",
+    sourceSubstitution: "Replaces a simplified invoice",
+    sourceRectification: "Rectification",
+    sourceOther: "Other",
     fieldRectifies: "Rectifies",
     fieldPaidAt: "Paid on",
     fieldNotes: "Notes",
@@ -5491,6 +5503,32 @@ function statusLabel(code) {
   };
   return map[code] ?? code;
 }
+var SOURCE_KEYS = {
+  sale: "ui.sourceSale",
+  pos: "ui.sourceSale",
+  order: "ui.sourceOrder",
+  manual: "ui.sourceManual",
+  substitution: "ui.sourceSubstitution",
+  rectification: "ui.sourceRectification"
+};
+function sourceLabel(code) {
+  return erploraT(SOURCE_KEYS[code] ?? "ui.sourceOther");
+}
+function businessZone() {
+  const tz = erplora().timezone;
+  const zone = typeof tz === "string" && tz.trim() ? tz.trim() : "UTC";
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: zone });
+    return zone;
+  } catch {
+    return "UTC";
+  }
+}
+function momentText(value) {
+  const at = new Date(value.trim().replace(" ", "T").replace(/(\.\d{3})\d+/, "$1"));
+  if (Number.isNaN(at.getTime())) return "";
+  return at.toLocaleString(erplora().locale || void 0, { dateStyle: "short", timeStyle: "short", timeZone: businessZone() });
+}
 var TYPE_CODES = ["F1", "F2", "F3", "R1", "R2", "R3", "R4", "R5"];
 var SIMPLIFIED_TYPES = /* @__PURE__ */ new Set(["F2", "R5"]);
 var STATUS_CODES = ["draft", "issued", "paid", "cancelled"];
@@ -5546,6 +5584,7 @@ var ErpInvoiceList = class extends i3 {
     this.detail = null;
     this.detailLines = [];
     this.detailError = "";
+    this.rectifiedNumber = "";
     this.aeat = null;
     /** Generation of the detail opening (invoice#102): a reply is painted only if no newer opening
      *  or «Back» happened while it was in flight. */
@@ -5597,7 +5636,23 @@ var ErpInvoiceList = class extends i3 {
     table.lines { width:100%; border-collapse:collapse; margin-top:.5rem; font-size:.9rem; }
     table.lines th, table.lines td { padding:.35rem .5rem; border-bottom:1px solid var(--ion-border-color,#e7e2d6); text-align:left; }
     table.lines th:nth-child(n+3), table.lines td:nth-child(n+3) { text-align:right; }
-    .totals { display:flex; gap:1.5rem; justify-content:flex-end; margin-top:.6rem; font-weight:600; }
+    .totals { display:flex; flex-wrap:wrap; gap:.25rem 1.5rem; justify-content:flex-end; margin-top:.6rem; font-weight:600; }
+    /* invoice#110: the eight columns need ~38rem. Narrower (a phone, a split pane) each line becomes
+       a block — number and description on top, then one «label … amount» row per column — instead
+       of running the money off the right edge. The card is the container, so the rule follows the
+       space the detail really has, not the window. */
+    .card { container-type: inline-size; }
+    @container (max-width: 38rem) {
+      table.lines thead { display:none; }
+      table.lines, table.lines tbody { display:block; }
+      table.lines tr { display:grid; grid-template-columns:auto minmax(0, 1fr); column-gap:.5rem; padding:.5rem 0; border-bottom:1px solid var(--ion-border-color,#e7e2d6); }
+      table.lines td { display:flex; justify-content:space-between; gap:.75rem; grid-column:1 / -1; padding:.15rem 0; border-bottom:0; text-align:right; }
+      table.lines td::before { content:attr(data-label); text-align:left; color:var(--ion-color-medium,#8a8577); }
+      table.lines td.idx { grid-column:1; font-weight:600; }
+      table.lines td.desc { grid-column:2; justify-content:flex-start; text-align:left; font-weight:600; word-break:break-word; }
+      table.lines td.idx::before, table.lines td.desc::before { content:none; }
+      .totals { flex-direction:column; align-items:flex-end; gap:.25rem; }
+    }
     /* El alta vive en el panel lateral de la tabla (estrecho): los campos van APILADOS. */
     .form { display:flex; flex-direction:column; gap:.7rem; margin:0 0 .5rem; }
     .item-row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:end; margin:.5rem 0; }
@@ -5769,6 +5824,9 @@ var ErpInvoiceList = class extends i3 {
         this.detailError = erploraT("ui.errNotFound");
         return;
       }
+      const rectified = row.rectifies_invoice_id ? await this.loadInvoiceNumber(row.rectifies_invoice_id) : "";
+      if (seq !== this.detailSeq) return;
+      this.rectifiedNumber = rectified;
       this.detail = row;
       this.detailLines = Array.isArray(lines) ? lines : [];
       const aeat = await this.loadAeat(id);
@@ -5777,6 +5835,17 @@ var ErpInvoiceList = class extends i3 {
     } catch (e5) {
       if (seq !== this.detailSeq) return;
       this.detailError = e5 instanceof Error ? e5.message : erploraT("ui.errLoadDetail");
+    }
+  }
+  /** The number of another invoice, read through the dispatcher (hub-scoped), or `''` when it is
+   *  not there or not readable — the detail then paints «—», never the internal id (invoice#108). */
+  async loadInvoiceNumber(id) {
+    try {
+      const res = await erplora().query("invoice.get", { invoice_id: id });
+      const row = Array.isArray(res) ? res[0] : res;
+      return row?.number ?? "";
+    } catch {
+      return "";
     }
   }
   /** Carga el registro VeriFactu de la factura (qr_url + CSV + estado). Tolerante a fallos. */
@@ -5803,6 +5872,7 @@ var ErpInvoiceList = class extends i3 {
     this.detail = null;
     this.detailLines = [];
     this.detailError = "";
+    this.rectifiedNumber = "";
     this.resetRectify();
     this.aeat = null;
   }
@@ -6155,17 +6225,22 @@ var ErpInvoiceList = class extends i3 {
           <div><dt>${erploraT("ui.fieldCustomerTaxId")}</dt><dd>${d3.customer_tax_id || "\u2014"}</dd></div>
           <div><dt>${erploraT("ui.fieldAddress")}</dt><dd>${d3.customer_address || "\u2014"}</dd></div>
           <div><dt>${erploraT("ui.fieldIssuer")}</dt><dd>${d3.issuer_name || "\u2014"} ${d3.issuer_nif ? `(${d3.issuer_nif})` : ""}</dd></div>
-          <div><dt>${erploraT("ui.fieldSource")}</dt><dd>${d3.source_type}${d3.source_id ? ` \xB7 ${d3.source_id}` : ""}</dd></div>
-          ${d3.rectifies_invoice_id ? b2`<div><dt>${erploraT("ui.fieldRectifies")}</dt><dd>${d3.rectifies_invoice_id}</dd></div>` : A}
-          ${d3.paid_at ? b2`<div><dt>${erploraT("ui.fieldPaidAt")}</dt><dd>${d3.paid_at}</dd></div>` : A}
+          <div><dt>${erploraT("ui.fieldSource")}</dt><dd data-testid="invoice-detail-source">${sourceLabel(d3.source_type)}</dd></div>
+          ${d3.rectifies_invoice_id ? b2`<div><dt>${erploraT("ui.fieldRectifies")}</dt><dd>${this.rectifiedNumber ? b2`<a class="link" href="#" data-testid="invoice-detail-rectifies-link" @click=${(e5) => {
+      e5.preventDefault();
+      void this.openDetail(d3.rectifies_invoice_id);
+    }}>${this.rectifiedNumber}</a>` : "\u2014"}</dd></div>` : A}
+          ${d3.paid_at ? b2`<div><dt>${erploraT("ui.fieldPaidAt")}</dt><dd data-testid="invoice-detail-paid-at">${momentText(d3.paid_at) || "\u2014"}</dd></div>` : A}
           ${d3.notes ? b2`<div><dt>${erploraT("ui.fieldNotes")}</dt><dd>${d3.notes}</dd></div>` : A}
         </dl>
         ${this.detailLines.length ? b2`<table class="lines" data-testid="invoice-detail-lines">
           <thead><tr><th>#</th><th>${erploraT("ui.lineDescription")}</th><th>${erploraT("ui.lineQty")}</th><th>${erploraT("ui.linePrice")}</th><th>${erploraT("ui.lineTaxPct")}</th><th>${erploraT("ui.lineBase")}</th><th>${erploraT("ui.lineTax")}</th><th>${erploraT("ui.lineTotal")}</th></tr></thead>
+          <!-- invoice#110: each cell names its column (data-label) so the narrow layout, where the
+               header row is hidden and every line is a block, still says which amount is which. -->
           <tbody>${this.detailLines.map((l3) => b2`<tr>
-            <td>${l3.line_number}</td><td>${l3.description}</td><td>${formatQuantity2(Number(l3.quantity) || 0)}</td>
-            <td>${money(l3.unit_price, d3.currency)}</td><td>${lineTaxLabel(l3, erploraT)}</td>
-            <td>${money(l3.base_amount, d3.currency)}</td><td>${money(l3.tax_amount, d3.currency)}</td><td>${money(l3.total_amount, d3.currency)}</td>
+            <td class="idx" data-label="#">${l3.line_number}</td><td class="desc" data-label=${erploraT("ui.lineDescription")}>${l3.description}</td><td data-label=${erploraT("ui.lineQty")}>${formatQuantity2(Number(l3.quantity) || 0)}</td>
+            <td data-label=${erploraT("ui.linePrice")}>${money(l3.unit_price, d3.currency)}</td><td data-label=${erploraT("ui.lineTaxPct")}>${lineTaxLabel(l3, erploraT)}</td>
+            <td data-label=${erploraT("ui.lineBase")}>${money(l3.base_amount, d3.currency)}</td><td data-label=${erploraT("ui.lineTax")}>${money(l3.tax_amount, d3.currency)}</td><td data-label=${erploraT("ui.lineTotal")}>${money(l3.total_amount, d3.currency)}</td>
           </tr>`)}</tbody>
         </table>` : b2`<p data-testid="invoice-detail-no-lines">${erploraT("ui.noLines")}</p>`}
         <div class="totals">
@@ -6258,6 +6333,9 @@ __decorateClass([
 __decorateClass([
   r5()
 ], ErpInvoiceList.prototype, "detailError", 2);
+__decorateClass([
+  r5()
+], ErpInvoiceList.prototype, "rectifiedNumber", 2);
 __decorateClass([
   r5()
 ], ErpInvoiceList.prototype, "aeat", 2);

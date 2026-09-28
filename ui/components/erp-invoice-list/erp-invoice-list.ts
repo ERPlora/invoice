@@ -78,6 +78,8 @@ interface ErploraClientLike extends ListClient {
   /** Decimals of the hub currency (ADR-0123 §7): EUR 2, JPY 0, KWD 3. The printable documents
    *  carry integers in the minor unit and need this scale to cut them (ADR-0400). */
   currencyDecimals?: number;
+  /** IANA zone of the business clock (hub#1212). Absent on a shell that sends none. */
+  timezone?: string;
 }
 
 interface Invoice {
@@ -140,6 +142,41 @@ function statusLabel(code: string): string {
     paid: erploraT('ui.statusPaid'), cancelled: erploraT('ui.statusCancelled'),
   };
   return map[code] ?? code;
+}
+
+// invoice#108: `source_type` is a backend code; the detail paints what it means. The handler writes
+// manual/sale/substitution and rectify_insert writes rectification; pos/order are the ones the
+// column documents for integrations. The source id is internal and is never shown.
+const SOURCE_KEYS: Record<string, string> = {
+  sale: 'ui.sourceSale', pos: 'ui.sourceSale', order: 'ui.sourceOrder', manual: 'ui.sourceManual',
+  substitution: 'ui.sourceSubstitution', rectification: 'ui.sourceRectification',
+};
+
+function sourceLabel(code: string): string {
+  return erploraT(SOURCE_KEYS[code] ?? 'ui.sourceOther');
+}
+
+/** The business clock (hub#1212): `erplora.timezone`, or UTC — the runtime's — when the shell
+ *  sends none or one this browser cannot read. Never the device's zone. */
+function businessZone(): string {
+  const tz = erplora().timezone;
+  const zone = typeof tz === 'string' && tz.trim() ? tz.trim() : 'UTC';
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: zone });
+    return zone;
+  } catch {
+    return 'UTC';
+  }
+}
+
+/** A stored moment («2026-09-26T17:37:51.346777882+00:00», invoice#108) as a short date and time
+ *  in the person's locale on the business clock, or `''` if it is not a moment. The fraction is
+ *  cut to milliseconds first: nanoseconds are not ECMAScript's date format and not every engine
+ *  accepts them. */
+function momentText(value: string): string {
+  const at = new Date(value.trim().replace(' ', 'T').replace(/(\.\d{3})\d+/, '$1'));
+  if (Number.isNaN(at.getTime())) return '';
+  return at.toLocaleString(erplora().locale || undefined, { dateStyle: 'short', timeStyle: 'short', timeZone: businessZone() });
 }
 
 const TYPE_CODES = ['F1', 'F2', 'F3', 'R1', 'R2', 'R3', 'R4', 'R5'];
@@ -241,7 +278,23 @@ export class ErpInvoiceList extends LitElement {
     table.lines { width:100%; border-collapse:collapse; margin-top:.5rem; font-size:.9rem; }
     table.lines th, table.lines td { padding:.35rem .5rem; border-bottom:1px solid var(--ion-border-color,#e7e2d6); text-align:left; }
     table.lines th:nth-child(n+3), table.lines td:nth-child(n+3) { text-align:right; }
-    .totals { display:flex; gap:1.5rem; justify-content:flex-end; margin-top:.6rem; font-weight:600; }
+    .totals { display:flex; flex-wrap:wrap; gap:.25rem 1.5rem; justify-content:flex-end; margin-top:.6rem; font-weight:600; }
+    /* invoice#110: the eight columns need ~38rem. Narrower (a phone, a split pane) each line becomes
+       a block — number and description on top, then one «label … amount» row per column — instead
+       of running the money off the right edge. The card is the container, so the rule follows the
+       space the detail really has, not the window. */
+    .card { container-type: inline-size; }
+    @container (max-width: 38rem) {
+      table.lines thead { display:none; }
+      table.lines, table.lines tbody { display:block; }
+      table.lines tr { display:grid; grid-template-columns:auto minmax(0, 1fr); column-gap:.5rem; padding:.5rem 0; border-bottom:1px solid var(--ion-border-color,#e7e2d6); }
+      table.lines td { display:flex; justify-content:space-between; gap:.75rem; grid-column:1 / -1; padding:.15rem 0; border-bottom:0; text-align:right; }
+      table.lines td::before { content:attr(data-label); text-align:left; color:var(--ion-color-medium,#8a8577); }
+      table.lines td.idx { grid-column:1; font-weight:600; }
+      table.lines td.desc { grid-column:2; justify-content:flex-start; text-align:left; font-weight:600; word-break:break-word; }
+      table.lines td.idx::before, table.lines td.desc::before { content:none; }
+      .totals { flex-direction:column; align-items:flex-end; gap:.25rem; }
+    }
     /* El alta vive en el panel lateral de la tabla (estrecho): los campos van APILADOS. */
     .form { display:flex; flex-direction:column; gap:.7rem; margin:0 0 .5rem; }
     .item-row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:end; margin:.5rem 0; }
@@ -301,6 +354,9 @@ export class ErpInvoiceList extends LitElement {
   @state() detailLines: InvoiceLine[] = [];
 
   @state() detailError = '';
+
+  /** Number of the invoice the open one rectifies (invoice#108); `''` when it could not be read. */
+  @state() rectifiedNumber = '';
 
   /** Justificante VeriFactu de la factura abierta (estado AEAT + CSV + QR). */
   @state() aeat: { status?: string; csv?: string; qr?: string; record_type?: string } | null = null;
@@ -497,6 +553,9 @@ export class ErpInvoiceList extends LitElement {
       if (seq !== this.detailSeq) return;
       const row = Array.isArray(inv) ? inv[0] : inv;
       if (!row) { this.detailError = erploraT('ui.errNotFound'); return; }
+      const rectified = row.rectifies_invoice_id ? await this.loadInvoiceNumber(row.rectifies_invoice_id) : '';
+      if (seq !== this.detailSeq) return;
+      this.rectifiedNumber = rectified;
       this.detail = row;
       this.detailLines = Array.isArray(lines) ? lines : [];
       // VeriFactu record (AEAT status + CSV + QR) — best-effort: with no record or no permission
@@ -507,6 +566,18 @@ export class ErpInvoiceList extends LitElement {
     } catch (e) {
       if (seq !== this.detailSeq) return;
       this.detailError = e instanceof Error ? e.message : erploraT('ui.errLoadDetail');
+    }
+  }
+
+  /** The number of another invoice, read through the dispatcher (hub-scoped), or `''` when it is
+   *  not there or not readable — the detail then paints «—», never the internal id (invoice#108). */
+  private async loadInvoiceNumber(id: string): Promise<string> {
+    try {
+      const res = await erplora().query<InvoiceDetail[] | InvoiceDetail>('invoice.get', { invoice_id: id });
+      const row = Array.isArray(res) ? res[0] : res;
+      return row?.number ?? '';
+    } catch {
+      return '';
     }
   }
 
@@ -531,7 +602,7 @@ export class ErpInvoiceList extends LitElement {
     }
   }
 
-  private closeDetail() { this.detailSeq++; this.detail = null; this.detailLines = []; this.detailError = ''; this.resetRectify(); this.aeat = null; }
+  private closeDetail() { this.detailSeq++; this.detail = null; this.detailLines = []; this.detailError = ''; this.rectifiedNumber = ''; this.resetRectify(); this.aeat = null; }
 
   // ── acciones (mark_paid / rectify) ────────────────────────────────────────
 
@@ -917,17 +988,21 @@ export class ErpInvoiceList extends LitElement {
           <div><dt>${erploraT('ui.fieldCustomerTaxId')}</dt><dd>${d.customer_tax_id || '—'}</dd></div>
           <div><dt>${erploraT('ui.fieldAddress')}</dt><dd>${d.customer_address || '—'}</dd></div>
           <div><dt>${erploraT('ui.fieldIssuer')}</dt><dd>${d.issuer_name || '—'} ${d.issuer_nif ? `(${d.issuer_nif})` : ''}</dd></div>
-          <div><dt>${erploraT('ui.fieldSource')}</dt><dd>${d.source_type}${d.source_id ? ` · ${d.source_id}` : ''}</dd></div>
-          ${d.rectifies_invoice_id ? html`<div><dt>${erploraT('ui.fieldRectifies')}</dt><dd>${d.rectifies_invoice_id}</dd></div>` : nothing}
-          ${d.paid_at ? html`<div><dt>${erploraT('ui.fieldPaidAt')}</dt><dd>${d.paid_at}</dd></div>` : nothing}
+          <div><dt>${erploraT('ui.fieldSource')}</dt><dd data-testid="invoice-detail-source">${sourceLabel(d.source_type)}</dd></div>
+          ${d.rectifies_invoice_id ? html`<div><dt>${erploraT('ui.fieldRectifies')}</dt><dd>${this.rectifiedNumber
+            ? html`<a class="link" href="#" data-testid="invoice-detail-rectifies-link" @click=${(e: Event) => { e.preventDefault(); void this.openDetail(d.rectifies_invoice_id!); }}>${this.rectifiedNumber}</a>`
+            : '—'}</dd></div>` : nothing}
+          ${d.paid_at ? html`<div><dt>${erploraT('ui.fieldPaidAt')}</dt><dd data-testid="invoice-detail-paid-at">${momentText(d.paid_at) || '—'}</dd></div>` : nothing}
           ${d.notes ? html`<div><dt>${erploraT('ui.fieldNotes')}</dt><dd>${d.notes}</dd></div>` : nothing}
         </dl>
         ${this.detailLines.length ? html`<table class="lines" data-testid="invoice-detail-lines">
           <thead><tr><th>#</th><th>${erploraT('ui.lineDescription')}</th><th>${erploraT('ui.lineQty')}</th><th>${erploraT('ui.linePrice')}</th><th>${erploraT('ui.lineTaxPct')}</th><th>${erploraT('ui.lineBase')}</th><th>${erploraT('ui.lineTax')}</th><th>${erploraT('ui.lineTotal')}</th></tr></thead>
+          <!-- invoice#110: each cell names its column (data-label) so the narrow layout, where the
+               header row is hidden and every line is a block, still says which amount is which. -->
           <tbody>${this.detailLines.map((l) => html`<tr>
-            <td>${l.line_number}</td><td>${l.description}</td><td>${formatQuantity(Number(l.quantity) || 0)}</td>
-            <td>${money(l.unit_price, d.currency)}</td><td>${lineTaxLabel(l, erploraT)}</td>
-            <td>${money(l.base_amount, d.currency)}</td><td>${money(l.tax_amount, d.currency)}</td><td>${money(l.total_amount, d.currency)}</td>
+            <td class="idx" data-label="#">${l.line_number}</td><td class="desc" data-label=${erploraT('ui.lineDescription')}>${l.description}</td><td data-label=${erploraT('ui.lineQty')}>${formatQuantity(Number(l.quantity) || 0)}</td>
+            <td data-label=${erploraT('ui.linePrice')}>${money(l.unit_price, d.currency)}</td><td data-label=${erploraT('ui.lineTaxPct')}>${lineTaxLabel(l, erploraT)}</td>
+            <td data-label=${erploraT('ui.lineBase')}>${money(l.base_amount, d.currency)}</td><td data-label=${erploraT('ui.lineTax')}>${money(l.tax_amount, d.currency)}</td><td data-label=${erploraT('ui.lineTotal')}>${money(l.total_amount, d.currency)}</td>
           </tr>`)}</tbody>
         </table>` : html`<p data-testid="invoice-detail-no-lines">${erploraT('ui.noLines')}</p>`}
         <div class="totals">
