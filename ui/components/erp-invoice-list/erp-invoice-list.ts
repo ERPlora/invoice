@@ -166,8 +166,8 @@ const currencyDecimals = (): number => {
  * says why it cannot be issued (pm#521). It used to be `Number()` + `majorToMinor()`: «1.250,50» —
  * verbatim what the invoice detail prints — was NaN and left «Issue invoice» grey with no reason,
  * and «1.250» was issued as 1,25 €. A price below zero is refused here with its own reason: the
- * command schema has `minimum: 0` (the hub would redact the server's refusal into a generic one,
- * hub#1074) and money given back is a corrective invoice. Zero is an honest free line.
+ * command schema has `minimum: 0` (the server's own refusal is schema prose that names no line and
+ * no way out) and money given back is a corrective invoice. Zero is an honest free line.
  */
 function readLinePrice(typed: string, line: number): { ok: true; minor: number } | { ok: false; message: string } {
   const c = erplora();

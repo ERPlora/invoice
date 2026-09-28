@@ -12,7 +12,8 @@
 //
 // The SIGN (HALLAZGO rv-122): the piece keeps it («-1.250,50» → -125050). A line price below zero is
 // refused HERE, with its own reason: the command schema says `unit_price` has `minimum: 0` (the
-// server would refuse it too, but the hub redacts that into a generic «could not complete», hub#1074),
+// server refuses it too, but with schema prose — «/items/0/unit_price: -500 is less than the minimum
+// of 0» — that names no line and no way out),
 // and money given back is a corrective invoice, never a negative line on an ordinary one — the same
 // reason the handler gives for `invoice.negative_total`. Zero stays valid: a free line (a gift, a
 // comped service) is an honest line, and the handler only judges PRICED lines.
@@ -89,8 +90,8 @@ const sentPrices = () =>
 const paramsOf = (key: string) => [...translated].reverse().find((t) => t.key === key)?.params;
 
 describe('a pasted line price is read, never dropped nor guessed (pm#521)', () => {
-  // ` ` (NNBSP) and ` ` (NBSP) are what `Intl` prints between groups in fr / es: real pastes.
-  it.each(['1.250,50', '1,250.50', '1250,5', '1 250,50', '1 250,50', '1 250,50 €', '1.250,50 €', 'EUR 1.250,50'])(
+  // `\u202f` (NNBSP) and `\u00a0` (NBSP) are what `Intl` prints between groups in fr / es: real pastes.
+  it.each(['1.250,50', '1,250.50', '1250,5', '1 250,50', '1\u202f250,50', '1\u00a0250,50 €', '1.250,50 €', 'EUR 1.250,50'])(
     '«%s» typed in the line price is sent as 125050',
     async (typed) => {
       const el = await issue(typed);
