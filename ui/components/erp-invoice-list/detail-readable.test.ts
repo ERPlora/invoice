@@ -178,8 +178,8 @@ describe('«Source» says where the invoice came from, in words, without interna
     for (const key of ['sourceSale', 'sourceOrder', 'sourceManual', 'sourceSubstitution', 'sourceRectification', 'sourceOther']) {
       expect(ui('es', key), key).toBeTruthy();
       expect(ui('en', key), key).toBeTruthy();
+      expect(ui('es', key), key).not.toBe(ui('en', key));
     }
-    expect(ui('es', 'sourceSale')).not.toBe(ui('en', 'sourceSale'));
   });
 });
 
@@ -231,6 +231,41 @@ describe('«Rectifies» names the original invoice by its number and opens it (i
     expect((el.detail as { id?: string } | null)?.id, 'the rectifying invoice is open').toBe('r1');
     expect(text(field(el, ui('es', 'fieldRectifies')))).toBe('—');
     expect(el.shadowRoot.querySelector('[data-testid="invoice-detail-rectifies-link"]')).toBeNull();
+  });
+
+  it('opening the original from the link never shows (nor prints) the AEAT record of the rectifying one', async () => {
+    // Detail → detail is new with this link: until the original's VeriFactu record arrives, the
+    // rectifying invoice's CSV and QR must not sit under the original's header (Print reads them).
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => { release = r; });
+    stub({ lang: 'es', originals: { r1: RECTIFYING, [ORIGINAL_ID]: ORIGINAL } });
+    const erp = (globalThis as { erplora: { queryOptional: (n: string, p?: Record<string, unknown>) => Promise<unknown> } }).erplora;
+    erp.queryOptional = async (name, params) => {
+      if (name !== 'verifactu.records.by_invoice') return undefined;
+      if (params?.invoice_id === 'r1') return { status: 'accepted', aeat_csv: 'CSV-RECTIFYING', qr_url: 'https://aeat.test/qr?r1' };
+      await gate;
+      return { status: 'accepted', aeat_csv: 'CSV-ORIGINAL', qr_url: 'https://aeat.test/qr?orig' };
+    };
+    await import('./erp-invoice-list');
+    const el = document.createElement('erp-invoice-list') as Wc & { aeat: { csv?: string; qr?: string } | null };
+    document.body.appendChild(el);
+    await settle(el);
+    await el.openDetail('r1');
+    await settle(el);
+    const csv = () => text(el.shadowRoot.querySelector('[data-testid="invoice-aeat-csv"]'));
+    expect(csv()).toBe('CSV-RECTIFYING');
+
+    (el.shadowRoot.querySelector('[data-testid="invoice-detail-rectifies-link"]') as HTMLElement).click();
+    await settle(el);
+    await settle(el);
+    expect((el.detail as { id?: string }).id).toBe(ORIGINAL_ID);
+    expect(csv(), 'the original is on screen, its record not yet read').not.toBe('CSV-RECTIFYING');
+    expect(el.aeat?.qr, 'Print would carry the rectifying invoice QR').not.toBe('https://aeat.test/qr?r1');
+
+    release();
+    await settle(el);
+    await settle(el);
+    expect(csv()).toBe('CSV-ORIGINAL');
   });
 
   it('a late reply for the original never paints over another invoice opened meanwhile', async () => {

@@ -5827,6 +5827,7 @@ var ErpInvoiceList = class extends i3 {
       const rectified = row.rectifies_invoice_id ? await this.loadInvoiceNumber(row.rectifies_invoice_id) : "";
       if (seq !== this.detailSeq) return;
       this.rectifiedNumber = rectified;
+      if (this.detail?.id !== row.id) this.aeat = null;
       this.detail = row;
       this.detailLines = Array.isArray(lines) ? lines : [];
       const aeat = await this.loadAeat(id);

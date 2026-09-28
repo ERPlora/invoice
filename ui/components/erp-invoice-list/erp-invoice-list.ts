@@ -554,6 +554,9 @@ export class ErpInvoiceList extends LitElement {
       const rectified = row.rectifies_invoice_id ? await this.loadInvoiceNumber(row.rectifies_invoice_id) : '';
       if (seq !== this.detailSeq) return;
       this.rectifiedNumber = rectified;
+      // Another invoice (the «Rectifies» link opens detail → detail): the previous one's VeriFactu
+      // record (CSV + QR, which Print reads) must not stay under it until its own arrives.
+      if (this.detail?.id !== row.id) this.aeat = null;
       this.detail = row;
       this.detailLines = Array.isArray(lines) ? lines : [];
       // VeriFactu record (AEAT status + CSV + QR) — best-effort: with no record or no permission
