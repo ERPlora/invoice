@@ -105,6 +105,11 @@ describe('a rectificativa is explained in the business language (invoice#124)', 
     expect(footer(el)).toBe(`Rectifica la factura ${ORIGINAL}.`);
   });
 
+  it('a reason of only blanks counts as none: no dangling «Motivo:» on the paper', async () => {
+    const el = await mountDetail({ ...RECTIFICATION, description: '   ' });
+    expect(footer(el)).toBe(`Rectifica la factura ${ORIGINAL}.`);
+  });
+
   it('a rectificativa issued before the fix (English sentence stored) is shown translated too', async () => {
     const el = await mountDetail({ ...RECTIFICATION, notes: `Rectifies ${ORIGINAL}. Reason: ${REASON}` });
     expect(footer(el)).toBe(`Rectifica la factura ${ORIGINAL}. Motivo: ${REASON}`);
