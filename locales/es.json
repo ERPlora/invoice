@@ -71,6 +71,8 @@
     "fieldIssuer": "Emisor",
     "fieldSource": "Origen",
     "fieldRectifies": "Rectifica a",
+    "rectifiesNote": "Rectifica la factura {number}. Motivo: {reason}",
+    "rectifiesNoteNoReason": "Rectifica la factura {number}.",
     "fieldPaidAt": "Pagada el",
     "fieldNotes": "Notas",
     "lineDescription": "Descripción",

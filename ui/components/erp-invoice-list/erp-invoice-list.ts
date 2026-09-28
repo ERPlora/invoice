@@ -90,6 +90,8 @@ interface InvoiceDetail extends Invoice {
   issuer_nif: string; issuer_name: string; customer_address: string; description: string;
   tax_breakdown: string; currency: string; source_id: string | null;
   rectifies_invoice_id: string | null; paid_at: string | null; notes: string;
+  /** invoice#124: the number of the invoice this one rectifies (`invoice.get`, same hub). */
+  rectifies_number?: string | null;
 }
 
 interface InvoiceLine {
@@ -140,6 +142,23 @@ function statusLabel(code: string): string {
     paid: erploraT('ui.statusPaid'), cancelled: erploraT('ui.statusCancelled'),
   };
   return map[code] ?? code;
+}
+
+/** invoice#124 — the note a document carries, in the business language. A rectificativa stores
+ *  no sentence (SQL cannot know the language, and this text is printed on the customer's paper):
+ *  it is composed here from the original's number and the reason (`description`). Rectificativas
+ *  issued before the fix stored «Rectifies {number}. Reason: {reason}» in English; that exact
+ *  sentence is translated too. Any other note is the person's own text and goes out verbatim. */
+function documentNote(d: InvoiceDetail): string {
+  const notes = d.notes || '';
+  const original = d.rectifies_invoice_id ? d.rectifies_number || '' : '';
+  if (!original) return notes;
+  const reason = (d.description || '').trim();
+  const legacy = `Rectifies ${original}. Reason: ${d.description || ''}`;
+  if (notes && notes !== legacy) return notes;
+  return reason
+    ? erploraT('ui.rectifiesNote', { number: original, reason })
+    : erploraT('ui.rectifiesNoteNoReason', { number: original });
 }
 
 const TYPE_CODES = ['F1', 'F2', 'F3', 'R1', 'R2', 'R3', 'R4', 'R5'];
@@ -789,7 +808,7 @@ export class ErpInvoiceList extends LitElement {
       qr: qr || undefined,
       qr_note: csv ? `CSV: ${csv}` : (qr ? erploraT('ui.qrValidateNote') : undefined),
       ...qrLegalTexts(qr),
-      footer: d.notes || undefined,
+      footer: documentNote(d) || undefined,
     };
   }
 
@@ -920,7 +939,7 @@ export class ErpInvoiceList extends LitElement {
           <div><dt>${erploraT('ui.fieldSource')}</dt><dd>${d.source_type}${d.source_id ? ` · ${d.source_id}` : ''}</dd></div>
           ${d.rectifies_invoice_id ? html`<div><dt>${erploraT('ui.fieldRectifies')}</dt><dd>${d.rectifies_invoice_id}</dd></div>` : nothing}
           ${d.paid_at ? html`<div><dt>${erploraT('ui.fieldPaidAt')}</dt><dd>${d.paid_at}</dd></div>` : nothing}
-          ${d.notes ? html`<div><dt>${erploraT('ui.fieldNotes')}</dt><dd>${d.notes}</dd></div>` : nothing}
+          ${documentNote(d) ? html`<div><dt>${erploraT('ui.fieldNotes')}</dt><dd data-testid="invoice-detail-notes">${documentNote(d)}</dd></div>` : nothing}
         </dl>
         ${this.detailLines.length ? html`<table class="lines" data-testid="invoice-detail-lines">
           <thead><tr><th>#</th><th>${erploraT('ui.lineDescription')}</th><th>${erploraT('ui.lineQty')}</th><th>${erploraT('ui.linePrice')}</th><th>${erploraT('ui.lineTaxPct')}</th><th>${erploraT('ui.lineBase')}</th><th>${erploraT('ui.lineTax')}</th><th>${erploraT('ui.lineTotal')}</th></tr></thead>

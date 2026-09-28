@@ -55,6 +55,12 @@ the original, and the original is marked `cancelled`. `invoice.rectified` is emi
 The original invoice itself is **not modified** — only its status moves to cancelled. Requires
 `invoice.rectify_invoice`.
 
+The rectifying invoice explains itself **in the business language**: its **Notes** row and the foot
+of the printed document read «Rectifica la factura FACT-2026-000002. Motivo: …» in Spanish,
+«Rectifies invoice FACT-2026-000002. Reason: …» in English. The reason is kept exactly as it was
+written; if none was given, only the invoice it rectifies is named. Rectifying invoices issued before
+this (which stored that sentence in English) are shown translated too.
+
 ### Issue a full invoice for a ticket (substitution)
 
 This is the "the customer asks for an invoice for their ticket" case. The ticket was correct; the
