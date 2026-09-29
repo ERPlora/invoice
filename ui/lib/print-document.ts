@@ -18,6 +18,8 @@ import { fromMicro } from './quantity';
 /** The row `invoice.get` returns — only what the paper needs. */
 export interface PrintableInvoice {
   number: string;
+  /** VeriFactu type (F1–F3, R1–R5): a full rectificativa (R1–R4) is titled as such (invoice#131). */
+  invoice_type?: string;
   issuer_nif?: string;
   issuer_name?: string;
   customer_name?: string;
@@ -84,7 +86,12 @@ export interface PrintDocument extends Record<string, unknown> {
   /** invoice#128 — the note of the document (a rectificativa names the invoice it rectifies),
    *  printed at the foot of the roll: the one free text the renderer prints on both papers. */
   receipt_footer?: string;
+  /** invoice#131 — only an explicit `true` titles the roll «FACTURA RECTIFICATIVA» (hub#2381). */
+  rectifying?: true;
 }
+
+/** The full rectificativas. R5 (simplified) prints as a `receipt`, which carries no title. */
+const FULL_RECTIFYING_TYPES = new Set(['R1', 'R2', 'R3', 'R4']);
 
 /**
  * invoice#84 — the legal texts of the VeriFactu QR, the same pair sales#327/#339 put on the POS
@@ -155,6 +162,7 @@ export function invoiceToPrintDocument(
     qr_data: fiscal.qr || undefined,
     ...qrLegalTexts(fiscal.qr),
     ...(note ? { receipt_footer: note } : {}),
+    ...(FULL_RECTIFYING_TYPES.has(invoice.invoice_type ?? '') ? { rectifying: true as const } : {}),
   };
 }
 
