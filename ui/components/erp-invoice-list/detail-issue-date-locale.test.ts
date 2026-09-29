@@ -2,7 +2,8 @@
 
 // invoice#138 — the detail of an invoice painted «Fecha de emisión» as the database writes it
 // («2026-09-29») while «Pagada el», right below, already read «29/9/26, 22:33». The issue date is
-// painted in the date format of the person's language now, on the screen and on the printed A4.
+// painted in the date format of the person's language now: in the detail, in the «Date» column of
+// the list and on the printed A4.
 //
 // It is a CALENDAR date, not a moment: `new Date('2026-09-29')` reads it as UTC midnight, and a
 // business west of Greenwich would see the day before. The process and the business clock are put
@@ -129,6 +130,24 @@ describe('the issue date of the invoice detail reads in the date format of the l
       const doc = el.shadowRoot.querySelector('ok-invoice') as unknown as { invoice: { issue_date: string } };
       expect(doc, 'the A4 <ok-invoice> is rendered').toBeTruthy();
       expect(doc.invoice.issue_date).toBe(expected);
+    });
+  }
+
+  // The «Date» column of the list painted the same stored text right next to the detail.
+  for (const [lang, expected] of [['es', '29/9/2026'], ['en', '9/29/2026']] as const) {
+    it(`${lang}: the «Date» column of the list reads «${expected}»`, async () => {
+      stub(lang);
+      await import('./erp-invoice-list');
+      const el = document.createElement('erp-invoice-list') as Wc;
+      document.body.appendChild(el);
+      await settle(el);
+      const table = el.shadowRoot.querySelector('ok-data-table') as unknown as {
+        columns: Array<{ key: string; format?: (r: Record<string, unknown>) => string }>;
+      };
+      expect(table, 'the list painted its ok-data-table').toBeTruthy();
+      const column = table.columns.find((c) => c.key === 'issue_date');
+      expect(column?.format, 'the date column formats its cell').toBeTypeOf('function');
+      expect(column!.format!({ ...DETAIL })).toBe(expected);
     });
   }
 

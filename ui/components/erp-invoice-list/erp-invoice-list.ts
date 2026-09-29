@@ -550,7 +550,7 @@ export class ErpInvoiceList extends LitElement {
       options: STATUS_CODES.map((value) => ({ value, label: statusLabel(value) })),
       render: (r) => html`<ion-badge style=${ionTone('solid', STATUS_COLOR[r.status as string] ?? 'medium')}>${statusLabel(r.status as string)}</ion-badge>`,
     },
-    { key: 'issue_date', header: t('ui.colDate'), sortable: true, filterable: true, filterType: 'daterange', width: 'minmax(7.5rem, 9rem)' },
+    { key: 'issue_date', header: t('ui.colDate'), sortable: true, filterable: true, filterType: 'daterange', width: 'minmax(7.5rem, 9rem)', format: (r) => calendarDateText(r.issue_date as string) },
     {
       key: 'invoice_type',
       header: t('ui.colType'),

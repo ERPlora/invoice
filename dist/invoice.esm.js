@@ -5950,7 +5950,7 @@ var ErpInvoiceList = class extends i3 {
         options: STATUS_CODES.map((value) => ({ value, label: statusLabel(value) })),
         render: (r6) => b2`<ion-badge style=${ionTone("solid", STATUS_COLOR[r6.status] ?? "medium")}>${statusLabel(r6.status)}</ion-badge>`
       },
-      { key: "issue_date", header: t5("ui.colDate"), sortable: true, filterable: true, filterType: "daterange", width: "minmax(7.5rem, 9rem)" },
+      { key: "issue_date", header: t5("ui.colDate"), sortable: true, filterable: true, filterType: "daterange", width: "minmax(7.5rem, 9rem)", format: (r6) => calendarDateText(r6.issue_date) },
       {
         key: "invoice_type",
         header: t5("ui.colType"),
