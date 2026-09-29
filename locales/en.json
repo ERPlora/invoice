@@ -155,6 +155,25 @@
     "errSeriesCreate": "Could not create the series",
     "errSeriesUpdate": "Could not update the series",
     "errSeriesCodeRequired": "The code is required.",
-    "settingsIntro": "Manage invoice numbering here through series."
+    "settingsIntro": "Manage invoice numbering here through series.",
+    "docEmptyInvoice": "No invoice data.",
+    "docInvoice": "Invoice",
+    "docRectifyingInvoice": "Corrective invoice",
+    "docSimplifiedInvoice": "Simplified invoice",
+    "docNumber": "No.",
+    "docDate": "Date",
+    "docDueDate": "Due date",
+    "docBillTo": "Bill to",
+    "docDescription": "Description",
+    "docQty": "Qty",
+    "docPrice": "Price",
+    "docDiscount": "Disc.",
+    "docTax": "Tax",
+    "docAmount": "Amount",
+    "docNoLines": "— No lines —",
+    "docTaxBase": "Tax base",
+    "docDiscountTotal": "Discount",
+    "docTotal": "TOTAL",
+    "docPaymentMethod": "Payment method"
   }
 }

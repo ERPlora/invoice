@@ -156,6 +156,25 @@
     "errSeriesCreate": "No se pudo crear la serie",
     "errSeriesUpdate": "No se pudo actualizar la serie",
     "errSeriesCodeRequired": "El código es obligatorio.",
-    "settingsIntro": "Gestiona aquí la numeración de las facturas mediante series."
+    "settingsIntro": "Gestiona aquí la numeración de las facturas mediante series.",
+    "docEmptyInvoice": "Sin datos de factura.",
+    "docInvoice": "Factura",
+    "docRectifyingInvoice": "Factura rectificativa",
+    "docSimplifiedInvoice": "Factura simplificada",
+    "docNumber": "Nº",
+    "docDate": "Fecha",
+    "docDueDate": "Vencimiento",
+    "docBillTo": "Facturar a",
+    "docDescription": "Descripción",
+    "docQty": "Cant.",
+    "docPrice": "Precio",
+    "docDiscount": "Dto.",
+    "docTax": "Impuesto",
+    "docAmount": "Importe",
+    "docNoLines": "— Sin líneas —",
+    "docTaxBase": "Base imponible",
+    "docDiscountTotal": "Descuento",
+    "docTotal": "TOTAL",
+    "docPaymentMethod": "Forma de pago"
   }
 }
