@@ -29,6 +29,7 @@ two of the sale's five frozen fiscal fields travel in the event.
 | Changing the number format of a series that already issued | Not accepted — the field is locked and the change is ignored | The number is in the VeriFactu chain; create a new series |
 | A number format with no `{seq}` placeholder | Rejected before it reaches the database | Every invoice would get the same number; add `{seq}` or `{seq:0Nd}` |
 | Creating an invoice with no lines | Rejected | At least one line is required |
+| The hub could not read its tax rules (or, for an invoice from a sale, the sale) at that moment | The invoice is refused with `read_unavailable` before anything is written — no number consumed, nothing issued. It is never issued with a guessed tax qualification, and an existing sale is never reported as missing. An invoice created automatically from a sale is retried by the hub | Retry; if it persists the hub's database needs attention — the rules and the sale themselves are not the problem |
 | A line whose tax category is reverse charge, not subject or exempt but still charges a rate | Refused before anything is written — no number consumed, nothing issued | Only a subject operation may carry a quota (the tax authority rejects the rest). Fix the tax rule of that category so it charges 0 % |
 | Issuing a manual **full** invoice (F1) without the customer's tax ID | Refused before anything is written — no number consumed, nothing issued | A complete invoice needs an identified recipient (the tax authority rejects it with error 1189). Add the customer's tax ID, or issue from a simplified ticket (F2) series |
 
@@ -68,9 +69,11 @@ uninstall either while Invoicing is installed.
 
 - Without `sales`, nothing emits `sale.completed`, so no invoice is ever created automatically. Manual
   invoices still work.
-- Without `taxes`, the rule catalogue cannot be read and the breakdown falls back to treating the
-  operation as a plain domestic taxable sale. **The amounts do not change**, but the fiscal
-  qualification is generic — which matters if you actually sell something exempt.
+- When the rule catalogue has no rule for a line's tax category, the breakdown falls back to
+  treating the operation as a plain domestic taxable sale. **The amounts do not change**, but the
+  fiscal qualification is generic — which matters if you actually sell something exempt. When the
+  catalogue cannot be READ at all, nothing falls back: the invoice is refused with
+  `read_unavailable`.
 
 **`verifactu` is optional but expected in Spain.** Without it, invoices are issued but nothing is
 reported to the tax authority.
