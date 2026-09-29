@@ -15,6 +15,19 @@ The list of issued invoices (`invoice.list`, 50 rows per page). Requires `invoic
 Open a row to see the full document: header, lines and totals (`invoice.get` + `invoice.lines`, lines
 ordered by line number). Actions appear according to your permissions, and the server re-checks them.
 
+What the document says, in words:
+
+- **Paid on** is a short date and time in your language, on the **business clock** (the hub's time
+  zone, not the device's; UTC when the hub has none).
+- **Source** says where the invoice came from — *POS sale*, *Order*, *Manual*, *Substitution*,
+  *Rectification*, or *Other* for an origin this module does not know. The internal id of the sale
+  is never shown.
+- **Rectifies** names the original by its **number**, as a link that opens it. If the original
+  cannot be read (no permission, gone), it shows «—», never an internal id.
+- On a **phone** (or any detail narrower than ~38rem) each line of the table becomes a block: the
+  number and description on top, then one «column … amount» row per figure, so no amount is cut
+  off the right edge.
+
 ### Issue an invoice by hand
 
 Most invoices are created by selling. Use this when you need one that did not come from a sale.
