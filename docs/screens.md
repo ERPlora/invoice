@@ -103,6 +103,8 @@ The Series tab manages the invoice series (`invoice.series.list`, 50 rows per pa
 - **Sort** by code, name, type, year, current number, prefix, active or default flag. Default: name,
   ascending.
 - **Filter** by any of those.
+- **Layout.** From 1280 px wide it opens as a list whose nine columns fit whole, with no sideways
+  scroll; below that it opens as cards, one line per field. The list/cards switch is always there.
 
 ### Create a series
 

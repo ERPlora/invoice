@@ -5093,6 +5093,7 @@ function toUnits(minor, decimals) {
 function invoiceToPrintDocument(invoice, lines, decimals, fiscal = {}, taxes = []) {
   const taxId = invoice.customer_tax_id?.trim();
   const address = invoice.customer_address?.trim();
+  const note = fiscal.note?.trim();
   return {
     business_name: invoice.issuer_name || "",
     vat_number: invoice.issuer_nif || void 0,
@@ -5117,7 +5118,8 @@ function invoiceToPrintDocument(invoice, lines, decimals, fiscal = {}, taxes = [
       ...row.label ? { label: row.label } : {}
     })),
     qr_data: fiscal.qr || void 0,
-    ...qrLegalTexts(fiscal.qr)
+    ...qrLegalTexts(fiscal.qr),
+    ...note ? { receipt_footer: note } : {}
   };
 }
 var reprintSeq = 0;
@@ -5292,7 +5294,26 @@ var es_default = {
     errSeriesCreate: "No se pudo crear la serie",
     errSeriesUpdate: "No se pudo actualizar la serie",
     errSeriesCodeRequired: "El c\xF3digo es obligatorio.",
-    settingsIntro: "Gestiona aqu\xED la numeraci\xF3n de las facturas mediante series."
+    settingsIntro: "Gestiona aqu\xED la numeraci\xF3n de las facturas mediante series.",
+    docEmptyInvoice: "Sin datos de factura.",
+    docInvoice: "Factura",
+    docRectifyingInvoice: "Factura rectificativa",
+    docSimplifiedInvoice: "Factura simplificada",
+    docNumber: "N\xBA",
+    docDate: "Fecha",
+    docDueDate: "Vencimiento",
+    docBillTo: "Facturar a",
+    docDescription: "Descripci\xF3n",
+    docQty: "Cant.",
+    docPrice: "Precio",
+    docDiscount: "Dto.",
+    docTax: "Impuesto",
+    docAmount: "Importe",
+    docNoLines: "\u2014 Sin l\xEDneas \u2014",
+    docTaxBase: "Base imponible",
+    docDiscountTotal: "Descuento",
+    docTotal: "TOTAL",
+    docPaymentMethod: "Forma de pago"
   }
 };
 
@@ -5460,7 +5481,26 @@ var en_default = {
     errSeriesCreate: "Could not create the series",
     errSeriesUpdate: "Could not update the series",
     errSeriesCodeRequired: "The code is required.",
-    settingsIntro: "Manage invoice numbering here through series."
+    settingsIntro: "Manage invoice numbering here through series.",
+    docEmptyInvoice: "No invoice data.",
+    docInvoice: "Invoice",
+    docRectifyingInvoice: "Corrective invoice",
+    docSimplifiedInvoice: "Simplified invoice",
+    docNumber: "No.",
+    docDate: "Date",
+    docDueDate: "Due date",
+    docBillTo: "Bill to",
+    docDescription: "Description",
+    docQty: "Qty",
+    docPrice: "Price",
+    docDiscount: "Disc.",
+    docTax: "Tax",
+    docAmount: "Amount",
+    docNoLines: "\u2014 No lines \u2014",
+    docTaxBase: "Tax base",
+    docDiscountTotal: "Discount",
+    docTotal: "TOTAL",
+    docPaymentMethod: "Payment method"
   }
 };
 
@@ -5506,6 +5546,28 @@ function typeLabel(code) {
   };
   return map[code] ?? code;
 }
+function invoiceLabels(invoiceType) {
+  const title = invoiceType.startsWith("R") ? "ui.docRectifyingInvoice" : invoiceType === "F2" ? "ui.docSimplifiedInvoice" : "ui.docInvoice";
+  return {
+    empty: erploraT("ui.docEmptyInvoice"),
+    invoice: erploraT(title),
+    number: erploraT("ui.docNumber"),
+    date: erploraT("ui.docDate"),
+    dueDate: erploraT("ui.docDueDate"),
+    billTo: erploraT("ui.docBillTo"),
+    description: erploraT("ui.docDescription"),
+    qty: erploraT("ui.docQty"),
+    price: erploraT("ui.docPrice"),
+    discount: erploraT("ui.docDiscount"),
+    tax: erploraT("ui.docTax"),
+    amount: erploraT("ui.docAmount"),
+    noLines: erploraT("ui.docNoLines"),
+    taxBase: erploraT("ui.docTaxBase"),
+    discountTotal: erploraT("ui.docDiscountTotal"),
+    total: erploraT("ui.docTotal"),
+    paymentMethod: erploraT("ui.docPaymentMethod")
+  };
+}
 function statusLabel(code) {
   const map = {
     draft: erploraT("ui.statusDraft"),
@@ -5515,7 +5577,6 @@ function statusLabel(code) {
   };
   return map[code] ?? code;
 }
-<<<<<<< HEAD
 var SOURCE_KEYS = {
   sale: "ui.sourceSale",
   pos: "ui.sourceSale",
@@ -5541,7 +5602,7 @@ function momentText(value) {
   const at = new Date(value);
   if (Number.isNaN(at.getTime())) return "";
   return at.toLocaleString(erplora().locale || void 0, { dateStyle: "short", timeStyle: "short", timeZone: businessZone() });
-=======
+}
 function documentNote(d3) {
   const notes = d3.notes || "";
   const original = d3.rectifies_invoice_id ? d3.rectifies_number || "" : "";
@@ -5550,7 +5611,6 @@ function documentNote(d3) {
   const legacy = `Rectifies ${original}. Reason: ${d3.description || ""}`;
   if (notes && notes !== legacy) return notes;
   return reason ? erploraT("ui.rectifiesNote", { number: original, reason }) : erploraT("ui.rectifiesNoteNoReason", { number: original });
->>>>>>> origin/main
 }
 var TYPE_CODES = ["F1", "F2", "F3", "R1", "R2", "R3", "R4", "R5"];
 var SIMPLIFIED_TYPES = /* @__PURE__ */ new Set(["F2", "R5"]);
@@ -5607,7 +5667,6 @@ var ErpInvoiceList = class extends i3 {
     this.detail = null;
     this.detailLines = [];
     this.detailError = "";
-    this.rectifiedNumber = "";
     this.aeat = null;
     /** Generation of the detail opening (invoice#102): a reply is painted only if no newer opening
      *  or «Back» happened while it was in flight. */
@@ -5848,9 +5907,6 @@ var ErpInvoiceList = class extends i3 {
         this.detailError = erploraT("ui.errNotFound");
         return;
       }
-      const rectified = row.rectifies_invoice_id ? await this.loadInvoiceNumber(row.rectifies_invoice_id) : "";
-      if (seq !== this.detailSeq) return;
-      this.rectifiedNumber = rectified;
       if (this.detail?.id !== row.id) this.aeat = null;
       this.detail = row;
       this.detailLines = Array.isArray(lines) ? lines : [];
@@ -5860,17 +5916,6 @@ var ErpInvoiceList = class extends i3 {
     } catch (e5) {
       if (seq !== this.detailSeq) return;
       this.detailError = e5 instanceof Error ? e5.message : erploraT("ui.errLoadDetail");
-    }
-  }
-  /** The number of another invoice, read through the dispatcher (hub-scoped), or `''` when it is
-   *  not there or not readable — the detail then paints «—», never the internal id (invoice#108). */
-  async loadInvoiceNumber(id) {
-    try {
-      const res = await erplora().query("invoice.get", { invoice_id: id });
-      const row = Array.isArray(res) ? res[0] : res;
-      return row?.number ?? "";
-    } catch {
-      return "";
     }
   }
   /** Carga el registro VeriFactu de la factura (qr_url + CSV + estado). Tolerante a fallos. */
@@ -6249,7 +6294,9 @@ var ErpInvoiceList = class extends i3 {
         format: "a4",
         // The thermal renderer reads ANOTHER shape, in major units (`lib/print-document.ts`):
         // the ok-invoice object is for the A4 path only. The VAT rows are the ones the A4 paints.
-        data: invoiceToPrintDocument(d3, this.detailLines, currencyDecimals(), { qr: this.aeat?.qr || void 0 }, this.parseTaxes(d3)),
+        // invoice#128 — the roll carries the same note as the sheet's foot: a rectificativa names
+        // the invoice it rectifies.
+        data: invoiceToPrintDocument(d3, this.detailLines, currencyDecimals(), { qr: this.aeat?.qr || void 0, note: documentNote(d3) }, this.parseTaxes(d3)),
         // invoice#90 — unique PER ATTEMPT (as sales#92): the queue deduplicates by job id and
         // reports the duplicate as queued, so a fixed key swallowed every copy after the first.
         jobId: reprintJobId(d3.id)
@@ -6286,20 +6333,13 @@ var ErpInvoiceList = class extends i3 {
           <div><dt>${erploraT("ui.fieldCustomerTaxId")}</dt><dd>${d3.customer_tax_id || "\u2014"}</dd></div>
           <div><dt>${erploraT("ui.fieldAddress")}</dt><dd>${d3.customer_address || "\u2014"}</dd></div>
           <div><dt>${erploraT("ui.fieldIssuer")}</dt><dd>${d3.issuer_name || "\u2014"} ${d3.issuer_nif ? `(${d3.issuer_nif})` : ""}</dd></div>
-<<<<<<< HEAD
           <div><dt>${erploraT("ui.fieldSource")}</dt><dd data-testid="invoice-detail-source">${sourceLabel(d3.source_type)}</dd></div>
-          ${d3.rectifies_invoice_id ? b2`<div><dt>${erploraT("ui.fieldRectifies")}</dt><dd>${this.rectifiedNumber ? b2`<a class="link" href="#" data-testid="invoice-detail-rectifies-link" @click=${(e5) => {
+          ${d3.rectifies_invoice_id ? b2`<div><dt>${erploraT("ui.fieldRectifies")}</dt><dd>${d3.rectifies_number ? b2`<a class="link" href="#" data-testid="invoice-detail-rectifies-link" @click=${(e5) => {
       e5.preventDefault();
       void this.openDetail(d3.rectifies_invoice_id);
-    }}>${this.rectifiedNumber}</a>` : "\u2014"}</dd></div>` : A}
+    }}>${d3.rectifies_number}</a>` : "\u2014"}</dd></div>` : A}
           ${d3.paid_at ? b2`<div><dt>${erploraT("ui.fieldPaidAt")}</dt><dd data-testid="invoice-detail-paid-at">${momentText(d3.paid_at) || "\u2014"}</dd></div>` : A}
-          ${d3.notes ? b2`<div><dt>${erploraT("ui.fieldNotes")}</dt><dd>${d3.notes}</dd></div>` : A}
-=======
-          <div><dt>${erploraT("ui.fieldSource")}</dt><dd>${d3.source_type}${d3.source_id ? ` \xB7 ${d3.source_id}` : ""}</dd></div>
-          ${d3.rectifies_invoice_id ? b2`<div><dt>${erploraT("ui.fieldRectifies")}</dt><dd>${d3.rectifies_invoice_id}</dd></div>` : A}
-          ${d3.paid_at ? b2`<div><dt>${erploraT("ui.fieldPaidAt")}</dt><dd>${d3.paid_at}</dd></div>` : A}
           ${documentNote(d3) ? b2`<div><dt>${erploraT("ui.fieldNotes")}</dt><dd data-testid="invoice-detail-notes">${documentNote(d3)}</dd></div>` : A}
->>>>>>> origin/main
         </dl>
         ${this.detailLines.length ? b2`<table class="lines" data-testid="invoice-detail-lines">
           <thead><tr><th>#</th><th>${erploraT("ui.lineDescription")}</th><th>${erploraT("ui.lineQty")}</th><th>${erploraT("ui.linePrice")}</th><th>${erploraT("ui.lineTaxPct")}</th><th>${erploraT("ui.lineBase")}</th><th>${erploraT("ui.lineTax")}</th><th>${erploraT("ui.lineTotal")}</th></tr></thead>
@@ -6325,7 +6365,7 @@ var ErpInvoiceList = class extends i3 {
         </div>
       </div>
       <!-- Documento imprimible (solo al imprimir / Guardar como PDF): layout factura con QR VeriFactu. -->
-      <div class="print-only"><ok-invoice .invoice=${this.invoiceDocData()}></ok-invoice></div>
+      <div class="print-only"><ok-invoice .invoice=${this.invoiceDocData()} .labels=${invoiceLabels(d3.invoice_type ?? "")}></ok-invoice></div>
     </div>`;
   }
   // Alta manual: se proyecta SIEMPRE en el panel `create` de la tabla (aunque esté cerrado); si solo
@@ -6401,9 +6441,6 @@ __decorateClass([
 __decorateClass([
   r5()
 ], ErpInvoiceList.prototype, "detailError", 2);
-__decorateClass([
-  r5()
-], ErpInvoiceList.prototype, "rectifiedNumber", 2);
 __decorateClass([
   r5()
 ], ErpInvoiceList.prototype, "aeat", 2);
@@ -6499,6 +6536,7 @@ var blankForm = () => ({
   is_default: false
 });
 var DEFAULT_FORMAT_LABEL = "PREFIX-YYYY-NNNNNN";
+var SERIES_TABLE_MIN_VIEWPORT_PX = 1280;
 var ErpInvoiceSettings = class extends i3 {
   constructor() {
     super(...arguments);
@@ -6546,36 +6584,43 @@ var ErpInvoiceSettings = class extends i3 {
     }
   `;
   }
-  // Getter (no campo): se re-evalúa en cada render, así los textos cambian con el idioma activo
-  // (ADR-0055). `connectedCallback` re-renderiza al recibir `erplora:locale-changed`.
+  // A getter (not a field): re-evaluated on every render, so the texts follow the active language
+  // (ADR-0055). `connectedCallback` re-renders on `erplora:locale-changed`.
+  // invoice#111: every column asks for the width of what it shows (measured in es and en), so none
+  // falls back to the table's 88 px floor — «Name» and «Format» were cut to «…» at 1440 px while
+  // «Type» and «Year» sat half empty. Their minimums add up to what fits at 1280 px beside the side
+  // menu; the leftover goes to the text columns (`fr`).
   get columns() {
     const t5 = (k2) => erploraT2(k2);
     return [
-      { key: "code", header: t5("ui.seriesColCode"), sortable: true, filterable: true, filterType: "text" },
-      { key: "name", header: t5("ui.seriesColName"), sortable: true, filterable: true, filterType: "text", format: (r6) => r6.name || "\u2014" },
+      { key: "code", header: t5("ui.seriesColCode"), width: "minmax(4.5rem,1fr)", sortable: true, filterable: true, filterType: "text" },
+      { key: "name", header: t5("ui.seriesColName"), width: "minmax(9rem,3fr)", sortable: true, filterable: true, filterType: "text", format: (r6) => r6.name || "\u2014" },
       {
         key: "invoice_type",
         header: t5("ui.seriesColType"),
+        width: "minmax(7rem,1.5fr)",
         sortable: true,
         filterable: true,
         filterType: "select",
         options: TYPE_CODES2.map((value) => ({ value, label: typeLabel2(value) })),
         format: (r6) => `${typeLabel2(r6.invoice_type)} (${r6.invoice_type})`
       },
-      { key: "year", header: t5("ui.seriesColYear"), align: "right", sortable: true },
-      { key: "prefix", header: t5("ui.seriesColPrefix"), format: (r6) => r6.prefix || "\u2014" },
+      { key: "year", header: t5("ui.seriesColYear"), width: "3.5rem", align: "right", sortable: true },
+      { key: "prefix", header: t5("ui.seriesColPrefix"), width: "minmax(4.5rem,1fr)", format: (r6) => r6.prefix || "\u2014" },
       // invoice#40: la plantilla del número. Sin plantilla se escribe el formato histórico —
       // «—» haría creer que la serie no numera con ninguna forma concreta, y sí lo hace.
       {
         key: "format",
         header: t5("ui.seriesColFormat"),
+        width: "minmax(9.75rem,2fr)",
         format: (r6) => r6.format || DEFAULT_FORMAT_LABEL
       },
-      { key: "current_number", header: t5("ui.seriesColNumber"), align: "right", sortable: true },
+      { key: "current_number", header: t5("ui.seriesColNumber"), width: "6.5rem", align: "right", sortable: true },
       // Sí/no = dominio cerrado: se filtra eligiendo, no tecleando 1 ó 0.
       {
         key: "is_active",
         header: t5("ui.seriesColActive"),
+        width: "4.5rem",
         filterable: true,
         filterType: "select",
         options: [
@@ -6587,6 +6632,7 @@ var ErpInvoiceSettings = class extends i3 {
       {
         key: "is_default",
         header: t5("ui.seriesColDefault"),
+        width: "4.75rem",
         filterable: true,
         filterType: "select",
         options: [
@@ -6596,6 +6642,12 @@ var ErpInvoiceSettings = class extends i3 {
         render: (r6) => r6.is_default ? b2`<ion-badge style=${ionTone("solid", "primary")}>${t5("ui.yes")}</ion-badge>` : b2`<span>—</span>`
       }
     ];
+  }
+  /** invoice#111: under 1280 px the nine columns do not fit side by side (the list scrolled sideways
+   *  and «Default» hid behind the edit button), so the screen opens in cards, one line per field.
+   *  Only the first view: the person can still switch to the list. */
+  get defaultView() {
+    return window.innerWidth < SERIES_TABLE_MIN_VIEWPORT_PX ? "cards" : "table";
   }
   get rowActions() {
     if (!this.canManage) return [];
@@ -6765,18 +6817,18 @@ var ErpInvoiceSettings = class extends i3 {
         <div class="form">
           <ion-input
             data-testid="invoice-series-code"
-            fill="outline" label-placement="floating" label=${erploraT2("ui.fieldCode")}
+            fill="outline" mode="md" label-placement="floating" label=${erploraT2("ui.fieldCode")}
             ?disabled=${this.isEdit}
             .value=${f3.code}
             @ionInput=${(e5) => this.setField("code", e5.target.value)}></ion-input>
           <ion-input
             data-testid="invoice-series-name"
-            fill="outline" label-placement="floating" label=${erploraT2("ui.fieldName")}
+            fill="outline" mode="md" label-placement="floating" label=${erploraT2("ui.fieldName")}
             .value=${f3.name}
             @ionInput=${(e5) => this.setField("name", e5.target.value)}></ion-input>
           <ion-select
             data-testid="invoice-series-type"
-            fill="outline" label-placement="floating" label=${erploraT2("ui.fieldInvoiceType")}
+            fill="outline" mode="md" label-placement="floating" label=${erploraT2("ui.fieldInvoiceType")}
             interface="popover" ?disabled=${this.isEdit}
             .value=${f3.invoice_type}
             @ionChange=${(e5) => this.setField("invoice_type", e5.target.value)}>
@@ -6784,18 +6836,18 @@ var ErpInvoiceSettings = class extends i3 {
           </ion-select>
           <ion-input
             data-testid="invoice-series-year"
-            fill="outline" label-placement="floating" label=${erploraT2("ui.fieldYear")}
+            fill="outline" mode="md" label-placement="floating" label=${erploraT2("ui.fieldYear")}
             type="number" ?disabled=${this.isEdit}
             .value=${f3.year}
             @ionInput=${(e5) => this.setField("year", e5.target.value)}></ion-input>
           <ion-input
             data-testid="invoice-series-prefix"
-            fill="outline" label-placement="floating" label=${erploraT2("ui.fieldPrefix")}
+            fill="outline" mode="md" label-placement="floating" label=${erploraT2("ui.fieldPrefix")}
             .value=${f3.prefix}
             @ionInput=${(e5) => this.setField("prefix", e5.target.value)}></ion-input>
           <ion-input
             data-testid="invoice-series-format"
-            fill="outline" label-placement="floating" label=${erploraT2("ui.fieldFormat")}
+            fill="outline" mode="md" label-placement="floating" label=${erploraT2("ui.fieldFormat")}
             data-field="format" ?disabled=${this.formatLocked}
             .value=${f3.format}
             @ionInput=${(e5) => this.setField("format", e5.target.value)}></ion-input>
@@ -6850,6 +6902,7 @@ var ErpInvoiceSettings = class extends i3 {
         .addable=${this.canManage}
         .columns=${this.columns}
         .views=${true}
+        .defaultView=${this.defaultView}
         .cardTitle=${(r6) => String(r6.name || r6.code || "\u2014")}
         .cardIcon=${() => "bookmark-outline"}
         .rows=${this.rows}

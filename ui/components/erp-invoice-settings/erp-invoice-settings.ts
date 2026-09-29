@@ -84,6 +84,9 @@ const blankForm = (): SeriesForm => ({
 /** Lo que se enseña cuando la serie no tiene plantilla: el formato histórico, escrito tal cual. */
 const DEFAULT_FORMAT_LABEL = 'PREFIX-YYYY-NNNNNN';
 
+/** Narrowest viewport where the series list shows its nine columns whole (invoice#111). */
+const SERIES_TABLE_MIN_VIEWPORT_PX = 1280;
+
 export class ErpInvoiceSettings extends LitElement {
   static styles = css`
     :host { display:flex; flex-direction:column; height:100%; min-height:0; font-family: system-ui, sans-serif; color: var(--ion-text-color,#1c1b18); }
@@ -143,36 +146,43 @@ export class ErpInvoiceSettings extends LitElement {
 
   private unsub?: () => void;
 
-  // Getter (no campo): se re-evalúa en cada render, así los textos cambian con el idioma activo
-  // (ADR-0055). `connectedCallback` re-renderiza al recibir `erplora:locale-changed`.
+  // A getter (not a field): re-evaluated on every render, so the texts follow the active language
+  // (ADR-0055). `connectedCallback` re-renders on `erplora:locale-changed`.
+  // invoice#111: every column asks for the width of what it shows (measured in es and en), so none
+  // falls back to the table's 88 px floor — «Name» and «Format» were cut to «…» at 1440 px while
+  // «Type» and «Year» sat half empty. Their minimums add up to what fits at 1280 px beside the side
+  // menu; the leftover goes to the text columns (`fr`).
   private get columns(): DataTableColumn[] {
     const t = (k: string): string => erploraT(k);
     return [
-      { key: 'code', header: t('ui.seriesColCode'), sortable: true, filterable: true, filterType: 'text' },
-      { key: 'name', header: t('ui.seriesColName'), sortable: true, filterable: true, filterType: 'text', format: (r) => (r.name as string) || '—' },
+      { key: 'code', header: t('ui.seriesColCode'), width: 'minmax(4.5rem,1fr)', sortable: true, filterable: true, filterType: 'text' },
+      { key: 'name', header: t('ui.seriesColName'), width: 'minmax(9rem,3fr)', sortable: true, filterable: true, filterType: 'text', format: (r) => (r.name as string) || '—' },
       {
         key: 'invoice_type',
         header: t('ui.seriesColType'),
+        width: 'minmax(7rem,1.5fr)',
         sortable: true,
         filterable: true,
         filterType: 'select',
         options: TYPE_CODES.map((value) => ({ value, label: typeLabel(value) })),
         format: (r) => `${typeLabel(r.invoice_type as string)} (${r.invoice_type})`,
       },
-      { key: 'year', header: t('ui.seriesColYear'), align: 'right', sortable: true },
-      { key: 'prefix', header: t('ui.seriesColPrefix'), format: (r) => (r.prefix as string) || '—' },
+      { key: 'year', header: t('ui.seriesColYear'), width: '3.5rem', align: 'right', sortable: true },
+      { key: 'prefix', header: t('ui.seriesColPrefix'), width: 'minmax(4.5rem,1fr)', format: (r) => (r.prefix as string) || '—' },
       // invoice#40: la plantilla del número. Sin plantilla se escribe el formato histórico —
       // «—» haría creer que la serie no numera con ninguna forma concreta, y sí lo hace.
       {
         key: 'format',
         header: t('ui.seriesColFormat'),
+        width: 'minmax(9.75rem,2fr)',
         format: (r) => (r.format as string) || DEFAULT_FORMAT_LABEL,
       },
-      { key: 'current_number', header: t('ui.seriesColNumber'), align: 'right', sortable: true },
+      { key: 'current_number', header: t('ui.seriesColNumber'), width: '6.5rem', align: 'right', sortable: true },
       // Sí/no = dominio cerrado: se filtra eligiendo, no tecleando 1 ó 0.
       {
         key: 'is_active',
         header: t('ui.seriesColActive'),
+        width: '4.5rem',
         filterable: true,
         filterType: 'select',
         options: [
@@ -184,6 +194,7 @@ export class ErpInvoiceSettings extends LitElement {
       {
         key: 'is_default',
         header: t('ui.seriesColDefault'),
+        width: '4.75rem',
         filterable: true,
         filterType: 'select',
         options: [
@@ -193,6 +204,13 @@ export class ErpInvoiceSettings extends LitElement {
         render: (r) => (r.is_default ? html`<ion-badge style=${ionTone('solid', 'primary')}>${t('ui.yes')}</ion-badge>` : html`<span>—</span>`),
       },
     ];
+  }
+
+  /** invoice#111: under 1280 px the nine columns do not fit side by side (the list scrolled sideways
+   *  and «Default» hid behind the edit button), so the screen opens in cards, one line per field.
+   *  Only the first view: the person can still switch to the list. */
+  private get defaultView(): 'cards' | 'table' {
+    return window.innerWidth < SERIES_TABLE_MIN_VIEWPORT_PX ? 'cards' : 'table';
   }
 
   private get rowActions(): DataTableAction[] {
@@ -405,18 +423,18 @@ export class ErpInvoiceSettings extends LitElement {
         <div class="form">
           <ion-input
             data-testid="invoice-series-code"
-            fill="outline" label-placement="floating" label=${erploraT('ui.fieldCode')}
+            fill="outline" mode="md" label-placement="floating" label=${erploraT('ui.fieldCode')}
             ?disabled=${this.isEdit}
             .value=${f.code}
             @ionInput=${(e: any) => this.setField('code', e.target.value)}></ion-input>
           <ion-input
             data-testid="invoice-series-name"
-            fill="outline" label-placement="floating" label=${erploraT('ui.fieldName')}
+            fill="outline" mode="md" label-placement="floating" label=${erploraT('ui.fieldName')}
             .value=${f.name}
             @ionInput=${(e: any) => this.setField('name', e.target.value)}></ion-input>
           <ion-select
             data-testid="invoice-series-type"
-            fill="outline" label-placement="floating" label=${erploraT('ui.fieldInvoiceType')}
+            fill="outline" mode="md" label-placement="floating" label=${erploraT('ui.fieldInvoiceType')}
             interface="popover" ?disabled=${this.isEdit}
             .value=${f.invoice_type}
             @ionChange=${(e: any) => this.setField('invoice_type', e.target.value)}>
@@ -424,18 +442,18 @@ export class ErpInvoiceSettings extends LitElement {
           </ion-select>
           <ion-input
             data-testid="invoice-series-year"
-            fill="outline" label-placement="floating" label=${erploraT('ui.fieldYear')}
+            fill="outline" mode="md" label-placement="floating" label=${erploraT('ui.fieldYear')}
             type="number" ?disabled=${this.isEdit}
             .value=${f.year}
             @ionInput=${(e: any) => this.setField('year', e.target.value)}></ion-input>
           <ion-input
             data-testid="invoice-series-prefix"
-            fill="outline" label-placement="floating" label=${erploraT('ui.fieldPrefix')}
+            fill="outline" mode="md" label-placement="floating" label=${erploraT('ui.fieldPrefix')}
             .value=${f.prefix}
             @ionInput=${(e: any) => this.setField('prefix', e.target.value)}></ion-input>
           <ion-input
             data-testid="invoice-series-format"
-            fill="outline" label-placement="floating" label=${erploraT('ui.fieldFormat')}
+            fill="outline" mode="md" label-placement="floating" label=${erploraT('ui.fieldFormat')}
             data-field="format" ?disabled=${this.formatLocked}
             .value=${f.format}
             @ionInput=${(e: any) => this.setField('format', e.target.value)}></ion-input>
@@ -499,6 +517,7 @@ export class ErpInvoiceSettings extends LitElement {
         .addable=${this.canManage}
         .columns=${this.columns}
         .views=${true}
+        .defaultView=${this.defaultView}
         .cardTitle=${(r: Record<string, unknown>) => String(r.name || r.code || '—')}
         .cardIcon=${() => 'bookmark-outline'}
         .rows=${this.rows}
