@@ -6,15 +6,18 @@
 //     A frozen fiscal row is never rewritten → painted exactly as it was frozen.
 //   * new rows: `surcharge_rate` present (0 = none), `tax_rate` = main rate.
 
+import { numberFormat } from './number-format';
+
 export interface LineTaxFields {
   tax_rate: number | string;
   surcharge_rate?: number | string | null;
 }
 
-const pct = (v: unknown) => `${Number(v || 0).toFixed(2)}%`;
-
-/** `21.00%` · `21.00% + RE 5.20%` (label from `t('ui.taxSurcharge')`) · legacy `26.20%`. */
-export function lineTaxLabel(line: LineTaxFields, t: (key: string) => string): string {
+/** `21%` · `21% + RE 5.2%` (label from `t('ui.taxSurcharge')`) · legacy `26.2%` — written the way
+ *  the person's language writes a percentage: «21 %», «5,2 %» in es (invoice#125). */
+export function lineTaxLabel(line: LineTaxFields, t: (key: string) => string, locale: string | undefined): string {
+  const percent = numberFormat(locale, { style: 'percent', maximumFractionDigits: 2 });
+  const pct = (v: unknown) => percent.format((Number(v) || 0) / 100);
   const main = pct(line.tax_rate);
   if (line.surcharge_rate == null) return main; // legacy generation: shown as frozen
   const surcharge = Number(line.surcharge_rate) || 0;

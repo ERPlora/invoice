@@ -5101,6 +5101,15 @@ function normaliseMoneyInput(typed, decimals, locale, currency) {
   return parsed.ok && parsed.minor !== null ? formatMoneyInput(parsed.minor, decimals, locale) : typed;
 }
 
+// ui/lib/number-format.ts
+function numberFormat(locale, options) {
+  try {
+    return new Intl.NumberFormat(locale || void 0, options);
+  } catch {
+    return new Intl.NumberFormat(void 0, options);
+  }
+}
+
 // ui/lib/quantity.ts
 var QUANTITY_SCALE2 = 1e6;
 function fromMicro2(raw) {
@@ -5112,13 +5121,14 @@ function parseQuantity2(text) {
   const raw = Math.round(parseFloat(t5) * QUANTITY_SCALE2);
   return Number.isSafeInteger(raw) && raw >= 0 ? raw : null;
 }
-function formatQuantity2(raw) {
-  return String(fromMicro2(raw));
+function formatQuantity2(raw, locale) {
+  return numberFormat(locale, { maximumFractionDigits: 6, useGrouping: true }).format(fromMicro2(raw));
 }
 
 // ui/lib/line-tax.ts
-var pct = (v3) => `${Number(v3 || 0).toFixed(2)}%`;
-function lineTaxLabel(line, t5) {
+function lineTaxLabel(line, t5, locale) {
+  const percent = numberFormat(locale, { style: "percent", maximumFractionDigits: 2 });
+  const pct = (v3) => percent.format((Number(v3) || 0) / 100);
   const main = pct(line.tax_rate);
   if (line.surcharge_rate == null) return main;
   const surcharge = Number(line.surcharge_rate) || 0;
@@ -6242,7 +6252,7 @@ var ErpInvoiceList = class extends i3 {
     } catch {
       parsed = null;
     }
-    const pct2 = (n6) => Number.isInteger(n6) ? n6.toFixed(0) : String(n6);
+    const pct = (n6) => Number.isInteger(n6) ? n6.toFixed(0) : String(n6);
     const out = [];
     if (Array.isArray(parsed)) {
       for (const e5 of parsed) {
@@ -6260,12 +6270,12 @@ var ErpInvoiceList = class extends i3 {
         } else if (cls === "subject_reverse") {
           label = "Inversi\xF3n del sujeto pasivo";
         } else {
-          label = `${name} ${pct2(rate)}%`;
+          label = `${name} ${pct(rate)}%`;
         }
         out.push({ label, rate: Number.isFinite(rate) ? rate : void 0, base, amount: Number(e5.quota ?? 0) });
         if (e5.surcharge_rate != null) {
           const sr = Number(e5.surcharge_rate);
-          out.push({ label: `${erploraT("ui.taxSurchargeLong")} ${pct2(sr)}%`, rate: sr, base, amount: Number(e5.surcharge_quota ?? 0) });
+          out.push({ label: `${erploraT("ui.taxSurchargeLong")} ${pct(sr)}%`, rate: sr, base, amount: Number(e5.surcharge_quota ?? 0) });
         }
       }
     } else if (parsed && typeof parsed === "object") {
@@ -6441,8 +6451,8 @@ var ErpInvoiceList = class extends i3 {
           <!-- invoice#110: each cell names its column (data-label) so the narrow layout, where the
                header row is hidden and every line is a block, still says which amount is which. -->
           <tbody>${this.detailLines.map((l3) => b2`<tr>
-            <td class="idx" data-label="#">${l3.line_number}</td><td class="desc" data-label=${erploraT("ui.lineDescription")}>${l3.description}</td><td data-label=${erploraT("ui.lineQty")}>${formatQuantity2(Number(l3.quantity) || 0)}</td>
-            <td data-label=${erploraT("ui.linePrice")}>${money(l3.unit_price, d3.currency)}</td><td data-label=${erploraT("ui.lineTaxPct")}>${lineTaxLabel(l3, erploraT)}</td>
+            <td class="idx" data-label="#">${l3.line_number}</td><td class="desc" data-label=${erploraT("ui.lineDescription")}>${l3.description}</td><td data-label=${erploraT("ui.lineQty")}>${formatQuantity2(Number(l3.quantity) || 0, erplora().locale)}</td>
+            <td data-label=${erploraT("ui.linePrice")}>${money(l3.unit_price, d3.currency)}</td><td data-label=${erploraT("ui.lineTaxPct")}>${lineTaxLabel(l3, erploraT, erplora().locale)}</td>
             <td data-label=${erploraT("ui.lineBase")}>${money(l3.base_amount, d3.currency)}</td><td data-label=${erploraT("ui.lineTax")}>${money(l3.tax_amount, d3.currency)}</td><td data-label=${erploraT("ui.lineTotal")}>${money(l3.total_amount, d3.currency)}</td>
           </tr>`)}</tbody>
         </table>` : b2`<p data-testid="invoice-detail-no-lines">${erploraT("ui.noLines")}</p>`}

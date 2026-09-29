@@ -22,8 +22,10 @@ import { checkMoneyDisplay, moduleRootFrom, stripComments } from '@erplora/modul
 //     where this module turns minor units into the major units the printer contract asks for;
 //   - `lib/quantity.ts` and `lib/ion-tone.ts`: their exported helpers, so `lib/` provably stays in
 //     the scan.
-// * notDisplay — the four triaged in pm#289: a tax RATE in `pct` of `lib/line-tax.ts`, the currency
-//   SYMBOL in `currencySymbol`, and the two tax-RATE labels of the list's breakdown rows. They are
+// * notDisplay — three of the four triaged in pm#289: the currency SYMBOL in `currencySymbol`, and
+//   the two tax-RATE labels of the list's breakdown rows (the fourth, the line rate of
+//   `lib/line-tax.ts`, is written by `Intl` percent in the person's language since invoice#125,
+//   with no `toFixed` left to except). They are
 //   also the witnesses on the detector's OUTPUT: fed empty or cut content, or without `lib/`, the
 //   scan would report them as `stale_exception` (rv-taxes-78). The `Intl` key is the call collapsed
 //   to one line (rv-mt-377). Add an entry (`'file: exact code line'` → why) only with the reason it
@@ -41,8 +43,6 @@ it('money on screen goes through <ok-money> and OutfitKit by entry point (pm#289
         'lib/ion-tone.ts': 'export function ionTone(',
       },
       notDisplay: {
-        'lib/line-tax.ts: const pct = (v: unknown) => `${Number(v || 0).toFixed(2)}%`;':
-          'tax RATE of a line («21.00%»), a percentage, not an amount',
         "lib/currency-symbol.ts: NumberFormat(locale, { style: 'currency', currency: iso })":
           'reads the SYMBOL of an ISO code from formatToParts(0); no amount goes through it',
         'components/erp-invoice-list/erp-invoice-list.ts: const pct = (n: number) => (Number.isInteger(n) ? n.toFixed(0) : String(n));':
