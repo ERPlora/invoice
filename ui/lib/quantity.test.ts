@@ -49,6 +49,14 @@ describe('quantity — la frontera de la escala 10⁶ (ADR-0147)', () => {
     expect(formatQuantity(1_234_500_000, 'en')).toBe('1,234.5');
   });
 
+  // rv-invoice-139 — CLDR leaves four-digit numbers ungrouped in es («1234,5»), while the amounts
+  // of the same line are always grouped («1.234,56 €», hub#1090). The quantity reads like them.
+  it('formatQuantity: four digits are grouped like the amounts next to them — «1.234,5» in es', () => {
+    expect(formatQuantity(1_234_500_000, 'es')).toBe('1.234,5');
+    expect(formatQuantity(1_000_000_000, 'es')).toBe('1.000');
+    expect(formatQuantity(999_000_000, 'es')).toBe('999');
+  });
+
   it('formatQuantity: the six decimals of the scale are painted, never rounded away', () => {
     expect(formatQuantity(1, 'es')).toBe('0,000001');
     expect(formatQuantity(2_123_456, 'en')).toBe('2.123456');

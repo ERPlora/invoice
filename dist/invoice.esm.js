@@ -5122,7 +5122,7 @@ function parseQuantity2(text) {
   return Number.isSafeInteger(raw) && raw >= 0 ? raw : null;
 }
 function formatQuantity2(raw, locale) {
-  return numberFormat(locale, { maximumFractionDigits: 6 }).format(fromMicro2(raw));
+  return numberFormat(locale, { maximumFractionDigits: 6, useGrouping: true }).format(fromMicro2(raw));
 }
 
 // ui/lib/line-tax.ts

@@ -34,7 +34,8 @@ export function parseQuantity(text: string): number | null {
 
 /** OUTPUT boundary: µ → text in the person's language, without padding zeros (`2`, not
  *  `2.000000`) and with all six decimals of the scale when they are there: «1,5» in es, «1.5» in
- *  en (invoice#125). */
+ *  en (invoice#125). Grouped from four digits like the amounts of the same line («1.234,5»,
+ *  hub#1090), not by CLDR's es default («1234,5»). */
 export function formatQuantity(raw: number, locale: string | undefined): string {
-  return numberFormat(locale, { maximumFractionDigits: 6 }).format(fromMicro(raw));
+  return numberFormat(locale, { maximumFractionDigits: 6, useGrouping: true }).format(fromMicro(raw));
 }
