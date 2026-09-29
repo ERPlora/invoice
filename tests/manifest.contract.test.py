@@ -126,7 +126,11 @@ ISSUING_COMMANDS = {
 
 def read_query(read) -> str | None:
     """`enum ReadDef` (`#[serde(untagged)]`): a bare query name, or `{query, params, required}`."""
-    return read if isinstance(read, str) else (read or {}).get("query")
+    if isinstance(read, str):
+        return read
+    if isinstance(read, dict):
+        return read.get("query")
+    return None
 
 
 def test_issuing_reads_are_required():
@@ -140,6 +144,9 @@ def test_issuing_reads_are_required():
     for name, cmd in commands.items():
         for i, read in enumerate(cmd.get("reads", [])):
             query = read_query(read)
+            if not isinstance(read, (str, dict)):
+                check(f"commands.{name}.reads[{i}] is a query name or an object", True, False)
+                continue
             if query not in REQUIRED_READS:
                 continue
             check(
