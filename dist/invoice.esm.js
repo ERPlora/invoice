@@ -5787,12 +5787,18 @@ var ErpInvoiceList = class extends i3 {
     /* La vista llena el alto: el data-table ocupa todo (scroll interno, pie fijo). */
     .page { display:flex; flex-direction:column; min-height:0; flex:1 1 auto; }
     .page > ok-data-table { flex:1 1 auto; min-height:0; }
-    header { display:flex; gap:.5rem; align-items:center; margin-bottom:.75rem; }
+    /* invoice#134: the row WRAPS and the title group asks for its whole content (basis auto) before
+       anything shrinks it, so on a phone the actions drop below instead of breaking the number into
+       «RECT- / 2026- / 000001» and cutting the status to «Emi…». Badge and buttons never shrink. */
+    header { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin-bottom:.75rem; }
+    .detail-title { display:flex; flex-wrap:wrap; flex:1 1 auto; min-width:0; gap:.5rem; align-items:center; }
+    .detail-title ion-badge { flex:none; }
+    .detail-actions { display:flex; flex:none; gap:.5rem; align-items:center; margin-inline-start:auto; }
     /* invoice#14: every own control is a touch target (44px), like the ok-data-table actions.
        size="small" rendered ~27 px; Ionic md buttons default to 36 px. A finger needs 44×44
        (WCAG 2.5.5). Same rule cash_register and tables applied. */
     ion-button { min-height:44px; --min-height:44px; }
-    h2 { margin:0; font-size:1.15rem; flex:1; }
+    h2 { margin:0; font-size:1.15rem; }
     h3 { margin:0 0 .5rem; font-size:1rem; }
     .card { border:1px solid var(--ion-border-color,#e7e2d6); border-radius: var(--ok-radius-sm, 10px); padding:1rem; margin-bottom:1rem; background:var(--ion-card-background,#fffdf7); }
     .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap:.35rem .75rem; margin:.5rem 0; }
@@ -6397,13 +6403,19 @@ var ErpInvoiceList = class extends i3 {
   renderDetail() {
     const d3 = this.detail;
     return b2`<div data-testid="invoice-detail">
+      <!-- invoice#134: number+status and the actions are two groups, so on a phone the actions drop
+           to their own row instead of squeezing the number and cutting the status. -->
       <header class="screen-only">
-        <h2>${erploraT("ui.detailTitle", { number: d3.number })}</h2>
-        <ion-badge data-testid="invoice-detail-status" style=${ionTone("solid", STATUS_COLOR[d3.status] ?? "medium")}>${statusLabel(d3.status)}</ion-badge>
-        <ion-button class="print" data-testid="invoice-detail-print" @click=${() => void this.printDetail()}>
-          <ion-icon slot="start" name="print-outline"></ion-icon> ${erploraT("ui.actionPrint")}
-        </ion-button>
-        <ion-button data-testid="invoice-detail-back" fill="outline" class="tone-medium" @click=${() => this.closeDetail()}>← ${erploraT("ui.back")}</ion-button>
+        <div class="detail-title">
+          <h2>${erploraT("ui.detailTitle", { number: d3.number })}</h2>
+          <ion-badge data-testid="invoice-detail-status" style=${ionTone("solid", STATUS_COLOR[d3.status] ?? "medium")}>${statusLabel(d3.status)}</ion-badge>
+        </div>
+        <div class="detail-actions">
+          <ion-button class="print" data-testid="invoice-detail-print" @click=${() => void this.printDetail()}>
+            <ion-icon slot="start" name="print-outline"></ion-icon> ${erploraT("ui.actionPrint")}
+          </ion-button>
+          <ion-button data-testid="invoice-detail-back" fill="outline" class="tone-medium" @click=${() => this.closeDetail()}>← ${erploraT("ui.back")}</ion-button>
+        </div>
       </header>
       ${this.missingCustomerTaxId(d3) ? b2`<ok-inline-feedback class="screen-only" tone="warning" icon="alert-circle-outline" data-testid="invoice-missing-tax-id">${erploraT("ui.invoiceMissingCustomerTaxId")}</ok-inline-feedback>` : A}
       ${this.renderAeatCard()}
