@@ -6328,7 +6328,8 @@ var ErpInvoiceList = class extends i3 {
       issuer: { name: d3.issuer_name || "\u2014", tax_id: d3.issuer_nif || void 0 },
       customer: { name: d3.customer_name || "\u2014", tax_id: d3.customer_tax_id || void 0, address: d3.customer_address || void 0 },
       number: d3.number,
-      issue_date: d3.issue_date,
+      // <ok-invoice> paints it verbatim: the paper dates the invoice the way its language does (invoice#138).
+      issue_date: calendarDateText(d3.issue_date),
       lines: this.detailLines.map((l3) => ({ description: l3.description, qty: fromMicro2(Number(l3.quantity) || 0), unit_price: l3.unit_price, tax_rate: l3.tax_rate, total: l3.total_amount })),
       subtotal: d3.base_amount,
       taxes: this.parseTaxes(d3),

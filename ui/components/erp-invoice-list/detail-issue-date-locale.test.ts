@@ -2,7 +2,7 @@
 
 // invoice#138 — the detail of an invoice painted «Fecha de emisión» as the database writes it
 // («2026-09-29») while «Pagada el», right below, already read «29/9/26, 22:33». The issue date is
-// painted in the date format of the person's language now.
+// painted in the date format of the person's language now, on the screen and on the printed A4.
 //
 // It is a CALENDAR date, not a moment: `new Date('2026-09-29')` reads it as UTC midnight, and a
 // business west of Greenwich would see the day before. The process and the business clock are put
@@ -121,6 +121,16 @@ describe('the issue date of the invoice detail reads in the date format of the l
   it('the first day of a month does not slip back to the previous month', async () => {
     expect(issueDate(await mount('es', { ...DETAIL, issue_date: '2026-10-01' }))).toBe('1/10/2026');
   });
+
+  // <ok-invoice> paints `issue_date` verbatim: the printed A4 said «2026-09-29» on a Spanish paper.
+  for (const [lang, expected] of [['es', '29/9/2026'], ['en', '9/29/2026']] as const) {
+    it(`${lang}: the printed A4 dates the invoice «${expected}» too`, async () => {
+      const el = await mount(lang);
+      const doc = el.shadowRoot.querySelector('ok-invoice') as unknown as { invoice: { issue_date: string } };
+      expect(doc, 'the A4 <ok-invoice> is rendered').toBeTruthy();
+      expect(doc.invoice.issue_date).toBe(expected);
+    });
+  }
 
   it('switching the language of the shell repaints the date of the open detail', async () => {
     const el = await mount('en');

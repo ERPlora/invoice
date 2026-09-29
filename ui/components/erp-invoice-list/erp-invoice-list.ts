@@ -965,7 +965,8 @@ export class ErpInvoiceList extends LitElement {
       issuer: { name: d.issuer_name || '—', tax_id: d.issuer_nif || undefined },
       customer: { name: d.customer_name || '—', tax_id: d.customer_tax_id || undefined, address: d.customer_address || undefined },
       number: d.number,
-      issue_date: d.issue_date,
+      // <ok-invoice> paints it verbatim: the paper dates the invoice the way its language does (invoice#138).
+      issue_date: calendarDateText(d.issue_date),
       lines: this.detailLines.map((l) => ({ description: l.description, qty: fromMicro(Number(l.quantity) || 0), unit_price: l.unit_price, tax_rate: l.tax_rate, total: l.total_amount })),
       subtotal: d.base_amount,
       taxes: this.parseTaxes(d),
