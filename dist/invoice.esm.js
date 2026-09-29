@@ -5204,6 +5204,8 @@ var es_default = {
     fieldIssuer: "Emisor",
     fieldSource: "Origen",
     fieldRectifies: "Rectifica a",
+    rectifiesNote: "Rectifica la factura {number}. Motivo: {reason}",
+    rectifiesNoteNoReason: "Rectifica la factura {number}.",
     fieldPaidAt: "Pagada el",
     fieldNotes: "Notas",
     lineDescription: "Descripci\xF3n",
@@ -5364,6 +5366,8 @@ var en_default = {
     fieldIssuer: "Issuer",
     fieldSource: "Source",
     fieldRectifies: "Rectifies",
+    rectifiesNote: "Rectifies invoice {number}. Reason: {reason}",
+    rectifiesNoteNoReason: "Rectifies invoice {number}.",
     fieldPaidAt: "Paid on",
     fieldNotes: "Notes",
     lineDescription: "Description",
@@ -5498,6 +5502,15 @@ function statusLabel(code) {
     cancelled: erploraT("ui.statusCancelled")
   };
   return map[code] ?? code;
+}
+function documentNote(d3) {
+  const notes = d3.notes || "";
+  const original = d3.rectifies_invoice_id ? d3.rectifies_number || "" : "";
+  if (!original) return notes;
+  const reason = (d3.description || "").trim();
+  const legacy = `Rectifies ${original}. Reason: ${d3.description || ""}`;
+  if (notes && notes !== legacy) return notes;
+  return reason ? erploraT("ui.rectifiesNote", { number: original, reason }) : erploraT("ui.rectifiesNoteNoReason", { number: original });
 }
 var TYPE_CODES = ["F1", "F2", "F3", "R1", "R2", "R3", "R4", "R5"];
 var SIMPLIFIED_TYPES = /* @__PURE__ */ new Set(["F2", "R5"]);
@@ -6087,7 +6100,7 @@ var ErpInvoiceList = class extends i3 {
       qr: qr || void 0,
       qr_note: csv ? `CSV: ${csv}` : qr ? erploraT("ui.qrValidateNote") : void 0,
       ...qrLegalTexts(qr),
-      footer: d3.notes || void 0
+      footer: documentNote(d3) || void 0
     };
   }
   renderAeatCard() {
@@ -6204,7 +6217,7 @@ var ErpInvoiceList = class extends i3 {
           <div><dt>${erploraT("ui.fieldSource")}</dt><dd>${d3.source_type}${d3.source_id ? ` \xB7 ${d3.source_id}` : ""}</dd></div>
           ${d3.rectifies_invoice_id ? b2`<div><dt>${erploraT("ui.fieldRectifies")}</dt><dd>${d3.rectifies_invoice_id}</dd></div>` : A}
           ${d3.paid_at ? b2`<div><dt>${erploraT("ui.fieldPaidAt")}</dt><dd>${d3.paid_at}</dd></div>` : A}
-          ${d3.notes ? b2`<div><dt>${erploraT("ui.fieldNotes")}</dt><dd>${d3.notes}</dd></div>` : A}
+          ${documentNote(d3) ? b2`<div><dt>${erploraT("ui.fieldNotes")}</dt><dd data-testid="invoice-detail-notes">${documentNote(d3)}</dd></div>` : A}
         </dl>
         ${this.detailLines.length ? b2`<table class="lines" data-testid="invoice-detail-lines">
           <thead><tr><th>#</th><th>${erploraT("ui.lineDescription")}</th><th>${erploraT("ui.lineQty")}</th><th>${erploraT("ui.linePrice")}</th><th>${erploraT("ui.lineTaxPct")}</th><th>${erploraT("ui.lineBase")}</th><th>${erploraT("ui.lineTax")}</th><th>${erploraT("ui.lineTotal")}</th></tr></thead>
