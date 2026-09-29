@@ -181,3 +181,17 @@ describe('the thermal ticket of a rectificativa names the invoice it rectifies (
     expect('receipt_footer' in (await printJob(await mountDetail(INVOICE)))).toBe(false);
   });
 });
+
+// invoice#131 — the roll of a full rectificativa is titled «FACTURA RECTIFICATIVA» by the hub only
+// when the job says so (`rectifying: true`, ERPlora/hub#2381), the same way the A4 already is.
+describe('the thermal roll of a full rectificativa is titled as such (invoice#131)', () => {
+  it.each(['R1', 'R2', 'R3', 'R4'])('%s: the print job tells the renderer it is a rectificativa', async (invoice_type) => {
+    const data = await printJob(await mountDetail({ ...RECTIFICATION, invoice_type }));
+    expect(printed[0].documentType).toBe('invoice');
+    expect(data.rectifying).toBe(true);
+  });
+
+  it('a plain invoice (F1) does not say it', async () => {
+    expect('rectifying' in (await printJob(await mountDetail(INVOICE)))).toBe(false);
+  });
+});

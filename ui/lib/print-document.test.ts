@@ -154,3 +154,22 @@ describe('invoiceToPrintDocument: the note of the document rides in `receipt_foo
     expect('receipt_footer' in invoiceToPrintDocument(DETAIL, LINES, 2, { note: '   ' })).toBe(false);
   });
 });
+
+// invoice#131 — the hub titles the roll «FACTURA RECTIFICATIVA» only when `data.rectifying` is an
+// explicit `true` (ERPlora/hub#2381). A full rectificativa (R1–R4) says so; a plain invoice sends no
+// key at all. R5 is a simplified rectificativa printed as a `receipt`, which carries no title.
+describe('invoiceToPrintDocument: a full rectificativa says so to the renderer (invoice#131)', () => {
+  it.each(['R1', 'R2', 'R3', 'R4'])('%s travels with `rectifying: true`', (type) => {
+    const doc = invoiceToPrintDocument({ ...DETAIL, invoice_type: type }, LINES, 2);
+    expect(doc.rectifying).toBe(true);
+  });
+
+  it.each(['F1', 'F2', 'F3', 'R5'])('%s sends no `rectifying` key', (type) => {
+    expect('rectifying' in invoiceToPrintDocument({ ...DETAIL, invoice_type: type }, LINES, 2)).toBe(false);
+  });
+
+  it('an invoice with no type is not a rectificativa', () => {
+    const { invoice_type: _omit, ...untyped } = DETAIL;
+    expect('rectifying' in invoiceToPrintDocument(untyped, LINES, 2)).toBe(false);
+  });
+});
