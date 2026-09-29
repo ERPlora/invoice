@@ -1104,8 +1104,8 @@ export class ErpInvoiceList extends LitElement {
           <!-- invoice#110: each cell names its column (data-label) so the narrow layout, where the
                header row is hidden and every line is a block, still says which amount is which. -->
           <tbody>${this.detailLines.map((l) => html`<tr>
-            <td class="idx" data-label="#">${l.line_number}</td><td class="desc" data-label=${erploraT('ui.lineDescription')}>${l.description}</td><td data-label=${erploraT('ui.lineQty')}>${formatQuantity(Number(l.quantity) || 0)}</td>
-            <td data-label=${erploraT('ui.linePrice')}>${money(l.unit_price, d.currency)}</td><td data-label=${erploraT('ui.lineTaxPct')}>${lineTaxLabel(l, erploraT)}</td>
+            <td class="idx" data-label="#">${l.line_number}</td><td class="desc" data-label=${erploraT('ui.lineDescription')}>${l.description}</td><td data-label=${erploraT('ui.lineQty')}>${formatQuantity(Number(l.quantity) || 0, erplora().locale)}</td>
+            <td data-label=${erploraT('ui.linePrice')}>${money(l.unit_price, d.currency)}</td><td data-label=${erploraT('ui.lineTaxPct')}>${lineTaxLabel(l, erploraT, erplora().locale)}</td>
             <td data-label=${erploraT('ui.lineBase')}>${money(l.base_amount, d.currency)}</td><td data-label=${erploraT('ui.lineTax')}>${money(l.tax_amount, d.currency)}</td><td data-label=${erploraT('ui.lineTotal')}>${money(l.total_amount, d.currency)}</td>
           </tr>`)}</tbody>
         </table>` : html`<p data-testid="invoice-detail-no-lines">${erploraT('ui.noLines')}</p>`}
