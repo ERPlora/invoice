@@ -172,9 +172,25 @@ async function refusedIssue(el: Wc): Promise<void> {
   await settle(el);
 }
 
+/** invoice#109: «Mark as paid» asks first — the person confirms the dialog it opens on document.body. */
+async function confirmPaid(el: Wc): Promise<void> {
+  const alert = document.body.querySelector('ion-alert[data-testid="invoice-mark-paid-confirm"]') as
+    (HTMLElement & { buttons: Array<{ role?: string; handler?: () => unknown }> }) | null;
+  await alert?.buttons.find((b) => b.role === 'confirm')?.handler?.();
+  alert?.remove();
+  await settle(el);
+}
+
 async function rowPaid(el: Wc, row = INVOICE): Promise<void> {
   el.onRowAction({ detail: { actionId: 'paid', row } });
   await settle(el);
+  await confirmPaid(el);
+}
+
+async function tapDetailPaid(el: Wc): Promise<void> {
+  q(el, 'invoice-detail-mark-paid')!.click();
+  await settle(el);
+  await confirmPaid(el);
 }
 
 describe('pm#513 · invoices: a refused «Issue invoice» is shown INSIDE the panel form, where it is seen', () => {
@@ -242,8 +258,7 @@ describe('pm#513 · invoices: a refused «Mark as paid» of the OPEN invoice is 
     await el.openDetail('i1');
     await settle(el);
     refuse = REFUSAL;
-    q(el, 'invoice-detail-mark-paid')!.click();
-    await settle(el);
+    await tapDetailPaid(el);
   }
 
   it('lands in the invoice card, above its buttons, painted and scrolled into view — not at the top', async () => {
@@ -264,8 +279,7 @@ describe('pm#513 · invoices: a refused «Mark as paid» of the OPEN invoice is 
     refuse = null;
     let release!: () => void;
     hold = new Promise((r) => (release = r));
-    q(el, 'invoice-detail-mark-paid')!.click();
-    await settle(el);
+    await tapDetailPaid(el);
     expect(whereIs(el, REFUSAL)).toEqual([]);
     release();
     await settle(el);
@@ -303,8 +317,7 @@ describe('pm#513 · invoices: a refused «Mark as paid» of the OPEN invoice is 
     refuse = null;
     await el.openDetail('i1');
     await settle(el);
-    q(el, 'invoice-detail-mark-paid')!.click();
-    await settle(el);
+    await tapDetailPaid(el);
     expect(commands).toEqual(['invoice.mark_paid', 'invoice.mark_paid']);
     q(el, 'invoice-detail-back')!.click();
     await settle(el);
@@ -317,8 +330,7 @@ describe('pm#513 · invoices: a refused «Mark as paid» of the OPEN invoice is 
     await settle(el);
     const list = reads['invoice.list'] ?? 0;
     const get = reads['invoice.get'] ?? 0;
-    q(el, 'invoice-detail-mark-paid')!.click();
-    await settle(el);
+    await tapDetailPaid(el);
     expect(commands).toEqual(['invoice.mark_paid']);
     expect(reads['invoice.list'], 'the list would keep it as issued').toBe(list + 1);
     expect(reads['invoice.get'], 'the open invoice would keep «Mark as paid»').toBe(get + 1);

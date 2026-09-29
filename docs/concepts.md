@@ -172,7 +172,7 @@ generations apart by that absence and show the old ones exactly as they were fro
 
 `draft` → `issued` → `paid`, or `issued` → `cancelled` when a rectification cancels it.
 
-- Only an `issued` invoice can be marked paid.
+- Only an `issued` invoice can be marked paid; anything else is refused with `invoice.cannot_mark_paid`.
 - Marking paid records **the date only** — no amount changes and no payment method is stored. If you
   need to know how it was paid, that lives with the sale.
 - `cancelled` is reached by being rectified, not by a delete.

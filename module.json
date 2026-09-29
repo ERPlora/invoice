@@ -410,8 +410,14 @@
       "sql": [
         "commands/mark_paid.sql"
       ],
+      "expect_rows": {
+        "op": "min",
+        "n": 1,
+        "error": "invoice.cannot_mark_paid",
+        "message": "This invoice cannot be marked as paid: only an issued invoice that is not paid yet can be. Nothing was changed."
+      },
       "ai": {
-        "description": "Marks an issued invoice as paid, recording the payment date. Amounts are immutable and no payment method is stored."
+        "description": "Marks an issued invoice as paid, recording the payment date. Amounts are immutable and no payment method is stored. A paid, cancelled or unknown invoice is refused with invoice.cannot_mark_paid."
       }
     },
     "invoice.series.create": {

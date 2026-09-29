@@ -34,12 +34,15 @@ from the series and emits `invoice.created`. Requires `invoice.add_invoice`.
 
 ### Mark an invoice as paid
 
-1. Open an invoice whose status is **issued**.
-2. Choose **mark as paid**.
+1. Open an invoice whose status is **issued**, or find its row in the list.
+2. Choose **mark as paid** — the green tick on the row, or the button on the invoice.
+3. Confirm: a short question names the invoice before anything changes.
 
 The status becomes `paid` and the payment date is recorded. **No amount changes and no payment method
 is stored.** Only an `issued` invoice can be marked paid — not a draft, not a cancelled one, not one
-already paid. Requires `invoice.add_invoice`.
+already paid: the action is only offered on issued invoices, in the list and on the invoice alike,
+and the server refuses the rest with `invoice.cannot_mark_paid` (nothing is changed). Requires
+`invoice.add_invoice`.
 
 ### Rectify an invoice (something was wrong)
 
