@@ -243,7 +243,10 @@ SELECT
     END,
     g.currency,
     'rectification', NULL, g.id, NULLIF(CAST(:refund_ref AS TEXT), ''), 'issued',
-    'Rectifies ' || g.number || '. Reason: ' || :reason,
+    -- invoice#124: no sentence here. SQL cannot know the business language, and `notes` is printed
+    -- on the customer's document; the screen composes «Rectifica a {number}. Motivo: {reason}»
+    -- through i18n from `rectifies_invoice_id` + `description` (where :reason already lives).
+    '',
     0, :current_user_id, :current_user_id, :now, :now
 FROM gate g
 JOIN totals t ON t.oid = g.id

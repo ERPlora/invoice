@@ -94,6 +94,7 @@ const COVERED: Record<
       'invoice-detail-load-error',
       'invoice-detail-mark-paid',
       'invoice-detail-no-lines',
+      'invoice-detail-notes',
       'invoice-detail-print',
       'invoice-detail-rectify',
       'invoice-detail-status',

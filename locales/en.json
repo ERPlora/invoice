@@ -73,6 +73,8 @@
     "fieldIssuer": "Issuer",
     "fieldSource": "Source",
     "fieldRectifies": "Rectifies",
+    "rectifiesNote": "Rectifies invoice {number}. Reason: {reason}",
+    "rectifiesNoteNoReason": "Rectifies invoice {number}.",
     "fieldPaidAt": "Paid on",
     "fieldNotes": "Notes",
     "lineDescription": "Description",
