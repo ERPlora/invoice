@@ -18,8 +18,15 @@ Two silent holes, one root cause — keys the runtime does not read:
     `invoice.series.create` / `.update` (`invoice.manage_series`); the nav filter is the third
     layer, and `tests/navigation_permission.contract.test.py` pins it.
 
+  * The three commands that issue an invoice read the tax rules (and `create_from_sale` the sale)
+    without `required` (invoice#133): a read the kernel could not make was silently omitted and
+    the invoice was issued anyway, with a generic fiscal qualification. The Module gate does not
+    run hub batteries, so this is where a manifest that drops `required` goes red;
+    `tests/issuing_refuses_without_reads.hub.test.py` proves the behaviour against the kernel.
+
 Rule under test: every declared permission is referenced by at least one query, command, or
-`provides_slots` entry; navigation entries carry only contract keys.
+`provides_slots` entry; navigation entries carry only contract keys; every read an invoice is
+issued from is `required`.
 
 Usage: tests/manifest.contract.test.py   (exit 0 = green)
 """
@@ -104,10 +111,49 @@ def test_settings_tab_gate_is_documented():
     )
 
 
+# What an invoice is issued FROM. A read the kernel cannot make is OMITTED unless it is `required`
+# (hub#701), and then the handler issues anyway: without the rules every line is declared
+# "domestic VAT, subject", without the sale `create_from_sale` blames a sale that exists
+# (`invoice.sale_not_found`). `required` makes the kernel abort with `read_unavailable` before
+# anything is written (invoice#133) — same as `sales` at the till and `taxes.calculate` (taxes#82).
+REQUIRED_READS = {"taxes.rules.list", "sales.get"}
+ISSUING_COMMANDS = {
+    "invoice.create": {"taxes.rules.list"},
+    "invoice.create_from_sale": {"taxes.rules.list", "sales.get"},
+    "invoice.substitute": {"taxes.rules.list"},
+}
+
+
+def read_query(read) -> str | None:
+    """`enum ReadDef` (`#[serde(untagged)]`): a bare query name, or `{query, params, required}`."""
+    return read if isinstance(read, str) else (read or {}).get("query")
+
+
+def test_issuing_reads_are_required():
+    print(
+        "\n== 4. an invoice is never issued from a read the kernel could not make (invoice#133) =="
+    )
+    commands = MANIFEST.get("commands", {})
+    for name, needs in ISSUING_COMMANDS.items():
+        reads = {read_query(r) for r in commands.get(name, {}).get("reads", [])}
+        check(f"`{name}` reads what it issues from", set(), needs - reads)
+    for name, cmd in commands.items():
+        for i, read in enumerate(cmd.get("reads", [])):
+            query = read_query(read)
+            if query not in REQUIRED_READS:
+                continue
+            check(
+                f"commands.{name}.reads[{i}] (`{query}`) is declared required",
+                True,
+                isinstance(read, dict) and read.get("required") is True,
+            )
+
+
 def main() -> int:
     test_every_declared_permission_gates_something()
     test_navigation_only_carries_contract_keys()
     test_settings_tab_gate_is_documented()
+    test_issuing_reads_are_required()
     print()
     if failures:
         print(f"FAILED — {len(failures)} assertion(s):")
@@ -115,7 +161,8 @@ def main() -> int:
             print(f"  - {f}")
         return 1
     print(
-        "PASS — the manifest declares only what gates something (invoice#4, invoice#32)"
+        "PASS — the manifest declares only what gates something and issues only from reads it made "
+        "(invoice#4, invoice#32, invoice#133)"
     )
     return 0
 

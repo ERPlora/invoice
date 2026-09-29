@@ -317,7 +317,10 @@
         "description": "Creates a new invoice with its detail lines."
       },
       "reads": [
-        "taxes.rules.list"
+        {
+          "query": "taxes.rules.list",
+          "required": true
+        }
       ]
     },
     "invoice.create_from_sale": {
@@ -331,12 +334,16 @@
         "description": "Automatically generates an invoice from a completed sale."
       },
       "reads": [
-        "taxes.rules.list",
+        {
+          "query": "taxes.rules.list",
+          "required": true
+        },
         {
           "query": "sales.get",
           "params": {
             "sale_id": "payload.sale_id"
-          }
+          },
+          "required": true
         }
       ]
     },
@@ -352,7 +359,10 @@
         "description": "Issues a complete invoice (F3) that substitutes a previously issued simplified invoice/ticket (F2) — the 'customer asks for an invoice for their ticket' case. The original ticket stays immutable; the new F3 links to it and carries the customer's tax details. Not a rectification (the ticket was correct)."
       },
       "reads": [
-        "taxes.rules.list"
+        {
+          "query": "taxes.rules.list",
+          "required": true
+        }
       ]
     },
     "invoice.rectify": {
