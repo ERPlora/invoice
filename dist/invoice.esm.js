@@ -5139,7 +5139,8 @@ var es_default = {
     "invoice.negative_total": "Una factura ordinaria no puede sumar menos de cero. Para devolver un importe se emite una rectificativa.",
     "invoice.f1_requires_customer_tax_id": "Una factura completa (F1) necesita el NIF del cliente: sin \xE9l Hacienda la rechaza (error 1189) y el documento es en realidad un tique simplificado. Em\xEDtela con el NIF del cliente, o usa una serie de tiques simplificados (F2).",
     "invoice.sale_not_found": "Esa venta no existe, o ya no est\xE1 disponible para facturar. No se ha emitido ning\xFAn documento ni se ha consumido numeraci\xF3n.",
-    "invoice.rectify_date_not_allowed": "Una factura rectificativa lleva la fecha del d\xEDa en que se emite: hoy, y nunca anterior a la factura que corrige. No se ha emitido nada. Env\xEDala sin fecha y quedar\xE1 fechada hoy."
+    "invoice.rectify_date_not_allowed": "Una factura rectificativa lleva la fecha del d\xEDa en que se emite: hoy, y nunca anterior a la factura que corrige. No se ha emitido nada. Env\xEDala sin fecha y quedar\xE1 fechada hoy.",
+    "invoice.cannot_mark_paid": "Esta factura no se puede marcar como pagada: solo se puede con una factura emitida que a\xFAn no est\xE9 pagada. No se ha cambiado nada."
   },
   navigation: {
     invoice: {
@@ -5170,6 +5171,8 @@ var es_default = {
     colTotal: "Total",
     actionView: "Ver",
     actionMarkPaid: "Marcar pagada",
+    markPaidConfirmTitle: "\xBFMarcar {number} como pagada?",
+    markPaidConfirmMessage: "El cobro se registra con la fecha y la hora de ahora.",
     actionRectify: "Devoluci\xF3n",
     actionPrint: "Imprimir / PDF",
     aeatTitle: "Justificante VeriFactu",
@@ -5298,7 +5301,8 @@ var en_default = {
     "invoice.negative_total": "An ordinary invoice cannot total less than zero. To return an amount, issue a corrective invoice.",
     "invoice.f1_requires_customer_tax_id": "A complete invoice (F1) needs the customer's tax ID: without it the tax authority rejects it (error 1189) and the document is really a simplified ticket. Issue it with the customer's tax ID, or use a simplified-ticket series (F2).",
     "invoice.sale_not_found": "That sale does not exist, or is no longer available to invoice. No document was issued and no number was used.",
-    "invoice.rectify_date_not_allowed": "A rectifying invoice is dated the day it is issued: today, and never earlier than the invoice it corrects. Nothing was issued. Send it without a date and it will be dated today."
+    "invoice.rectify_date_not_allowed": "A rectifying invoice is dated the day it is issued: today, and never earlier than the invoice it corrects. Nothing was issued. Send it without a date and it will be dated today.",
+    "invoice.cannot_mark_paid": "This invoice cannot be marked as paid: only an issued invoice that is not paid yet can be. Nothing was changed."
   },
   navigation: {
     invoice: {
@@ -5329,6 +5333,8 @@ var en_default = {
     colTotal: "Total",
     actionView: "View",
     actionMarkPaid: "Mark as paid",
+    markPaidConfirmTitle: "Mark {number} as paid?",
+    markPaidConfirmMessage: "The payment is recorded with today's date and time.",
     actionRectify: "Refund",
     actionPrint: "Print / PDF",
     aeatTitle: "VeriFactu receipt",
@@ -5465,6 +5471,8 @@ function domainErrorText(e5, fallbackKey) {
   }
   return message || erploraT(fallbackKey);
 }
+var canBeMarkedPaid = (inv) => inv.status === "issued";
+var canBeRectified = (inv) => !(inv.invoice_type ?? "").startsWith("R") && inv.status !== "cancelled";
 function erplora() {
   const c5 = globalThis.erplora;
   if (!c5) throw new Error("erplora SDK no inicializado por el shell");
@@ -5719,8 +5727,9 @@ var ErpInvoiceList = class extends i3 {
   }
   get rowActions() {
     const acts = [{ id: "view", label: erploraT("ui.actionView"), icon: "eye-outline" }];
-    if (this.canAdd) acts.push({ id: "paid", label: erploraT("ui.actionMarkPaid"), icon: "checkmark-circle-outline", color: "success" });
-    if (this.canRectify) acts.push({ id: "rectify", label: erploraT("ui.actionRectify"), icon: "arrow-undo-outline", color: "danger" });
+    const row = (r6) => r6;
+    if (this.canAdd) acts.push({ id: "paid", label: erploraT("ui.actionMarkPaid"), icon: "checkmark-circle-outline", color: "success", hidden: (r6) => !canBeMarkedPaid(row(r6)) });
+    if (this.canRectify) acts.push({ id: "rectify", label: erploraT("ui.actionRectify"), icon: "arrow-undo-outline", color: "danger", hidden: (r6) => !canBeRectified(row(r6)) });
     return acts;
   }
   async connectedCallback() {
@@ -5827,10 +5836,43 @@ var ErpInvoiceList = class extends i3 {
       if (from === "detail") this.detailActionError = text;
       else this.actionError = text;
     };
-    if (inv.status !== "issued") {
+    if (!canBeMarkedPaid(inv)) {
       refuse(erploraT("ui.errMarkPaidStatus"));
       return;
     }
+    await this.confirmMarkPaid(inv, from);
+  }
+  /** invoice#109: «Mark as paid» records the payment with the current time and has no undo, so it asks
+   *  first, like every invoicing back office (Stripe, Square, Odoo, QuickBooks). A GLOBAL Ionic overlay
+   *  appended to `document.body` (kitchen#115, appointments#207): an inline `<ion-alert>` in this
+   *  shadow root loses its styles when Ionic teleports it (hub#2162). */
+  async confirmMarkPaid(inv, from) {
+    const alert = document.createElement("ion-alert");
+    alert.header = erploraT("ui.markPaidConfirmTitle", { number: inv.number });
+    alert.message = erploraT("ui.markPaidConfirmMessage");
+    alert.buttons = [
+      { text: erploraT("ui.cancel"), role: "cancel" },
+      { text: erploraT("ui.actionMarkPaid"), role: "confirm", handler: () => {
+        void this.doMarkPaid(inv, from);
+      } }
+    ];
+    alert.setAttribute("data-testid", "invoice-mark-paid-confirm");
+    alert.addEventListener("ionAlertDidDismiss", () => setTimeout(() => alert.remove(), 0), { once: true });
+    document.body.appendChild(alert);
+    try {
+      if (typeof alert.present === "function") await alert.present();
+      else alert.isOpen = true;
+    } catch {
+      alert.remove();
+      if (from === "detail") this.detailActionError = erploraT("ui.errMarkPaid");
+      else this.actionError = erploraT("ui.errMarkPaid");
+    }
+  }
+  async doMarkPaid(inv, from) {
+    const refuse = (text) => {
+      if (from === "detail") this.detailActionError = text;
+      else this.actionError = text;
+    };
     this.actionError = "";
     this.detailActionError = "";
     this.busy = true;
@@ -5839,7 +5881,11 @@ var ErpInvoiceList = class extends i3 {
       await this.ctrl.load();
       if (this.detail?.id === inv.id) await this.openDetail(inv.id);
     } catch (e5) {
-      refuse(e5 instanceof Error ? e5.message : erploraT("ui.errMarkPaid"));
+      if (e5?.code === "invoice.cannot_mark_paid") {
+        await this.ctrl.load();
+        if (this.detail?.id === inv.id) await this.openDetail(inv.id);
+      }
+      refuse(domainErrorText(e5, "ui.errMarkPaid"));
     } finally {
       this.busy = false;
     }
@@ -6190,8 +6236,8 @@ var ErpInvoiceList = class extends i3 {
              was scrolled out of a phone's screen. -->
         ${this.detailActionError ? b2`<ok-inline-feedback data-testid="invoice-detail-error" tone="danger" icon="alert-circle-outline">${this.detailActionError}</ok-inline-feedback>` : A}
         <div class="row-actions">
-          ${this.canAdd && d3.status === "issued" ? b2`<ion-button data-testid="invoice-detail-mark-paid" class="tone-success" ?disabled=${this.busy} @click=${() => this.markPaid(d3, "detail")}>${erploraT("ui.actionMarkPaid")}</ion-button>` : A}
-          ${this.canRectify && !(d3.invoice_type ?? "").startsWith("R") && d3.status !== "cancelled" ? b2`<ion-button data-testid="invoice-detail-rectify" fill="outline" class="tone-danger" ?disabled=${this.busy} @click=${() => this.startRectify(d3)}>${erploraT("ui.actionRectify")}</ion-button>` : A}
+          ${this.canAdd && canBeMarkedPaid(d3) ? b2`<ion-button data-testid="invoice-detail-mark-paid" class="tone-success" ?disabled=${this.busy} @click=${() => this.markPaid(d3, "detail")}>${erploraT("ui.actionMarkPaid")}</ion-button>` : A}
+          ${this.canRectify && canBeRectified(d3) ? b2`<ion-button data-testid="invoice-detail-rectify" fill="outline" class="tone-danger" ?disabled=${this.busy} @click=${() => this.startRectify(d3)}>${erploraT("ui.actionRectify")}</ion-button>` : A}
         </div>
       </div>
       <!-- Documento imprimible (solo al imprimir / Guardar como PDF): layout factura con QR VeriFactu. -->
