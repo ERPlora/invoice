@@ -94,6 +94,24 @@ interface InvoiceDetail extends Invoice {
   rectifies_number?: string | null;
 }
 
+/** invoice#109 — what can still be done to an invoice, by its state. The row of the list and the card
+ *  of the open invoice ask these SAME two questions, so they never offer different actions. */
+type InvoiceState = Pick<Invoice, 'status' | 'invoice_type'>;
+/** Only an issued invoice is waiting for its payment (the server refuses the rest: `invoice.cannot_mark_paid`). */
+const canBeMarkedPaid = (inv: InvoiceState): boolean => inv.status === 'issued';
+/** A rectifying invoice is not rectified again, and a cancelled one has already been rectified. */
+const canBeRectified = (inv: InvoiceState): boolean =>
+  !(inv.invoice_type ?? '').startsWith('R') && inv.status !== 'cancelled';
+
+/** The slice of Ionic's `<ion-alert>` the «Mark as paid» confirmation drives (invoice#109). */
+type IonicAlertElement = HTMLElement & {
+  header: string;
+  message: string;
+  buttons: Array<{ text: string; role?: string; handler?: () => void }>;
+  isOpen?: boolean;
+  present?: () => Promise<void>;
+};
+
 interface InvoiceLine {
   id: string; line_number: number; description: string; quantity: number; unit_price: number;
   tax_rate: number; base_amount: number; tax_amount: number; total_amount: number;
@@ -472,8 +490,11 @@ export class ErpInvoiceList extends LitElement {
 
   private get rowActions(): DataTableAction[] {
     const acts: DataTableAction[] = [{ id: 'view', label: erploraT('ui.actionView'), icon: 'eye-outline' }];
-    if (this.canAdd) acts.push({ id: 'paid', label: erploraT('ui.actionMarkPaid'), icon: 'checkmark-circle-outline', color: 'success' });
-    if (this.canRectify) acts.push({ id: 'rectify', label: erploraT('ui.actionRectify'), icon: 'arrow-undo-outline', color: 'danger' });
+    // invoice#109: an action that does not apply to the row is not offered on it (`hidden`, not
+    // `disabled`: a greyed-out tick reads as «something is blocked», hub#2014) — same rule as the card.
+    const row = (r: Record<string, unknown>) => r as unknown as InvoiceState;
+    if (this.canAdd) acts.push({ id: 'paid', label: erploraT('ui.actionMarkPaid'), icon: 'checkmark-circle-outline', color: 'success', hidden: (r) => !canBeMarkedPaid(row(r)) });
+    if (this.canRectify) acts.push({ id: 'rectify', label: erploraT('ui.actionRectify'), icon: 'arrow-undo-outline', color: 'danger', hidden: (r) => !canBeRectified(row(r)) });
     return acts;
   }
 
@@ -585,9 +606,41 @@ export class ErpInvoiceList extends LitElement {
 
   /** `from` says where the button was: a row of the table (the refusal goes on the page) or the card
    *  of the open invoice (it goes next to the button, pm#513). */
-  private async markPaid(inv: { id: string; status: string }, from: 'row' | 'detail' = 'row') {
+  private async markPaid(inv: Invoice, from: 'row' | 'detail' = 'row') {
     const refuse = (text: string) => { if (from === 'detail') this.detailActionError = text; else this.actionError = text; };
-    if (inv.status !== 'issued') { refuse(erploraT('ui.errMarkPaidStatus')); return; }
+    if (!canBeMarkedPaid(inv)) { refuse(erploraT('ui.errMarkPaidStatus')); return; }
+    await this.confirmMarkPaid(inv, from);
+  }
+
+  /** invoice#109: «Mark as paid» records the payment with the current time and has no undo, so it asks
+   *  first, like every invoicing back office (Stripe, Square, Odoo, QuickBooks). A GLOBAL Ionic overlay
+   *  appended to `document.body` (kitchen#115, appointments#207): an inline `<ion-alert>` in this
+   *  shadow root loses its styles when Ionic teleports it (hub#2162). */
+  private async confirmMarkPaid(inv: Invoice, from: 'row' | 'detail') {
+    const alert = document.createElement('ion-alert') as IonicAlertElement;
+    alert.header = erploraT('ui.markPaidConfirmTitle', { number: inv.number });
+    alert.message = erploraT('ui.markPaidConfirmMessage');
+    alert.buttons = [
+      { text: erploraT('ui.cancel'), role: 'cancel' },
+      { text: erploraT('ui.actionMarkPaid'), role: 'confirm', handler: () => { void this.doMarkPaid(inv, from); } },
+    ];
+    alert.setAttribute('data-testid', 'invoice-mark-paid-confirm');
+    // Ionic moves the teleported overlay back to its original parent right AFTER emitting
+    // ionAlertDidDismiss: remove it on the next task or a hidden alert is left on every tap.
+    alert.addEventListener('ionAlertDidDismiss', () => setTimeout(() => alert.remove(), 0), { once: true });
+    document.body.appendChild(alert);
+    try {
+      if (typeof alert.present === 'function') await alert.present();
+      else alert.isOpen = true;
+    } catch {
+      alert.remove();
+      if (from === 'detail') this.detailActionError = erploraT('ui.errMarkPaid');
+      else this.actionError = erploraT('ui.errMarkPaid');
+    }
+  }
+
+  private async doMarkPaid(inv: Invoice, from: 'row' | 'detail') {
+    const refuse = (text: string) => { if (from === 'detail') this.detailActionError = text; else this.actionError = text; };
     // Pressed again, from either place: an older refusal on the page or in the card is stale (staff#75).
     this.actionError = '';
     this.detailActionError = '';
@@ -597,7 +650,13 @@ export class ErpInvoiceList extends LitElement {
       await this.ctrl.load();
       if (this.detail?.id === inv.id) await this.openDetail(inv.id);
     } catch (e) {
-      refuse(e instanceof Error ? e.message : erploraT('ui.errMarkPaid'));
+      // `invoice.cannot_mark_paid`: this screen was stale (paid or rectified meanwhile, elsewhere).
+      // Say it in the person's language, and let the list catch up with what the server knows.
+      if ((e as { code?: unknown } | null)?.code === 'invoice.cannot_mark_paid') {
+        await this.ctrl.load();
+        if (this.detail?.id === inv.id) await this.openDetail(inv.id);
+      }
+      refuse(domainErrorText(e, 'ui.errMarkPaid'));
     } finally {
       this.busy = false;
     }
@@ -989,8 +1048,8 @@ export class ErpInvoiceList extends LitElement {
              was scrolled out of a phone's screen. -->
         ${this.detailActionError ? html`<ok-inline-feedback data-testid="invoice-detail-error" tone="danger" icon="alert-circle-outline">${this.detailActionError}</ok-inline-feedback>` : nothing}
         <div class="row-actions">
-          ${this.canAdd && d.status === 'issued' ? html`<ion-button data-testid="invoice-detail-mark-paid" class="tone-success" ?disabled=${this.busy} @click=${() => this.markPaid(d, 'detail')}>${erploraT('ui.actionMarkPaid')}</ion-button>` : nothing}
-          ${this.canRectify && !(d.invoice_type ?? '').startsWith('R') && d.status !== 'cancelled' ? html`<ion-button data-testid="invoice-detail-rectify" fill="outline" class="tone-danger" ?disabled=${this.busy} @click=${() => this.startRectify(d)}>${erploraT('ui.actionRectify')}</ion-button>` : nothing}
+          ${this.canAdd && canBeMarkedPaid(d) ? html`<ion-button data-testid="invoice-detail-mark-paid" class="tone-success" ?disabled=${this.busy} @click=${() => this.markPaid(d, 'detail')}>${erploraT('ui.actionMarkPaid')}</ion-button>` : nothing}
+          ${this.canRectify && canBeRectified(d) ? html`<ion-button data-testid="invoice-detail-rectify" fill="outline" class="tone-danger" ?disabled=${this.busy} @click=${() => this.startRectify(d)}>${erploraT('ui.actionRectify')}</ion-button>` : nothing}
         </div>
       </div>
       <!-- Documento imprimible (solo al imprimir / Guardar como PDF): layout factura con QR VeriFactu. -->
