@@ -226,6 +226,25 @@ function momentText(value: string): string {
   return at.toLocaleString(erplora().locale || undefined, { dateStyle: 'short', timeStyle: 'short', timeZone: businessZone() });
 }
 
+/** invoice#138 — a stored calendar date («2026-09-29») in the person's date format («29/9/2026»).
+ *  It is a day, not a moment: it is built from its own parts and formatted in UTC, so no clock
+ *  (the device's or the business's) moves it to the day before. A value that is not a calendar
+ *  date is shown as stored. */
+function calendarDateText(value: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+  if (!m) return value || '—';
+  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return value;
+  const options: Intl.DateTimeFormatOptions = { timeZone: 'UTC' };
+  try {
+    return new Intl.DateTimeFormat(erplora().locale || undefined, options).format(date);
+  } catch {
+    // A tag Intl cannot read («es_ES») throws a RangeError: the runtime default still paints it.
+    return new Intl.DateTimeFormat(undefined, options).format(date);
+  }
+}
+
 /** invoice#124 — the note a document carries, in the business language. A rectificativa stores
  *  no sentence (SQL cannot know the language, and this text is printed on the customer's paper):
  *  it is composed here from the original's number and the reason (`description`). Rectificativas
@@ -894,16 +913,17 @@ export class ErpInvoiceList extends LitElement {
         const rate = Number(e.rate ?? 0);
         const base = Number(e.base ?? 0);
         const kind = String(e.tax ?? 'vat').toUpperCase();
-        const name = kind === 'VAT' ? 'IVA' : kind;
+        // IGIC/IPSI are the names of those taxes in any language; only VAT is translated.
+        const name = kind === 'VAT' ? erploraT('ui.taxVat') : kind;
         const cls = String(e.class ?? 'subject');
         let label: string;
         if (cls === 'exempt') {
           const cause = String(e.exempt_reason ?? '');
-          label = cause ? `Exento (${cause})` : 'Exento';
+          label = cause ? erploraT('ui.taxExemptCause', { cause }) : erploraT('ui.taxExempt');
         } else if (cls === 'not_subject' || cls === 'not_subject_location') {
-          label = 'No sujeto';
+          label = erploraT('ui.taxNotSubject');
         } else if (cls === 'subject_reverse') {
-          label = 'Inversión del sujeto pasivo';
+          label = erploraT('ui.taxReverseCharge');
         } else {
           label = `${name} ${pct(rate)}%`;
         }
@@ -919,7 +939,7 @@ export class ErpInvoiceList extends LitElement {
       for (const [rate, v] of Object.entries(parsed as Record<string, { base?: number; tax?: number }>)) {
         const r = Number(rate);
         out.push({
-          label: `IVA ${Number.isFinite(r) ? r.toFixed(0) : rate}%`,
+          label: `${erploraT('ui.taxVat')} ${Number.isFinite(r) ? r.toFixed(0) : rate}%`,
           rate: Number.isFinite(r) ? r : undefined,
           base: Number(v?.base ?? 0),
           amount: Number(v?.tax ?? 0),
@@ -927,8 +947,8 @@ export class ErpInvoiceList extends LitElement {
       }
     }
 
-    // Sin desglose (p.ej. rectificativa): una línea con base/impuesto de cabecera.
-    return out.length ? out : [{ label: 'IVA', base: d.base_amount, amount: d.tax_amount }];
+    // No breakdown (e.g. a rectificativa): one row with the header base and tax.
+    return out.length ? out : [{ label: erploraT('ui.taxVat'), base: d.base_amount, amount: d.tax_amount }];
   }
 
   /** Factura → contrato ok-invoice (layout PDF/print) con el QR de VeriFactu.
@@ -1087,7 +1107,7 @@ export class ErpInvoiceList extends LitElement {
         <dl class="grid">
           <div><dt>${erploraT('ui.fieldType')}</dt><dd>${typeLabel(d.invoice_type)} (${d.invoice_type})</dd></div>
           <div><dt>${erploraT('ui.fieldSeries')}</dt><dd>${d.series}</dd></div>
-          <div><dt>${erploraT('ui.fieldIssueDate')}</dt><dd>${d.issue_date}</dd></div>
+          <div><dt>${erploraT('ui.fieldIssueDate')}</dt><dd data-testid="invoice-detail-issue-date">${calendarDateText(d.issue_date)}</dd></div>
           <div><dt>${erploraT('ui.fieldCustomer')}</dt><dd>${d.customer_name || '—'}</dd></div>
           <div><dt>${erploraT('ui.fieldCustomerTaxId')}</dt><dd>${d.customer_tax_id || '—'}</dd></div>
           <div><dt>${erploraT('ui.fieldAddress')}</dt><dd>${d.customer_address || '—'}</dd></div>

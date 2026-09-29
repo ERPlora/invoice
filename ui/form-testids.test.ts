@@ -90,6 +90,7 @@ const COVERED: Record<
       'invoice-detail-back',
       'invoice-detail-base',
       'invoice-detail-error',
+      'invoice-detail-issue-date',
       'invoice-detail-lines',
       'invoice-detail-load-error',
       'invoice-detail-mark-paid',

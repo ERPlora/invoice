@@ -47,7 +47,7 @@ it('money on screen goes through <ok-money> and OutfitKit by entry point (pm#289
           'reads the SYMBOL of an ISO code from formatToParts(0); no amount goes through it',
         'components/erp-invoice-list/erp-invoice-list.ts: const pct = (n: number) => (Number.isInteger(n) ? n.toFixed(0) : String(n));':
           'tax RATE in the label of a tax-breakdown row («IVA 21%»), a percentage, not an amount',
-        'components/erp-invoice-list/erp-invoice-list.ts: label: `IVA ${Number.isFinite(r) ? r.toFixed(0) : rate}%`,':
+        "components/erp-invoice-list/erp-invoice-list.ts: label: `${erploraT('ui.taxVat')} ${Number.isFinite(r) ? r.toFixed(0) : rate}%`,":
           'tax RATE in the label of a legacy (object) tax breakdown, a percentage, not an amount',
       },
       outfitkitImporters: [

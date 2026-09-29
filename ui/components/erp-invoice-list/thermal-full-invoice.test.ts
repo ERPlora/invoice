@@ -7,6 +7,7 @@
 // missing. A simplified invoice (F2, R5) is a ticket, not a full invoice: it goes as `receipt`,
 // the way sales prints its tickets, and needs no customer tax id.
 import { beforeEach, describe, expect, it } from 'vitest';
+import esLocale from '../../../locales/es.json';
 
 const DETAIL = {
   id: 'i1', invoice_type: 'F1', series: 'FACT', number: 'FACT-0001', issue_date: '2026-08-25',
@@ -32,7 +33,13 @@ beforeEach(() => {
     on: () => () => {},
     hasPermission: () => true,
     locale: 'es',
-    t: (_c: unknown, key: string) => key,
+    // The REAL Spanish catalog: the tax rows are named from it since invoice#132, and this Spanish
+    // paper has to keep reading «IVA 21%».
+    t: (_c: unknown, key: string) => {
+      let node: unknown = esLocale;
+      for (const part of key.split('.')) node = (node as Record<string, unknown> | undefined)?.[part];
+      return typeof node === 'string' ? node : key;
+    },
     currency: 'EUR',
     currencyDecimals: 2,
     formatMoney: (cents: number) => `${(cents / 100).toFixed(2)} €`,
@@ -98,7 +105,7 @@ describe('the viewer warns before printing a full invoice without the customer t
 
   it('F1 without tax id: warning shown', async () => {
     const el = await mountDetail({ ...DETAIL, customer_tax_id: '' });
-    expect(warning(el)?.textContent?.trim()).toBe('ui.invoiceMissingCustomerTaxId');
+    expect(warning(el)?.textContent?.trim()).toBe(esLocale.ui.invoiceMissingCustomerTaxId);
   });
 
   it('F1 with tax id: no warning', async () => {
