@@ -95,6 +95,7 @@ const COVERED: Record<
       'invoice-detail-mark-paid',
       'invoice-detail-no-lines',
       'invoice-detail-paid-at',
+      'invoice-detail-notes',
       'invoice-detail-print',
       'invoice-detail-rectifies-link',
       'invoice-detail-rectify',

@@ -25,7 +25,8 @@ const DETAIL = {
   total_amount: 4840, status: 'paid', source_type: 'manual',
   issuer_nif: 'B00000000', issuer_name: 'Emisora SL', customer_address: '',
   description: '', tax_breakdown: '', currency: 'EUR', source_id: null as string | null,
-  rectifies_invoice_id: null as string | null, paid_at: null as string | null, notes: '',
+  rectifies_invoice_id: null as string | null, rectifies_number: null as string | null,
+  paid_at: null as string | null, notes: '',
 };
 const LINES = [
   { id: 'li1', line_number: 1, description: 'Corte y peinado', quantity: 1_000_000, unit_price: 4000, tax_rate: 21, base_amount: 4000, tax_amount: 840, total_amount: 4840, product_id: null },
@@ -185,15 +186,17 @@ describe('«Source» says where the invoice came from, in words, without interna
 
 describe('«Rectifies» names the original invoice by its number and opens it (invoice#108)', () => {
   const ORIGINAL = { ...DETAIL, id: ORIGINAL_ID, number: 'FACT-2026-000003', status: 'issued' };
-  const RECTIFYING = { ...DETAIL, id: 'r1', invoice_type: 'R1', number: 'R-2026-000001', status: 'issued', source_type: 'rectification', rectifies_invoice_id: ORIGINAL_ID };
+  // invoice.get answers `rectifies_number` (invoice#124): the original's number, joined inside the
+  // same hub by the query itself. The detail paints that, with no second read.
+  const RECTIFYING = { ...DETAIL, id: 'r1', invoice_type: 'R1', number: 'R-2026-000001', status: 'issued', source_type: 'rectification', rectifies_invoice_id: ORIGINAL_ID, rectifies_number: 'FACT-2026-000003' };
 
-  it('shows the number of the original, never its internal id', async () => {
-    const el = await openDetail(RECTIFYING, { lang: 'es', originals: { [ORIGINAL_ID]: ORIGINAL } });
+  it('shows the number of the original that invoice.get answers, never its internal id', async () => {
+    const el = await openDetail(RECTIFYING, { lang: 'es' });
     const dd = field(el, ui('es', 'fieldRectifies'));
     expect(text(dd)).toBe('FACT-2026-000003');
     expect(text(dd)).not.toContain(ORIGINAL_ID);
-    expect(queries.some((q) => q.name === 'invoice.get' && q.params?.invoice_id === ORIGINAL_ID),
-      'the number is read through the dispatcher (invoice.get, hub-scoped), not guessed').toBe(true);
+    expect(queries.filter((q) => q.name === 'invoice.get').map((q) => q.params?.invoice_id),
+      'one read of the open invoice: the number comes in its row, not from a second query').toEqual(['r1']);
   });
 
   it('the number is a link that opens the original invoice', async () => {
@@ -207,29 +210,10 @@ describe('«Rectifies» names the original invoice by its number and opens it (i
     expect(text(el.shadowRoot.querySelector('[data-testid="invoice-detail"] h2'))).toContain('FACT-2026-000003');
   });
 
-  it('an original it cannot read (another hub, no permission) paints «—», never the id', async () => {
-    const el = await openDetail(RECTIFYING, { lang: 'es', originals: {} });
+  it('an original the query does not find in this hub (no number) paints «—», never the id', async () => {
+    const el = await openDetail({ ...RECTIFYING, rectifies_number: null }, { lang: 'es', originals: {} });
     const dd = field(el, ui('es', 'fieldRectifies'));
     expect(text(dd)).toBe('—');
-    expect(el.shadowRoot.querySelector('[data-testid="invoice-detail-rectifies-link"]')).toBeNull();
-  });
-
-  it('a refused read of the original (permission, network) still opens the rectifying one, with «—»', async () => {
-    stub({ lang: 'es', originals: { r1: RECTIFYING } });
-    const erp = (globalThis as { erplora: { query: (n: string, p?: Record<string, unknown>) => Promise<unknown> } }).erplora;
-    const base = erp.query;
-    erp.query = async (name, params) => {
-      if (name === 'invoice.get' && params?.invoice_id === ORIGINAL_ID) throw Object.assign(new Error('refused'), { code: 'permission_denied' });
-      return base(name, params);
-    };
-    await import('./erp-invoice-list');
-    const el = document.createElement('erp-invoice-list') as Wc;
-    document.body.appendChild(el);
-    await settle(el);
-    await el.openDetail('r1');
-    await settle(el);
-    expect((el.detail as { id?: string } | null)?.id, 'the rectifying invoice is open').toBe('r1');
-    expect(text(field(el, ui('es', 'fieldRectifies')))).toBe('—');
     expect(el.shadowRoot.querySelector('[data-testid="invoice-detail-rectifies-link"]')).toBeNull();
   });
 
@@ -268,15 +252,14 @@ describe('«Rectifies» names the original invoice by its number and opens it (i
     expect(csv()).toBe('CSV-ORIGINAL');
   });
 
-  it('a late reply for the original never paints over another invoice opened meanwhile', async () => {
+  it('a late reply for a rectifying invoice never paints its «Rectifies» over another invoice opened meanwhile', async () => {
     let release: () => void = () => {};
     const gate = new Promise<void>((r) => { release = r; });
     const el = await openDetail({ ...DETAIL }, { lang: 'es' });
     const other = { ...DETAIL, id: 'i2', number: 'FACT-2026-000009' };
     const erp = (globalThis as { erplora: { query: (n: string, p?: Record<string, unknown>) => Promise<unknown> } }).erplora;
     erp.query = async (name, params) => {
-      if (name === 'invoice.get' && params?.invoice_id === ORIGINAL_ID) { await gate; return [ORIGINAL]; }
-      if (name === 'invoice.get' && params?.invoice_id === 'r1') return [RECTIFYING];
+      if (name === 'invoice.get' && params?.invoice_id === 'r1') { await gate; return [RECTIFYING]; }
       if (name === 'invoice.get' && params?.invoice_id === 'i2') return [other];
       return [];
     };

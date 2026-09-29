@@ -92,6 +92,8 @@ interface InvoiceDetail extends Invoice {
   issuer_nif: string; issuer_name: string; customer_address: string; description: string;
   tax_breakdown: string; currency: string; source_id: string | null;
   rectifies_invoice_id: string | null; paid_at: string | null; notes: string;
+  /** invoice#124: the number of the invoice this one rectifies (`invoice.get`, same hub). */
+  rectifies_number?: string | null;
 }
 
 /** invoice#109 — what can still be done to an invoice, by its state. The row of the list and the card
@@ -193,6 +195,23 @@ function momentText(value: string): string {
   const at = new Date(value);
   if (Number.isNaN(at.getTime())) return '';
   return at.toLocaleString(erplora().locale || undefined, { dateStyle: 'short', timeStyle: 'short', timeZone: businessZone() });
+}
+
+/** invoice#124 — the note a document carries, in the business language. A rectificativa stores
+ *  no sentence (SQL cannot know the language, and this text is printed on the customer's paper):
+ *  it is composed here from the original's number and the reason (`description`). Rectificativas
+ *  issued before the fix stored «Rectifies {number}. Reason: {reason}» in English; that exact
+ *  sentence is translated too. Any other note is the person's own text and goes out verbatim. */
+function documentNote(d: InvoiceDetail): string {
+  const notes = d.notes || '';
+  const original = d.rectifies_invoice_id ? d.rectifies_number || '' : '';
+  if (!original) return notes;
+  const reason = (d.description || '').trim();
+  const legacy = `Rectifies ${original}. Reason: ${d.description || ''}`;
+  if (notes && notes !== legacy) return notes;
+  return reason
+    ? erploraT('ui.rectifiesNote', { number: original, reason })
+    : erploraT('ui.rectifiesNoteNoReason', { number: original });
 }
 
 const TYPE_CODES = ['F1', 'F2', 'F3', 'R1', 'R2', 'R3', 'R4', 'R5'];
@@ -370,9 +389,6 @@ export class ErpInvoiceList extends LitElement {
   @state() detailLines: InvoiceLine[] = [];
 
   @state() detailError = '';
-
-  /** Number of the invoice the open one rectifies (invoice#108); `''` when it could not be read. */
-  @state() rectifiedNumber = '';
 
   /** Justificante VeriFactu de la factura abierta (estado AEAT + CSV + QR). */
   @state() aeat: { status?: string; csv?: string; qr?: string; record_type?: string } | null = null;
@@ -572,9 +588,6 @@ export class ErpInvoiceList extends LitElement {
       if (seq !== this.detailSeq) return;
       const row = Array.isArray(inv) ? inv[0] : inv;
       if (!row) { this.detailError = erploraT('ui.errNotFound'); return; }
-      const rectified = row.rectifies_invoice_id ? await this.loadInvoiceNumber(row.rectifies_invoice_id) : '';
-      if (seq !== this.detailSeq) return;
-      this.rectifiedNumber = rectified;
       // Another invoice (the «Rectifies» link opens detail → detail): the previous one's VeriFactu
       // record (CSV + QR, which Print reads) must not stay under it until its own arrives.
       if (this.detail?.id !== row.id) this.aeat = null;
@@ -588,18 +601,6 @@ export class ErpInvoiceList extends LitElement {
     } catch (e) {
       if (seq !== this.detailSeq) return;
       this.detailError = e instanceof Error ? e.message : erploraT('ui.errLoadDetail');
-    }
-  }
-
-  /** The number of another invoice, read through the dispatcher (hub-scoped), or `''` when it is
-   *  not there or not readable — the detail then paints «—», never the internal id (invoice#108). */
-  private async loadInvoiceNumber(id: string): Promise<string> {
-    try {
-      const res = await erplora().query<InvoiceDetail[] | InvoiceDetail>('invoice.get', { invoice_id: id });
-      const row = Array.isArray(res) ? res[0] : res;
-      return row?.number ?? '';
-    } catch {
-      return '';
     }
   }
 
@@ -920,7 +921,7 @@ export class ErpInvoiceList extends LitElement {
       qr: qr || undefined,
       qr_note: csv ? `CSV: ${csv}` : (qr ? erploraT('ui.qrValidateNote') : undefined),
       ...qrLegalTexts(qr),
-      footer: d.notes || undefined,
+      footer: documentNote(d) || undefined,
     };
   }
 
@@ -1049,11 +1050,11 @@ export class ErpInvoiceList extends LitElement {
           <div><dt>${erploraT('ui.fieldAddress')}</dt><dd>${d.customer_address || '—'}</dd></div>
           <div><dt>${erploraT('ui.fieldIssuer')}</dt><dd>${d.issuer_name || '—'} ${d.issuer_nif ? `(${d.issuer_nif})` : ''}</dd></div>
           <div><dt>${erploraT('ui.fieldSource')}</dt><dd data-testid="invoice-detail-source">${sourceLabel(d.source_type)}</dd></div>
-          ${d.rectifies_invoice_id ? html`<div><dt>${erploraT('ui.fieldRectifies')}</dt><dd>${this.rectifiedNumber
-            ? html`<a class="link" href="#" data-testid="invoice-detail-rectifies-link" @click=${(e: Event) => { e.preventDefault(); void this.openDetail(d.rectifies_invoice_id!); }}>${this.rectifiedNumber}</a>`
+          ${d.rectifies_invoice_id ? html`<div><dt>${erploraT('ui.fieldRectifies')}</dt><dd>${d.rectifies_number
+            ? html`<a class="link" href="#" data-testid="invoice-detail-rectifies-link" @click=${(e: Event) => { e.preventDefault(); void this.openDetail(d.rectifies_invoice_id!); }}>${d.rectifies_number}</a>`
             : '—'}</dd></div>` : nothing}
           ${d.paid_at ? html`<div><dt>${erploraT('ui.fieldPaidAt')}</dt><dd data-testid="invoice-detail-paid-at">${momentText(d.paid_at) || '—'}</dd></div>` : nothing}
-          ${d.notes ? html`<div><dt>${erploraT('ui.fieldNotes')}</dt><dd>${d.notes}</dd></div>` : nothing}
+          ${documentNote(d) ? html`<div><dt>${erploraT('ui.fieldNotes')}</dt><dd data-testid="invoice-detail-notes">${documentNote(d)}</dd></div>` : nothing}
         </dl>
         ${this.detailLines.length ? html`<table class="lines" data-testid="invoice-detail-lines">
           <thead><tr><th>#</th><th>${erploraT('ui.lineDescription')}</th><th>${erploraT('ui.lineQty')}</th><th>${erploraT('ui.linePrice')}</th><th>${erploraT('ui.lineTaxPct')}</th><th>${erploraT('ui.lineBase')}</th><th>${erploraT('ui.lineTax')}</th><th>${erploraT('ui.lineTotal')}</th></tr></thead>
