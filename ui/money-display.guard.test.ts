@@ -24,8 +24,8 @@ import { checkMoneyDisplay, moduleRootFrom, stripComments } from '@erplora/modul
 //     the scan.
 // * notDisplay — the one left of the four triaged in pm#289: the currency SYMBOL in
 //   `currencySymbol`. The tax rates (the line rate since invoice#125, the rows of the printed
-//   invoice's tax summary since invoice#141) are written by `percentText` in `lib/line-tax.ts`, an
-//   `Intl` percent in the person's language, with no `toFixed` left to except. It is
+//   invoice's tax summary since invoice#141, through OutfitKit's `formatPercent`) are an `Intl`
+//   percent in the person's language, with no `toFixed` left to except. It is
 //   also the witness on the detector's OUTPUT: fed empty or cut content, or without `lib/`, the
 //   scan would report it as `stale_exception` (rv-taxes-78). The `Intl` key is the call collapsed
 //   to one line (rv-mt-377). Add an entry (`'file: exact code line'` → why) only with the reason it

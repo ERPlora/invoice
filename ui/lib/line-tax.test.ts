@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lineTaxLabel, percentText } from './line-tax';
+import { lineTaxLabel } from './line-tax';
 
 // invoice#21: the invoice line freezes the MAIN rate (`tax_rate`) and the equivalence surcharge
 // (`surcharge_rate`) apart. Two generations coexist in `invoice_invoiceitem`:
@@ -52,28 +52,5 @@ describe('lineTaxLabel — in the language of the person (invoice#125)', () => {
     for (const locale of ['es_ES', '', undefined]) {
       expect(lineTaxLabel({ tax_rate: 21, surcharge_rate: 0 }, t, locale), `locale=${String(locale)}`).toBe(fallback);
     }
-  });
-});
-
-// invoice#141 — the one way this module writes a rate given in points (21 = 21 %): the lines column
-// and the tax rows of the printed invoice share it, so the same paper never mixes «21 %» and «21%».
-describe('percentText — a rate in points written in the language', () => {
-  it('es writes a decimal comma and a non-breaking space before «%»', () => {
-    expect(percentText(5.2, 'es')).toBe('5,2\u00A0%');
-    expect(percentText(21, 'es')).toBe('21\u00A0%');
-  });
-
-  it('en writes a decimal point and no space', () => {
-    expect(percentText(5.2, 'en')).toBe('5.2%');
-    expect(percentText(1.75, 'en')).toBe('1.75%');
-  });
-
-  it('keeps at most two decimals and pads none', () => {
-    expect(percentText(0.5, 'es')).toBe('0,5\u00A0%');
-    expect(percentText(1.125, 'en')).toBe('1.13%');
-  });
-
-  it('an unreadable language tag falls back to the runtime default instead of throwing', () => {
-    expect(percentText(5.2, 'es_ES')).toBe(new Intl.NumberFormat(undefined, { style: 'percent', maximumFractionDigits: 2 }).format(0.052));
   });
 });

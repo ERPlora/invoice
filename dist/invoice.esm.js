@@ -5528,11 +5528,9 @@ function formatQuantity3(raw, locale) {
 }
 
 // ui/lib/line-tax.ts
-function percentText(points, locale) {
-  return numberFormat(locale, { style: "percent", maximumFractionDigits: 2 }).format(points / 100);
-}
 function lineTaxLabel(line, t5, locale) {
-  const pct = (v3) => percentText(Number(v3) || 0, locale);
+  const percent = numberFormat(locale, { style: "percent", maximumFractionDigits: 2 });
+  const pct = (v3) => percent.format((Number(v3) || 0) / 100);
   const main = pct(line.tax_rate);
   if (line.surcharge_rate == null) return main;
   const surcharge = Number(line.surcharge_rate) || 0;
@@ -6679,7 +6677,7 @@ var ErpInvoiceList = class extends i3 {
     } catch {
       parsed = null;
     }
-    const pct = (n6) => percentText(n6, erplora().locale);
+    const pct = (n6) => formatPercent(n6, erplora().locale);
     const out = [];
     if (Array.isArray(parsed)) {
       for (const e5 of parsed) {

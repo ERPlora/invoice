@@ -5,7 +5,7 @@ import { define } from '@erplora/outfitkit/define';
 import '@erplora/outfitkit/ok-inline-feedback';
 import '@erplora/outfitkit/ok-data-table';
 import '@erplora/outfitkit/ok-invoice';
-import '@erplora/outfitkit/ok-money';
+import { formatPercent } from '@erplora/outfitkit/ok-money';
 import '@erplora/outfitkit/ok-qr';
 import type { DataTableColumn, DataTableAction, InvoiceData, OkInvoiceLabels } from '@erplora/outfitkit';
 import { createListController } from '@erplora/module-sdk';
@@ -14,7 +14,7 @@ import type { ListController, ListClient, ListParams, ListPage } from '@erplora/
 import { formatMoneyInput, normaliseMoneyInput, parseMoneyInput } from '@erplora/module-toolkit/money-input';
 // Aduana de la escala de cantidades (ADR-0147): la UI habla lógico (0,5), el cable habla µ (500000).
 import { QUANTITY_SCALE, parseQuantity, formatQuantity, fromMicro } from '../../lib/quantity';
-import { lineTaxLabel, percentText } from '../../lib/line-tax';
+import { lineTaxLabel } from '../../lib/line-tax';
 import { currencySymbol } from '../../lib/currency-symbol';
 import { ionTone, type IonTone } from '../../lib/ion-tone';
 import { invoiceToPrintDocument, qrLegalTexts, reprintJobId, QR_TRIBUTARIO_HEADING, VERIFACTU_LEGEND } from '../../lib/print-document';
@@ -905,8 +905,9 @@ export class ErpInvoiceList extends LitElement {
     let parsed: unknown = null;
     try { parsed = d.tax_breakdown ? JSON.parse(d.tax_breakdown) : null; } catch { parsed = null; }
 
-    // invoice#141 — «IVA 21 %», «Recargo de equivalencia 5,2 %» in es: the language's percentage.
-    const pct = (n: number) => percentText(n, erplora().locale);
+    // invoice#141 — «IVA 21 %», «Recargo de equivalencia 5,2 %» in es: the language's percentage,
+    // written by the same OutfitKit helper as the rates of the lines on this paper (<ok-invoice>).
+    const pct = (n: number) => formatPercent(n, erplora().locale);
     const out: Array<{ label: string; rate?: number; base: number; amount: number }> = [];
 
     if (Array.isArray(parsed)) {
