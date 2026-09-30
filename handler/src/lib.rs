@@ -111,8 +111,12 @@ fn sor(p: &Value, k: &str, d: &str) -> String {
 // usando el país/región del HUB (`context.country_code`/`region_code`), no los del cliente. El
 // TIPO no se recalcula: llega ya congelado en la línea (contrato D1) y se respeta.
 //
-// Sin catálogo, sin categoría o sin regla → venta nacional sujeta y no exenta, que es lo que
-// significaban las facturas de antes. Nunca se rompe una emisión por no poder calificar.
+// A catalogue that cannot be READ never reaches this code: the three issuing commands declare
+// `taxes.rules.list` as `required` (invoice#133), so the kernel aborts them with
+// `read_unavailable` before the handler runs — nothing written, no number consumed. An invoice is
+// never issued with a qualification nobody resolved. What does reach here falls back to domestic
+// VAT, subject and not exempt (what invoices meant before this key): a catalogue that answered
+// with no rules, a line with no tax category, or a category no rule matches.
 
 /// La calificación fiscal de una línea, ya resuelta. `regime`/`exempt_reason` son códigos de la
 /// jurisdicción y viajan OPACOS: este módulo no los interpreta, los copia.
@@ -845,14 +849,16 @@ pub fn create_from_sale_pure(input: Value) -> Result<Output, String> {
 
     // invoice#8 (hub#108): the invoice must reference a REAL sale. The manifest declares a `reads`
     // entry on `sales.get` parameterized with `payload.sale_id`, so the runtime preloads the sale
-    // row into `context.reads["sales.get"]` (ADR-0069). An absent/empty read means the sale does
-    // not exist (or is soft-deleted, i.e. not invoiceable) -> reject. Before this, a bogus
-    // `sale_id` produced a zero invoice with a nonexistent origin, consuming a fiscal number and
+    // row into `context.reads["sales.get"]` (ADR-0069). An empty read means the sale does not
+    // exist (or is soft-deleted, i.e. not invoiceable) -> reject. Before this, a bogus `sale_id`
+    // produced a zero invoice with a nonexistent origin, consuming a fiscal number and
     // contaminating numbering, totals and traceability.
     //
-    // Runtime rule 3 (graceful reads): a read that fails is SKIPPED, not surfaced as an error, so
-    // the check has to live here — we cannot rely on the read itself failing the command. This
-    // covers the direct call path (public API / assistant with an arbitrary sale_id). On the
+    // The read is `required` (invoice#133): one that FAILS (the database hiccuped, the query broke)
+    // never reaches this code — the kernel aborts the command with `read_unavailable` first, so an
+    // outage is never blamed on a sale that exists. But the kernel does not reject a read that
+    // answers with no rows, so the check has to live here. This covers the direct call path
+    // (public API / assistant with an arbitrary sale_id). On the
     // listener path (`sale.completed`) the sale row is committed in the same transaction that wrote
     // the outbox event, so the read finds it; if the sale was deleted meanwhile, rejecting is the
     // correct outcome.
@@ -1374,9 +1380,10 @@ mod tests {
             .clone()
     }
 
-    /// Sin catálogo de reglas —factura manual de un hub que no lo tiene, o un caller antiguo— el
-    /// desglose sigue diciendo exactamente lo que decía: venta nacional, régimen general, sujeta y
-    /// no exenta. Cambia la FORMA, no el significado ni los importes.
+    /// With no rules in the context —a catalogue that answered empty, or a direct caller; one that
+    /// cannot be READ aborts in the kernel first (invoice#133)— the breakdown still says exactly
+    /// what it said: domestic VAT, general regime, subject and not exempt. The SHAPE changes, not
+    /// the meaning nor the amounts.
     #[test]
     fn sin_catalogo_el_desglose_sigue_siendo_venta_nacional_sujeta() {
         let payload = json!({
