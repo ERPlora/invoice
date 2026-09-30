@@ -96,7 +96,17 @@ async function mountFailed(): Promise<{ el: Screen; table: HTMLElement }> {
   return { el, table: table! };
 }
 
+/** What a person has already typed in the «new» form when they press Retry. A Retry that went
+ *  through the screen's own save would send it; with the form EMPTY the save's own validation stops
+ *  it before any command, and `commands == []` would pass anyway (rv-verifactu-159). */
+const ARMED = {
+  newCustomerName: 'Ana',
+  newItems: [{ uid: 1, description: 'Consulting', quantity: '1', unit_price: '100', tax_rate: '21' }],
+};
+
 async function retry(el: Screen, table: HTMLElement): Promise<void> {
+  Object.assign(el, ARMED);
+  await el.updateComplete;
   const before = pageCalls;
   hubAnswers = true;
   table.dispatchEvent(new CustomEvent('retry', { detail: {} }));
