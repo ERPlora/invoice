@@ -22,12 +22,12 @@ import { checkMoneyDisplay, moduleRootFrom, stripComments } from '@erplora/modul
 //     where this module turns minor units into the major units the printer contract asks for;
 //   - `lib/quantity.ts` and `lib/ion-tone.ts`: their exported helpers, so `lib/` provably stays in
 //     the scan.
-// * notDisplay — three of the four triaged in pm#289: the currency SYMBOL in `currencySymbol`, and
-//   the two tax-RATE labels of the list's breakdown rows (the fourth, the line rate of
-//   `lib/line-tax.ts`, is written by `Intl` percent in the person's language since invoice#125,
-//   with no `toFixed` left to except). They are
-//   also the witnesses on the detector's OUTPUT: fed empty or cut content, or without `lib/`, the
-//   scan would report them as `stale_exception` (rv-taxes-78). The `Intl` key is the call collapsed
+// * notDisplay — the one left of the four triaged in pm#289: the currency SYMBOL in
+//   `currencySymbol`. The tax rates (the line rate since invoice#125, the rows of the printed
+//   invoice's tax summary since invoice#141) are written by `percentText` in `lib/line-tax.ts`, an
+//   `Intl` percent in the person's language, with no `toFixed` left to except. It is
+//   also the witness on the detector's OUTPUT: fed empty or cut content, or without `lib/`, the
+//   scan would report it as `stale_exception` (rv-taxes-78). The `Intl` key is the call collapsed
 //   to one line (rv-mt-377). Add an entry (`'file: exact code line'` → why) only with the reason it
 //   is not a screen amount.
 // * outfitkitImporters — the two screens, both of which import OutfitKit by entry point, so the
@@ -45,10 +45,6 @@ it('money on screen goes through <ok-money> and OutfitKit by entry point (pm#289
       notDisplay: {
         "lib/currency-symbol.ts: NumberFormat(locale, { style: 'currency', currency: iso })":
           'reads the SYMBOL of an ISO code from formatToParts(0); no amount goes through it',
-        'components/erp-invoice-list/erp-invoice-list.ts: const pct = (n: number) => (Number.isInteger(n) ? n.toFixed(0) : String(n));':
-          'tax RATE in the label of a tax-breakdown row («IVA 21%»), a percentage, not an amount',
-        "components/erp-invoice-list/erp-invoice-list.ts: label: `${erploraT('ui.taxVat')} ${Number.isFinite(r) ? r.toFixed(0) : rate}%`,":
-          'tax RATE in the label of a legacy (object) tax breakdown, a percentage, not an amount',
       },
       outfitkitImporters: [
         'components/erp-invoice-list/erp-invoice-list.ts',

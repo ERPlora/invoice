@@ -13,11 +13,17 @@ export interface LineTaxFields {
   surcharge_rate?: number | string | null;
 }
 
+/** A rate in points (21 = 21 %) the way the language writes a percentage: «5,2 %» in es, «5.2%»
+ *  in en, at most two decimals — the same text as OutfitKit's `formatPercent` on the lines of the
+ *  paper (invoice#125, invoice#141). */
+export function percentText(points: number, locale: string | undefined): string {
+  return numberFormat(locale, { style: 'percent', maximumFractionDigits: 2 }).format(points / 100);
+}
+
 /** `21%` · `21% + RE 5.2%` (label from `t('ui.taxSurcharge')`) · legacy `26.2%` — written the way
  *  the person's language writes a percentage: «21 %», «5,2 %» in es (invoice#125). */
 export function lineTaxLabel(line: LineTaxFields, t: (key: string) => string, locale: string | undefined): string {
-  const percent = numberFormat(locale, { style: 'percent', maximumFractionDigits: 2 });
-  const pct = (v: unknown) => percent.format((Number(v) || 0) / 100);
+  const pct = (v: unknown) => percentText(Number(v) || 0, locale);
   const main = pct(line.tax_rate);
   if (line.surcharge_rate == null) return main; // legacy generation: shown as frozen
   const surcharge = Number(line.surcharge_rate) || 0;

@@ -5126,9 +5126,11 @@ function formatQuantity2(raw, locale) {
 }
 
 // ui/lib/line-tax.ts
+function percentText(points, locale) {
+  return numberFormat(locale, { style: "percent", maximumFractionDigits: 2 }).format(points / 100);
+}
 function lineTaxLabel(line, t5, locale) {
-  const percent = numberFormat(locale, { style: "percent", maximumFractionDigits: 2 });
-  const pct = (v3) => percent.format((Number(v3) || 0) / 100);
+  const pct = (v3) => percentText(Number(v3) || 0, locale);
   const main = pct(line.tax_rate);
   if (line.surcharge_rate == null) return main;
   const surcharge = Number(line.surcharge_rate) || 0;
@@ -6275,7 +6277,7 @@ var ErpInvoiceList = class extends i3 {
     } catch {
       parsed = null;
     }
-    const pct = (n6) => Number.isInteger(n6) ? n6.toFixed(0) : String(n6);
+    const pct = (n6) => percentText(n6, erplora().locale);
     const out = [];
     if (Array.isArray(parsed)) {
       for (const e5 of parsed) {
@@ -6293,19 +6295,19 @@ var ErpInvoiceList = class extends i3 {
         } else if (cls === "subject_reverse") {
           label = erploraT("ui.taxReverseCharge");
         } else {
-          label = `${name} ${pct(rate)}%`;
+          label = `${name} ${pct(rate)}`;
         }
         out.push({ label, rate: Number.isFinite(rate) ? rate : void 0, base, amount: Number(e5.quota ?? 0) });
         if (e5.surcharge_rate != null) {
           const sr = Number(e5.surcharge_rate);
-          out.push({ label: `${erploraT("ui.taxSurchargeLong")} ${pct(sr)}%`, rate: sr, base, amount: Number(e5.surcharge_quota ?? 0) });
+          out.push({ label: `${erploraT("ui.taxSurchargeLong")} ${pct(sr)}`, rate: sr, base, amount: Number(e5.surcharge_quota ?? 0) });
         }
       }
     } else if (parsed && typeof parsed === "object") {
       for (const [rate, v3] of Object.entries(parsed)) {
         const r6 = Number(rate);
         out.push({
-          label: `${erploraT("ui.taxVat")} ${Number.isFinite(r6) ? r6.toFixed(0) : rate}%`,
+          label: `${erploraT("ui.taxVat")} ${Number.isFinite(r6) ? pct(r6) : `${rate}%`}`,
           rate: Number.isFinite(r6) ? r6 : void 0,
           base: Number(v3?.base ?? 0),
           amount: Number(v3?.tax ?? 0)
