@@ -1998,6 +1998,8 @@ var ES_LABELS = {
   loadError: "No se han podido cargar los datos",
   retry: "Reintentar"
 };
+var NUMERIC_TEXT = /^-?\d+(\.\d+)?$/;
+var ISO_DATE_OR_TIME = /^(\d{4}-\d{2}-\d{2}|\d{2}:\d{2})/;
 var _OkDataTable = class _OkDataTable2 extends i3 {
   constructor() {
     super(...arguments);
@@ -2966,16 +2968,33 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
     const alive = (v3) => v3 !== void 0 && v3 !== null && v3 !== "";
     this.setServerFilter(key, alive(base.from) || alive(base.to) ? base : void 0);
   }
-  /** Valor crudo de una columna para ordenar/filtrar (usa format si lo hay, si no row[key]). */
-  rawValue(col, row) {
+  /** What a column shows, as the multi-select filter offers and matches it (`format` text if any). */
+  shownValue(col, row) {
     if (col.format) return col.format(row);
     return row[col.key];
+  }
+  /** #256 - What a client-side sort and a date range filter compare: `sortValue`, else the field
+   *  itself when it is DATA — a number, boolean, `Date`, ISO date/time or NUMERIC string («100.00»,
+   *  how the hub hands over money) — so «15/01/2027» sorts after «31/12/2026» and «9,50 €» before
+   *  «100,00 €» (AG Grid, MUI DataGrid, TanStack Table). Any other field (words, a status code, a
+   *  stored «Sale <uuid>» the cell prints as a document number), a missing field or an object keeps
+   *  sorting by the `format` text the person reads, as before #256. A null field sorts last. */
+  sortKey(col, row) {
+    if (col.sortValue) return col.sortValue(row);
+    const value = row[col.key];
+    if (!col.format || value === null) return value;
+    if (typeof value === "number" || typeof value === "boolean" || value instanceof Date) return value;
+    if (typeof value === "string") {
+      if (NUMERIC_TEXT.test(value)) return Number(value);
+      if (ISO_DATE_OR_TIME.test(value)) return value;
+    }
+    return col.format(row);
   }
   /** Valores distintos de una columna (para los chips del filtro multi-select). */
   distinctValues(col) {
     const set = /* @__PURE__ */ new Set();
     for (const row of this.rows) {
-      const v3 = this.rawValue(col, row);
+      const v3 = this.shownValue(col, row);
       if (v3 != null && v3 !== "") set.add(String(v3));
     }
     return [...set].sort((a3, b3) => a3.localeCompare(b3));
@@ -2997,10 +3016,10 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
           const col = this.columns.find((c5) => c5.key === key);
           if (!col) return true;
           if (f3.values && f3.values.size > 0) {
-            return f3.values.has(String(this.rawValue(col, row) ?? ""));
+            return f3.values.has(String(this.shownValue(col, row) ?? ""));
           }
           if (f3.from || f3.to) {
-            const raw = this.rawValue(col, row);
+            const raw = this.sortKey(col, row);
             const t5 = raw == null ? NaN : new Date(raw).getTime();
             const from = f3.from ? new Date(f3.from).getTime() : -Infinity;
             const to = f3.to ? new Date(f3.to).getTime() + 864e5 - 1 : Infinity;
@@ -3015,8 +3034,8 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
       if (col) {
         const dir = this.clientSortDir === "asc" ? 1 : -1;
         result = [...result].sort((a3, b3) => {
-          const va = this.rawValue(col, a3);
-          const vb = this.rawValue(col, b3);
+          const va = this.sortKey(col, a3);
+          const vb = this.sortKey(col, b3);
           if (va == null) return 1;
           if (vb == null) return -1;
           if (va < vb) return -1 * dir;
@@ -5503,7 +5522,7 @@ function normaliseMoneyInput(typed, decimals, locale, currency) {
   return parsed.ok && parsed.minor !== null ? formatMoneyInput(parsed.minor, decimals, locale) : typed;
 }
 
-// ui/lib/number-format.ts
+// @erplora/module-invoice/ui/lib/number-format.ts
 function numberFormat(locale, options) {
   try {
     return new Intl.NumberFormat(locale || void 0, options);
@@ -5512,7 +5531,7 @@ function numberFormat(locale, options) {
   }
 }
 
-// ui/lib/quantity.ts
+// @erplora/module-invoice/ui/lib/quantity.ts
 var QUANTITY_SCALE2 = 1e6;
 function fromMicro2(raw) {
   return raw / QUANTITY_SCALE2;
@@ -5527,7 +5546,7 @@ function formatQuantity3(raw, locale) {
   return numberFormat(locale, { maximumFractionDigits: 6, useGrouping: true }).format(fromMicro2(raw));
 }
 
-// ui/lib/line-tax.ts
+// @erplora/module-invoice/ui/lib/line-tax.ts
 function lineTaxLabel(line, t5, locale) {
   const percent = numberFormat(locale, { style: "percent", maximumFractionDigits: 2 });
   const pct = (v3) => percent.format((Number(v3) || 0) / 100);
@@ -5537,7 +5556,7 @@ function lineTaxLabel(line, t5, locale) {
   return surcharge > 0 ? `${main} + ${t5("ui.taxSurcharge")} ${pct(surcharge)}` : main;
 }
 
-// ui/lib/currency-symbol.ts
+// @erplora/module-invoice/ui/lib/currency-symbol.ts
 function currencySymbol(code, locale) {
   const iso = (code ?? "").trim();
   if (!iso) return "";
@@ -5549,7 +5568,7 @@ function currencySymbol(code, locale) {
   }
 }
 
-// ui/lib/ion-tone.ts
+// @erplora/module-invoice/ui/lib/ion-tone.ts
 var PALETTE = {
   danger: { base: "#c5000f", contrast: "#fff", shade: "#ad000d", tint: "#cb1a27" },
   warning: { base: "#ffc409", contrast: "#000", shade: "#e0ac08", tint: "#ffca22" },
@@ -5572,7 +5591,7 @@ function ionTone2(kind, tone) {
   ].join("; ");
 }
 
-// ui/lib/print-document.ts
+// @erplora/module-invoice/ui/lib/print-document.ts
 var FULL_RECTIFYING_TYPES = /* @__PURE__ */ new Set(["R1", "R2", "R3", "R4"]);
 var VERIFACTU_LEGEND = "VERI*FACTU";
 var QR_TRIBUTARIO_HEADING = "QR tributario:";
@@ -5624,7 +5643,7 @@ function reprintJobId(invoiceId) {
   return `invoice-${invoiceId}-${Date.now().toString(36)}-${reprintSeq}`;
 }
 
-// locales/es.json
+// @erplora/module-invoice/locales/es.json
 var es_default = {
   name: "Facturaci\xF3n",
   description: "Emite facturas a partir de las ventas, m\xE1rcalas como cobradas y emite facturas rectificativas.",
@@ -5817,7 +5836,7 @@ var es_default = {
   }
 };
 
-// locales/en.json
+// @erplora/module-invoice/locales/en.json
 var en_default = {
   name: "Invoicing",
   errors: {
@@ -6009,7 +6028,7 @@ var en_default = {
   }
 };
 
-// ui/components/erp-invoice-list/erp-invoice-list.ts
+// @erplora/module-invoice/ui/components/erp-invoice-list/erp-invoice-list.ts
 var CATALOG = { es: es_default, en: en_default };
 function catalogError(code) {
   for (const lang of [erplora().locale, "en"]) {
@@ -7035,7 +7054,7 @@ __decorateClass([
 ], ErpInvoiceList.prototype, "busy", 2);
 define("erp-invoice-list", ErpInvoiceList);
 
-// ui/components/erp-invoice-settings/erp-invoice-settings.ts
+// @erplora/module-invoice/ui/components/erp-invoice-settings/erp-invoice-settings.ts
 var CATALOG2 = { es: es_default, en: en_default };
 function erplora2() {
   const c5 = globalThis.erplora;
