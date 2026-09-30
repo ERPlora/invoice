@@ -389,7 +389,11 @@ export class ErpInvoiceList extends LitElement {
     .item-row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:end; margin:.5rem 0; }
     .item-row .desc { flex:1 1 100%; }
     .item-row .num { flex:1 1 5rem; min-width:4.5rem; }
-    .row-actions { display:flex; gap:.5rem; margin-top:.6rem; }
+    /* invoice#143: in the ~330 px create panel the three buttons did not fit one row and were squeezed
+       until «+ Line» and «Issue invoice» broke into two lines. A label stays on one line and a button
+       never shrinks; the row wraps instead and the next whole button drops below. */
+    .row-actions { display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.6rem; }
+    .row-actions ion-button { flex:none; white-space:nowrap; }
     .muted { color: var(--ion-color-medium,#8a8577); }
     .kv { display:flex; gap:.5rem; align-items:baseline; margin:.25rem 0; }
     .kv .k { font-size:.72rem; text-transform:uppercase; letter-spacing:.03em; color:var(--ion-color-medium,#8a8577); }
