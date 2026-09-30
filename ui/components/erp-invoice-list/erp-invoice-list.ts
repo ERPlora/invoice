@@ -5,7 +5,7 @@ import { define } from '@erplora/outfitkit/define';
 import '@erplora/outfitkit/ok-inline-feedback';
 import '@erplora/outfitkit/ok-data-table';
 import '@erplora/outfitkit/ok-invoice';
-import '@erplora/outfitkit/ok-money';
+import { formatPercent } from '@erplora/outfitkit/ok-money';
 import '@erplora/outfitkit/ok-qr';
 import type { DataTableColumn, DataTableAction, InvoiceData, OkInvoiceLabels } from '@erplora/outfitkit';
 import { createListController } from '@erplora/module-sdk';
@@ -905,7 +905,9 @@ export class ErpInvoiceList extends LitElement {
     let parsed: unknown = null;
     try { parsed = d.tax_breakdown ? JSON.parse(d.tax_breakdown) : null; } catch { parsed = null; }
 
-    const pct = (n: number) => (Number.isInteger(n) ? n.toFixed(0) : String(n));
+    // invoice#141 — «IVA 21 %», «Recargo de equivalencia 5,2 %» in es: the language's percentage,
+    // written by the same OutfitKit helper as the rates of the lines on this paper (<ok-invoice>).
+    const pct = (n: number) => formatPercent(n, erplora().locale);
     const out: Array<{ label: string; rate?: number; base: number; amount: number }> = [];
 
     if (Array.isArray(parsed)) {
@@ -925,21 +927,21 @@ export class ErpInvoiceList extends LitElement {
         } else if (cls === 'subject_reverse') {
           label = erploraT('ui.taxReverseCharge');
         } else {
-          label = `${name} ${pct(rate)}%`;
+          label = `${name} ${pct(rate)}`;
         }
         out.push({ label, rate: Number.isFinite(rate) ? rate : undefined, base, amount: Number(e.quota ?? 0) });
         // El recargo de equivalencia comparte base con el IVA: es su propia línea en el documento
         // (el cliente tiene que ver los dos importes) aunque en el registro fiscal vaya dentro.
         if (e.surcharge_rate != null) {
           const sr = Number(e.surcharge_rate);
-          out.push({ label: `${erploraT('ui.taxSurchargeLong')} ${pct(sr)}%`, rate: sr, base, amount: Number(e.surcharge_quota ?? 0) });
+          out.push({ label: `${erploraT('ui.taxSurchargeLong')} ${pct(sr)}`, rate: sr, base, amount: Number(e.surcharge_quota ?? 0) });
         }
       }
     } else if (parsed && typeof parsed === 'object') {
       for (const [rate, v] of Object.entries(parsed as Record<string, { base?: number; tax?: number }>)) {
         const r = Number(rate);
         out.push({
-          label: `${erploraT('ui.taxVat')} ${Number.isFinite(r) ? r.toFixed(0) : rate}%`,
+          label: `${erploraT('ui.taxVat')} ${Number.isFinite(r) ? pct(r) : `${rate}%`}`,
           rate: Number.isFinite(r) ? r : undefined,
           base: Number(v?.base ?? 0),
           amount: Number(v?.tax ?? 0),

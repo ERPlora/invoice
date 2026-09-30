@@ -34,7 +34,7 @@ beforeEach(() => {
     hasPermission: () => true,
     locale: 'es',
     // The REAL Spanish catalog: the tax rows are named from it since invoice#132, and this Spanish
-    // paper has to keep reading «IVA 21%».
+    // paper writes the rate as Spanish does since invoice#141: «IVA 21 %» (non-breaking space).
     t: (_c: unknown, key: string) => {
       let node: unknown = esLocale;
       for (const part of key.split('.')) node = (node as Record<string, unknown> | undefined)?.[part];
@@ -76,13 +76,13 @@ describe('the thermal job of a full invoice carries what the hub demands (invoic
     expect(req.data).toMatchObject({
       customer_tax_id: 'B12345678',
       customer_address: 'Calle 1',
-      tax_breakdown: [{ rate: 21, base: 39.67, tax: 8.33, label: 'IVA 21%' }],
+      tax_breakdown: [{ rate: 21, base: 39.67, tax: 8.33, label: 'IVA 21\u00A0%' }],
     });
   });
 
   it('the legacy object breakdown ({ rate: { base, tax } }) prints too', async () => {
     const req = print(await mountDetail({ ...DETAIL, tax_breakdown: '{"21":{"base":3967,"tax":833}}' }));
-    expect((req.data as Record<string, unknown>).tax_breakdown).toEqual([{ rate: 21, base: 39.67, tax: 8.33, label: 'IVA 21%' }]);
+    expect((req.data as Record<string, unknown>).tax_breakdown).toEqual([{ rate: 21, base: 39.67, tax: 8.33, label: 'IVA 21\u00A0%' }]);
   });
 
   it('no stored breakdown (a rectifying invoice): one row from the header amounts, never an empty array', async () => {

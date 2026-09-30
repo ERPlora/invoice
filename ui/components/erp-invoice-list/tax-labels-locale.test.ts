@@ -27,10 +27,13 @@ const BREAKDOWN = [
   { tax: 'igic', class: 'subject', rate: 7, base: 1000, quota: 70 },
 ];
 
+// invoice#141 — the rate is written the way the language writes a percentage: Spanish puts a
+// decimal comma and a (non-breaking) space before «%», as the lines of the same paper and the detail
+// screen already do. Before, the Spanish paper said «Recargo de equivalencia 5.2%».
+const NBSP = '\u00A0';
 const EXPECTED: Record<Lang, string[]> = {
   en: ['VAT 21%', 'Equivalence surcharge 5.2%', 'Exempt (E1)', 'Exempt', 'Not subject', 'Not subject', 'Reverse charge', 'IGIC 7%'],
-  // Exactly what the Spanish paper printed before the fix.
-  es: ['IVA 21%', 'Recargo de equivalencia 5.2%', 'Exento (E1)', 'Exento', 'No sujeto', 'No sujeto', 'Inversión del sujeto pasivo', 'IGIC 7%'],
+  es: [`IVA 21${NBSP}%`, `Recargo de equivalencia 5,2${NBSP}%`, 'Exento (E1)', 'Exento', 'No sujeto', 'No sujeto', 'Inversión del sujeto pasivo', `IGIC 7${NBSP}%`],
 };
 
 const DETAIL = {
@@ -126,20 +129,63 @@ describe('the tax rows of the printed invoice speak the language of the hub (inv
     expect(a4Labels(el)).toEqual(['VAT']);
   });
 
-  it('es: the legacy and header-only rows keep reading «IVA 21%» and «IVA»', async () => {
-    expect(a4Labels(await mount('es', { ...DETAIL, tax_breakdown: '{"21":{"base":1000,"tax":210}}' }))).toEqual(['IVA 21%']);
+  it('es: the legacy and header-only rows read «IVA 21 %» and «IVA»', async () => {
+    expect(a4Labels(await mount('es', { ...DETAIL, tax_breakdown: '{"21":{"base":1000,"tax":210}}' }))).toEqual([`IVA 21${NBSP}%`]);
     document.body.innerHTML = '';
     expect(a4Labels(await mount('es', { ...DETAIL, tax_breakdown: '' }))).toEqual(['IVA']);
   });
 
   it('switching the language of the shell renames the rows of the open invoice', async () => {
     const el = await mount('es');
-    expect(a4Labels(el)[0]).toBe('IVA 21%');
+    expect(a4Labels(el)[0]).toBe(`IVA 21${NBSP}%`);
     erplora.locale = 'en';
     window.dispatchEvent(new CustomEvent('erplora:locale-changed'));
     await el.updateComplete;
     await new Promise((r) => setTimeout(r, 0));
     await el.updateComplete;
     expect(a4Labels(el)).toEqual(EXPECTED.en);
+  });
+});
+
+// invoice#141 — rates with decimals (IGIC 9,5, the 1,75 surcharge, a legacy row frozen with
+// decimals) keep them, written with the separator of the language; the row's numeric `rate` and its
+// amounts are not touched, only the words printed for the customer.
+describe('the rate of a tax row is written the way the language writes a percentage (invoice#141)', () => {
+  const DECIMALS = [
+    { tax: 'igic', class: 'subject', rate: 9.5, base: 1000, quota: 95 },
+    { tax: 'vat', class: 'subject', rate: 21, base: 2000, quota: 420, surcharge_rate: 1.75, surcharge_quota: 35 },
+  ];
+  const detail = { ...DETAIL, tax_breakdown: JSON.stringify(DECIMALS) };
+  const WANT: Record<Lang, string[]> = {
+    en: ['IGIC 9.5%', 'VAT 21%', 'Equivalence surcharge 1.75%'],
+    es: [`IGIC 9,5${NBSP}%`, `IVA 21${NBSP}%`, `Recargo de equivalencia 1,75${NBSP}%`],
+  };
+
+  for (const lang of ['en', 'es'] as const) {
+    it(`${lang}: the A4 and the thermal job write the decimal rates alike`, async () => {
+      const el = await mount(lang, detail);
+      expect(a4Labels(el)).toEqual(WANT[lang]);
+      expect(thermalLabels(el)).toEqual(WANT[lang]);
+    });
+  }
+
+  it('es: the numeric rate, base and amount of every row stay exactly as stored', async () => {
+    const el = await mount('es', detail);
+    const doc = el.shadowRoot.querySelector('ok-invoice') as unknown as { invoice: { taxes: Array<Record<string, unknown>> } };
+    expect(doc.invoice.taxes.map(({ rate, base, amount }) => ({ rate, base, amount }))).toEqual([
+      { rate: 9.5, base: 1000, amount: 95 },
+      { rate: 21, base: 2000, amount: 420 },
+      { rate: 1.75, base: 2000, amount: 35 },
+    ]);
+  });
+
+  it('es: a legacy row frozen with a decimal rate keeps its decimal («IVA 10,5 %», never a rounded «11%»)', async () => {
+    const el = await mount('es', { ...DETAIL, tax_breakdown: '{"10.5":{"base":1000,"tax":105}}' });
+    expect(a4Labels(el)).toEqual([`IVA 10,5${NBSP}%`]);
+  });
+
+  it('a legacy key that is not a number is printed as it was stored', async () => {
+    const el = await mount('es', { ...DETAIL, tax_breakdown: '{"abc":{"base":1000,"tax":0}}' });
+    expect(a4Labels(el)).toEqual(['IVA abc%']);
   });
 });
