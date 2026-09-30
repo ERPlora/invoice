@@ -161,10 +161,16 @@ describe('the issue date of the invoice detail reads in the date format of the l
   });
 
   it('a language tag Intl cannot read («es_ES») still paints the date instead of an empty screen', async () => {
-    expect(issueDate(await mount('es_ES'))).toMatch(/2026/);
+    // In the format of the runtime, not as stored: «2026-09-29» would pass a looser check.
+    const runtimeFormat = new Intl.DateTimeFormat(undefined, { timeZone: 'UTC' }).format(new Date(Date.UTC(2026, 8, 29)));
+    expect(issueDate(await mount('es_ES'))).toBe(runtimeFormat);
   });
 
   it('a value that is not a calendar date is shown as stored, never as «Invalid Date»', async () => {
     expect(issueDate(await mount('es', { ...DETAIL, issue_date: 'pendiente' }))).toBe('pendiente');
+  });
+
+  it('an invoice with no issue date shows a dash, like the other empty fields of the detail', async () => {
+    expect(issueDate(await mount('es', { ...DETAIL, issue_date: '' }))).toBe('—');
   });
 });
