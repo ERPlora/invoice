@@ -5317,6 +5317,11 @@ var es_default = {
     lineTax: "Impuesto",
     taxSurcharge: "RE",
     taxSurchargeLong: "Recargo de equivalencia",
+    taxVat: "IVA",
+    taxExempt: "Exento",
+    taxExemptCause: "Exento ({cause})",
+    taxNotSubject: "No sujeto",
+    taxReverseCharge: "Inversi\xF3n del sujeto pasivo",
     lineTotal: "Total",
     noLines: "Sin l\xEDneas de detalle.",
     totalBase: "Base",
@@ -5504,6 +5509,11 @@ var en_default = {
     lineTax: "Tax",
     taxSurcharge: "Eq. surcharge",
     taxSurchargeLong: "Equivalence surcharge",
+    taxVat: "VAT",
+    taxExempt: "Exempt",
+    taxExemptCause: "Exempt ({cause})",
+    taxNotSubject: "Not subject",
+    taxReverseCharge: "Reverse charge",
     lineTotal: "Total",
     noLines: "No line items.",
     totalBase: "Base",
@@ -5695,6 +5705,19 @@ function momentText(value) {
   const at = new Date(value);
   if (Number.isNaN(at.getTime())) return "";
   return at.toLocaleString(erplora().locale || void 0, { dateStyle: "short", timeStyle: "short", timeZone: businessZone() });
+}
+function calendarDateText(value) {
+  const m4 = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || "");
+  if (!m4) return value || "\u2014";
+  const [year, month, day] = [Number(m4[1]), Number(m4[2]), Number(m4[3])];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return value;
+  const options = { timeZone: "UTC" };
+  try {
+    return new Intl.DateTimeFormat(erplora().locale || void 0, options).format(date);
+  } catch {
+    return new Intl.DateTimeFormat(void 0, options).format(date);
+  }
 }
 function documentNote(d3) {
   const notes = d3.notes || "";
@@ -5927,7 +5950,7 @@ var ErpInvoiceList = class extends i3 {
         options: STATUS_CODES.map((value) => ({ value, label: statusLabel(value) })),
         render: (r6) => b2`<ion-badge style=${ionTone("solid", STATUS_COLOR[r6.status] ?? "medium")}>${statusLabel(r6.status)}</ion-badge>`
       },
-      { key: "issue_date", header: t5("ui.colDate"), sortable: true, filterable: true, filterType: "daterange", width: "minmax(7.5rem, 9rem)" },
+      { key: "issue_date", header: t5("ui.colDate"), sortable: true, filterable: true, filterType: "daterange", width: "minmax(7.5rem, 9rem)", format: (r6) => calendarDateText(r6.issue_date) },
       {
         key: "invoice_type",
         header: t5("ui.colType"),
@@ -6259,16 +6282,16 @@ var ErpInvoiceList = class extends i3 {
         const rate = Number(e5.rate ?? 0);
         const base = Number(e5.base ?? 0);
         const kind = String(e5.tax ?? "vat").toUpperCase();
-        const name = kind === "VAT" ? "IVA" : kind;
+        const name = kind === "VAT" ? erploraT("ui.taxVat") : kind;
         const cls = String(e5.class ?? "subject");
         let label;
         if (cls === "exempt") {
           const cause = String(e5.exempt_reason ?? "");
-          label = cause ? `Exento (${cause})` : "Exento";
+          label = cause ? erploraT("ui.taxExemptCause", { cause }) : erploraT("ui.taxExempt");
         } else if (cls === "not_subject" || cls === "not_subject_location") {
-          label = "No sujeto";
+          label = erploraT("ui.taxNotSubject");
         } else if (cls === "subject_reverse") {
-          label = "Inversi\xF3n del sujeto pasivo";
+          label = erploraT("ui.taxReverseCharge");
         } else {
           label = `${name} ${pct(rate)}%`;
         }
@@ -6282,14 +6305,14 @@ var ErpInvoiceList = class extends i3 {
       for (const [rate, v3] of Object.entries(parsed)) {
         const r6 = Number(rate);
         out.push({
-          label: `IVA ${Number.isFinite(r6) ? r6.toFixed(0) : rate}%`,
+          label: `${erploraT("ui.taxVat")} ${Number.isFinite(r6) ? r6.toFixed(0) : rate}%`,
           rate: Number.isFinite(r6) ? r6 : void 0,
           base: Number(v3?.base ?? 0),
           amount: Number(v3?.tax ?? 0)
         });
       }
     }
-    return out.length ? out : [{ label: "IVA", base: d3.base_amount, amount: d3.tax_amount }];
+    return out.length ? out : [{ label: erploraT("ui.taxVat"), base: d3.base_amount, amount: d3.tax_amount }];
   }
   /** Factura → contrato ok-invoice (layout PDF/print) con el QR de VeriFactu.
    *
@@ -6305,7 +6328,8 @@ var ErpInvoiceList = class extends i3 {
       issuer: { name: d3.issuer_name || "\u2014", tax_id: d3.issuer_nif || void 0 },
       customer: { name: d3.customer_name || "\u2014", tax_id: d3.customer_tax_id || void 0, address: d3.customer_address || void 0 },
       number: d3.number,
-      issue_date: d3.issue_date,
+      // <ok-invoice> paints it verbatim: the paper dates the invoice the way its language does (invoice#138).
+      issue_date: calendarDateText(d3.issue_date),
       lines: this.detailLines.map((l3) => ({ description: l3.description, qty: fromMicro2(Number(l3.quantity) || 0), unit_price: l3.unit_price, tax_rate: l3.tax_rate, total: l3.total_amount })),
       subtotal: d3.base_amount,
       taxes: this.parseTaxes(d3),
@@ -6433,7 +6457,7 @@ var ErpInvoiceList = class extends i3 {
         <dl class="grid">
           <div><dt>${erploraT("ui.fieldType")}</dt><dd>${typeLabel(d3.invoice_type)} (${d3.invoice_type})</dd></div>
           <div><dt>${erploraT("ui.fieldSeries")}</dt><dd>${d3.series}</dd></div>
-          <div><dt>${erploraT("ui.fieldIssueDate")}</dt><dd>${d3.issue_date}</dd></div>
+          <div><dt>${erploraT("ui.fieldIssueDate")}</dt><dd data-testid="invoice-detail-issue-date">${calendarDateText(d3.issue_date)}</dd></div>
           <div><dt>${erploraT("ui.fieldCustomer")}</dt><dd>${d3.customer_name || "\u2014"}</dd></div>
           <div><dt>${erploraT("ui.fieldCustomerTaxId")}</dt><dd>${d3.customer_tax_id || "\u2014"}</dd></div>
           <div><dt>${erploraT("ui.fieldAddress")}</dt><dd>${d3.customer_address || "\u2014"}</dd></div>
