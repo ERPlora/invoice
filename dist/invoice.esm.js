@@ -1998,6 +1998,8 @@ var ES_LABELS = {
   loadError: "No se han podido cargar los datos",
   retry: "Reintentar"
 };
+var NUMERIC_TEXT = /^-?\d+(\.\d+)?$/;
+var ISO_DATE_OR_TIME = /^(\d{4}-\d{2}-\d{2}|\d{2}:\d{2})/;
 var _OkDataTable = class _OkDataTable2 extends i3 {
   constructor() {
     super(...arguments);
@@ -2966,16 +2968,33 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
     const alive = (v3) => v3 !== void 0 && v3 !== null && v3 !== "";
     this.setServerFilter(key, alive(base.from) || alive(base.to) ? base : void 0);
   }
-  /** Valor crudo de una columna para ordenar/filtrar (usa format si lo hay, si no row[key]). */
-  rawValue(col, row) {
+  /** What a column shows, as the multi-select filter offers and matches it (`format` text if any). */
+  shownValue(col, row) {
     if (col.format) return col.format(row);
     return row[col.key];
+  }
+  /** #256 - What a client-side sort and a date range filter compare: `sortValue`, else the field
+   *  itself when it is DATA — a number, boolean, `Date`, ISO date/time or NUMERIC string («100.00»,
+   *  how the hub hands over money) — so «15/01/2027» sorts after «31/12/2026» and «9,50 €» before
+   *  «100,00 €» (AG Grid, MUI DataGrid, TanStack Table). Any other field (words, a status code, a
+   *  stored «Sale <uuid>» the cell prints as a document number), a missing field or an object keeps
+   *  sorting by the `format` text the person reads, as before #256. A null field sorts last. */
+  sortKey(col, row) {
+    if (col.sortValue) return col.sortValue(row);
+    const value = row[col.key];
+    if (!col.format || value === null) return value;
+    if (typeof value === "number" || typeof value === "boolean" || value instanceof Date) return value;
+    if (typeof value === "string") {
+      if (NUMERIC_TEXT.test(value)) return Number(value);
+      if (ISO_DATE_OR_TIME.test(value)) return value;
+    }
+    return col.format(row);
   }
   /** Valores distintos de una columna (para los chips del filtro multi-select). */
   distinctValues(col) {
     const set = /* @__PURE__ */ new Set();
     for (const row of this.rows) {
-      const v3 = this.rawValue(col, row);
+      const v3 = this.shownValue(col, row);
       if (v3 != null && v3 !== "") set.add(String(v3));
     }
     return [...set].sort((a3, b3) => a3.localeCompare(b3));
@@ -2997,10 +3016,10 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
           const col = this.columns.find((c5) => c5.key === key);
           if (!col) return true;
           if (f3.values && f3.values.size > 0) {
-            return f3.values.has(String(this.rawValue(col, row) ?? ""));
+            return f3.values.has(String(this.shownValue(col, row) ?? ""));
           }
           if (f3.from || f3.to) {
-            const raw = this.rawValue(col, row);
+            const raw = this.sortKey(col, row);
             const t5 = raw == null ? NaN : new Date(raw).getTime();
             const from = f3.from ? new Date(f3.from).getTime() : -Infinity;
             const to = f3.to ? new Date(f3.to).getTime() + 864e5 - 1 : Infinity;
@@ -3015,8 +3034,8 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
       if (col) {
         const dir = this.clientSortDir === "asc" ? 1 : -1;
         result = [...result].sort((a3, b3) => {
-          const va = this.rawValue(col, a3);
-          const vb = this.rawValue(col, b3);
+          const va = this.sortKey(col, a3);
+          const vb = this.sortKey(col, b3);
           if (va == null) return 1;
           if (vb == null) return -1;
           if (va < vb) return -1 * dir;
@@ -5123,6 +5142,11 @@ function toMicro(quantity) {
 }
 
 // @erplora/module-sdk/src/index.ts
+function dataTableShowsLoadError() {
+  const registry = globalThis.customElements;
+  const table = registry?.get("ok-data-table");
+  return !!table && "error" in table.prototype;
+}
 function isEmpty(v3) {
   return v3 === null || v3 === void 0 || v3 === "";
 }
@@ -6955,10 +6979,10 @@ var ErpInvoiceList = class extends i3 {
     return b2`<div class="page">
         ${this.actionError ? b2`<ok-inline-feedback data-testid="invoice-action-error" tone="danger" icon="alert-circle-outline">${this.actionError}</ok-inline-feedback>` : A}
         ${this.detailError ? b2`<ok-inline-feedback data-testid="invoice-detail-load-error" tone="danger" icon="alert-circle-outline">${this.detailError}</ok-inline-feedback>` : A}
-        ${this.ctrl?.error ? b2`<ok-inline-feedback data-testid="invoice-list-error" tone="danger" icon="alert-circle-outline">${this.ctrl.error}</ok-inline-feedback>` : A}
+        ${this.ctrl?.error && !dataTableShowsLoadError() ? b2`<ok-inline-feedback data-testid="invoice-list-error" tone="danger" icon="alert-circle-outline">${this.ctrl.error}</ok-inline-feedback>` : A}
         <!-- The «View» button is not the only door: rowClickable makes the whole row open the
              same detail (outfitkit#67 — the actions column can be off-screen at 1440 px). -->
-        <ok-data-table testid="invoice-table" .serverSide=${true} .fill=${true} .addable=${this.canAdd} .columns=${this.columns} .views=${true} .cardTitle=${(r6) => String(r6.number ?? "\u2014")} .cardIcon=${() => "document-text-outline"} .rows=${this.ctrl?.rows ?? []} .total=${this.ctrl?.total ?? 0} .page=${this.ctrl?.state.page ?? 0} .pageSize=${this.ctrl?.state.pageSize ?? 50} .sort=${this.ctrl?.state.sort} .sortDir=${this.ctrl?.state.dir ?? "asc"} .searchable=${true} .searchPlaceholder=${erploraT("ui.searchPlaceholder")} .actions=${this.rowActions} .rowClickable=${true} .emptyMessage=${this.ctrl?.loading ? erploraT("ui.loading") : erploraT("ui.empty")} @rowAction=${(e5) => this.onRowAction(e5)} @rowClick=${(e5) => this.openDetail(String(e5.detail.row.id))} @pageChange=${(e5) => this.ctrl.setPage(e5.detail)} @pageSizeChange=${(e5) => this.ctrl.setPageSize(e5.detail)} @sortChange=${(e5) => this.ctrl.setSort(e5.detail.sort, e5.detail.dir)} @searchChange=${(e5) => this.ctrl.setSearch(e5.detail)} @filterChange=${(e5) => this.ctrl.setFilter(e5.detail.col, e5.detail.value)}>
+        <ok-data-table testid="invoice-table" .error=${this.ctrl?.error ?? ""} @retry=${() => Promise.all([this.ctrl?.load(), this.loadSeries()])} .serverSide=${true} .fill=${true} .addable=${this.canAdd} .columns=${this.columns} .views=${true} .cardTitle=${(r6) => String(r6.number ?? "\u2014")} .cardIcon=${() => "document-text-outline"} .rows=${this.ctrl?.rows ?? []} .total=${this.ctrl?.total ?? 0} .page=${this.ctrl?.state.page ?? 0} .pageSize=${this.ctrl?.state.pageSize ?? 50} .sort=${this.ctrl?.state.sort} .sortDir=${this.ctrl?.state.dir ?? "asc"} .searchable=${true} .searchPlaceholder=${erploraT("ui.searchPlaceholder")} .actions=${this.rowActions} .rowClickable=${true} .emptyMessage=${this.ctrl?.loading ? erploraT("ui.loading") : erploraT("ui.empty")} @rowAction=${(e5) => this.onRowAction(e5)} @rowClick=${(e5) => this.openDetail(String(e5.detail.row.id))} @pageChange=${(e5) => this.ctrl.setPage(e5.detail)} @pageSizeChange=${(e5) => this.ctrl.setPageSize(e5.detail)} @sortChange=${(e5) => this.ctrl.setSort(e5.detail.sort, e5.detail.dir)} @searchChange=${(e5) => this.ctrl.setSearch(e5.detail)} @filterChange=${(e5) => this.ctrl.setFilter(e5.detail.col, e5.detail.value)}>
           ${this.canAdd ? this.renderCreateForm() : A}
         </ok-data-table>
       </div>`;

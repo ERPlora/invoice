@@ -21,6 +21,7 @@
 //     is just as invisible (rv-appointments-227);
 //   · an action that goes through refreshes what it changed (rv-tasks-47).
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { dataTableShowsLoadError } from '@erplora/module-sdk';
 
 const REFUSAL = 'A manager has to approve this.';
 
@@ -375,7 +376,15 @@ describe('pm#513 · invoices: what goes wrong OUTSIDE the save stays on the page
   it('a list that does not load is shown on the page, not in the form', async () => {
     listFails = true;
     const el = await mountList();
-    expect(whereIs(el, REFUSAL)).toEqual(['page']);
+    // pm#533: a shell table that paints the failure (OutfitKit ≥ 0.1.113) says it on the page with
+    // the reason, and the screen adds no notice; on an older shell the screen's notice does, and
+    // erp-invoice-list/list-load-error.test.ts forces that shell to check it stays out of the panel.
+    if (dataTableShowsLoadError()) {
+      expect((el.shadowRoot.querySelector('ok-data-table') as unknown as { error?: unknown }).error).toBe(REFUSAL);
+      expect(whereIs(el, REFUSAL)).toEqual([]);
+    } else {
+      expect(whereIs(el, REFUSAL)).toEqual(['page']);
+    }
     expect(q(el, 'invoice-create-error')).toBeNull();
   });
 
