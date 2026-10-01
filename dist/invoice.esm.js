@@ -1912,6 +1912,17 @@ function decideRowActionsFit(input) {
   if (!collapsed && contentWidth > containerWidth) return { collapsed: true, decidedAtWidth };
   return { collapsed, decidedAtWidth };
 }
+function decideCardsForFit(input) {
+  const { allowed, hostWidth, folded, fitCards, fitWidth } = input;
+  const idle = { fitCards: false, fitWidth: 0 };
+  if (!allowed) return idle;
+  if (!(hostWidth > 0)) return { fitCards, fitWidth };
+  if (fitCards) return hostWidth >= fitWidth ? idle : { fitCards, fitWidth };
+  if (folded && folded.containerWidth > 0 && folded.contentWidth > folded.containerWidth) {
+    return { fitCards: true, fitWidth: hostWidth + folded.contentWidth - folded.containerWidth };
+  }
+  return idle;
+}
 var DEFAULT_LABELS2 = {
   search: "Search\u2026",
   empty: "No results",
@@ -2052,6 +2063,9 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
     this.unfoldedCells = /* @__PURE__ */ new Set();
     this.lastPointerType = "";
     this.fitDecidedAtWidth = -1;
+    this.fitCards = false;
+    this.fitCardsWidth = 0;
+    this.fitShape = "";
     this.rowMenuOpen = false;
     this.columnChoice = /* @__PURE__ */ new Map();
     this.internalSelection = /* @__PURE__ */ new Set();
@@ -2533,15 +2547,71 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
    *  El criterio y la garantía de que no oscila viven en `decideRowActionsFit`. */
   measureRowActionsFit() {
     const scroll = this.renderRoot?.querySelector?.(".scroll");
-    if (!scroll) return;
+    if (!scroll) {
+      this.measureCardsFit(null);
+      return;
+    }
+    const containerWidth = scroll.clientWidth;
+    const contentWidth = scroll.scrollWidth;
+    const foldedOnScreen = this.rowActionsCollapsed && this.fitDecidedAtWidth === containerWidth && !this.isUpdatePending && this.pinnedTrackIsHonest();
     const next = decideRowActionsFit({
-      containerWidth: scroll.clientWidth,
-      contentWidth: scroll.scrollWidth,
+      containerWidth,
+      contentWidth,
       collapsed: this.rowActionsCollapsed,
       decidedAtWidth: this.fitDecidedAtWidth
     });
     this.fitDecidedAtWidth = next.decidedAtWidth;
     if (this.rowActionsCollapsed !== next.collapsed) this.rowActionsCollapsed = next.collapsed;
+    this.measureCardsFit(foldedOnScreen && next.collapsed ? { containerWidth, contentWidth } : null);
+  }
+  /** #267 - Hands the list over to cards when it does not fit even folded, and back when the hole
+   *  has room again. The criterion lives in `decideCardsForFit`. */
+  measureCardsFit(folded) {
+    if (this.panel !== "none") return;
+    const allowed = this.cardViewEnabled && !this.viewChosenByUser && !this.isMobile && this.defaultView !== "cards";
+    const next = decideCardsForFit({
+      allowed,
+      hostWidth: this.clientWidth,
+      folded,
+      fitCards: this.fitCards,
+      fitWidth: this.fitCardsWidth
+    });
+    this.fitCardsWidth = next.fitWidth;
+    if (next.fitCards === this.fitCards) return;
+    this.fitCards = next.fitCards;
+    if (next.fitCards) this.viewMode = "cards";
+    else if (allowed) this.viewMode = "table";
+  }
+  /** #267 - Is there a column pinned over the data, and does its track hold what it shows?
+   *
+   * Without a pinned actions column an overflow only scrolls sideways and covers nothing: the list
+   * stays a list. With one, the measurement only counts once the track has been re-measured for
+   * the folded "...": `.actions` stretches to the track, so its `scrollWidth` never drops below a
+   * track still pinned to the unfolded buttons, and judging those frames kept the list in cards
+   * for good. The buttons themselves (`flex: 0 0 auto`) say the width they really need, margins
+   * included (ios paints the icon button 28px with 2px of `margin-inline` in a 32px track). */
+  pinnedTrackIsHonest() {
+    const boxes = this.renderRoot?.querySelectorAll?.(".grow-data .gcell.actions-col .actions") ?? [];
+    if (!boxes.length) return false;
+    if (this.actionsTrackPx === 0) return true;
+    const outerWidth = (el) => {
+      const style = getComputedStyle(el);
+      const margins = (parseFloat(style.marginLeft) || 0) + (parseFloat(style.marginRight) || 0);
+      return el.getBoundingClientRect().width + margins;
+    };
+    let natural = 0;
+    for (const box of boxes) {
+      for (const child of Array.from(box.children)) natural = Math.max(natural, outerWidth(child));
+    }
+    return natural >= this.actionsTrackPx - 1;
+  }
+  /** #267 - Columns on screen with their widths, the actions and selection: the list's width. */
+  fitShapeOf() {
+    return JSON.stringify([
+      this.visibleColumns.map((c5) => [c5.key, c5.width ?? ""]),
+      this.actions.map((a3) => [a3.id, !!a3.icon]),
+      this.selectable
+    ]);
   }
   /** #218 — Marks the host `content-after` while an element in flow follows it in its parent (a
    *  heading and a second table, a notice). Out of flow does not count: an inline `ion-modal`
@@ -2591,6 +2661,10 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
   }
   updated(changed) {
     if (changed.has("fill")) this.observeSiblings();
+    if (!this.hostObserver && typeof ResizeObserver !== "undefined") {
+      this.hostObserver = new ResizeObserver(() => this.measureRowActionsFit());
+      this.hostObserver.observe(this);
+    }
     this.observeXOverflow();
     this.measureXOverflow();
     if (changed.has("columns") || changed.has("actions") || changed.has("columnChoice") || changed.has("selectable")) {
@@ -2651,6 +2725,8 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
     }
     this.xObserver?.disconnect();
     this.xObserver = void 0;
+    this.hostObserver?.disconnect();
+    this.hostObserver = void 0;
     this.siblingsObserver?.disconnect();
     this.siblingsObserver = void 0;
     this.sheetObserver?.disconnect();
@@ -3233,6 +3309,17 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
    *   `views` después de insertar → tabla   ← lo que hace la página
    */
   willUpdate(changed) {
+    if (changed.has("columns") || changed.has("actions") || changed.has("columnChoice") || changed.has("selectable")) {
+      const shape = this.fitShapeOf();
+      if (shape !== this.fitShape) {
+        this.fitShape = shape;
+        if (this.fitCards) {
+          this.fitCards = false;
+          this.fitCardsWidth = 0;
+          if (!this.viewChosenByUser) this.viewMode = "table";
+        }
+      }
+    }
     this.applyInitialView();
     if (changed.has("rows") && this.unfoldedCells.size) this.unfoldedCells = /* @__PURE__ */ new Set();
     if (changed.has("rows") || changed.has("actions")) {
@@ -3264,6 +3351,8 @@ var _OkDataTable = class _OkDataTable2 extends i3 {
     if (this.isMobile && this.cardViewEnabled) {
       this.viewMode = "cards";
     } else if (this.defaultView === "cards" && this.cardViewEnabled) {
+      this.viewMode = "cards";
+    } else if (this.fitCards && this.cardViewEnabled) {
       this.viewMode = "cards";
     } else if (this.defaultView === "table") {
       this.viewMode = "table";
@@ -4110,6 +4199,9 @@ __decorateClass3([
 ], _OkDataTable.prototype, "unfoldedCells");
 __decorateClass3([
   r5()
+], _OkDataTable.prototype, "fitCards");
+__decorateClass3([
+  r5()
 ], _OkDataTable.prototype, "rowMenuOpen");
 __decorateClass3([
   r5()
@@ -4953,6 +5045,9 @@ var OkInvoice = class extends i3 {
     table.lines tbody td { padding: 2mm 2mm; border-bottom: 1px solid var(--rule); vertical-align: top; }
     .num { text-align: right; white-space: nowrap; }
     .desc { width: 42%; }
+    /* «qty × price · disc. · tax» under the description: only the phone layout shows it. Painted
+       from an attribute so the cell's text stays the description alone. */
+    .desc::after { content: attr(data-meta); display: none; margin-top: .5mm; color: var(--muted); font-size: 11px; }
     /* Resumen de totales (derecha). */
     .summary { display: flex; justify-content: flex-end; margin-top: 4mm; }
     .summary table { border-collapse: collapse; min-width: 70mm; }
@@ -4971,6 +5066,28 @@ var OkInvoice = class extends i3 {
     .qr-note { font-size: 8px; max-width: 36mm; text-align: center; color: var(--muted); word-break: break-word; }
     .legal { margin-top: 8mm; padding-top: 3mm; border-top: 1px solid var(--rule); font-size: 9px; color: var(--muted); white-space: pre-line; text-align: center; }
     .empty { padding: 12mm; text-align: center; color: #999; font-style: italic; }
+
+    /* ── Phone (outfitkit#270) ────────────────────────────────────────────────────────────────
+       The six-column lines table needs ~340 px and a 375 px phone leaves ~300 px for the whole
+       sheet: the amount ran out of it. Below 32rem of ITS OWN width (a modal, a side panel) each
+       line becomes description + amount with «qty × price · disc. · tax» under the description,
+       like a mobile receipt (Square, Shopify). Screen only: the printed A4 keeps every column. */
+    @media screen {
+      :host { container-type: inline-size; container-name: ok-invoice; }
+      @container ok-invoice (max-width: 32rem) {
+        .sheet { padding: 16px 14px; }
+        .top { flex-wrap: wrap; gap: 1rem; }
+        /* Stacked under the issuer, the «INVOICE» block reads from the left like it: right-aligned
+           text in a box that sits on the left looked centred by accident. */
+        .doc { min-width: 0; text-align: left; }
+        .doc-grid { justify-content: start; }
+        .doc-grid .k, .doc-grid .v { text-align: left; }
+        .col-detail { display: none; }
+        .desc { width: auto; }
+        .desc::after { display: block; }
+        .summary table { min-width: 0; width: 100%; }
+      }
+    }
 
     /* ── Papel ──────────────────────────────────────────────────────────────────────────────
        Una factura es un documento fiscal: acaba impresa, y en pantalla y en papel no se
@@ -5069,26 +5186,34 @@ var OkInvoice = class extends i3 {
       <thead>
         <tr>
           <th class="desc">${this.t.description}</th>
-          <th class="num">${this.t.qty}</th>
-          <th class="num">${this.t.price}</th>
-          ${hasDisc ? b2`<th class="num">${this.t.discount}</th>` : A}
-          ${hasTax ? b2`<th class="num">${this.t.tax}</th>` : A}
+          <th class="num col-detail">${this.t.qty}</th>
+          <th class="num col-detail">${this.t.price}</th>
+          ${hasDisc ? b2`<th class="num col-detail">${this.t.discount}</th>` : A}
+          ${hasTax ? b2`<th class="num col-detail">${this.t.tax}</th>` : A}
           <th class="num">${this.t.amount}</th>
         </tr>
       </thead>
       <tbody>
         ${lines.length ? lines.map(
       (l3) => b2`<tr>
-                <td class="desc">${l3.description}</td>
-                <td class="num">${formatQuantity(l3.qty, documentLocale())}</td>
-                <td class="num">${this.money(l3.unit_price)}</td>
-                ${hasDisc ? b2`<td class="num">${l3.discount_percent ? formatPercent(l3.discount_percent, documentLocale()) : "\u2014"}</td>` : A}
-                ${hasTax ? b2`<td class="num">${l3.tax_rate != null ? formatPercent(l3.tax_rate, documentLocale()) : "\u2014"}</td>` : A}
+                <td class="desc" data-meta=${this.lineMeta(l3)}>${l3.description}</td>
+                <td class="num col-detail">${formatQuantity(l3.qty, documentLocale())}</td>
+                <td class="num col-detail">${this.money(l3.unit_price)}</td>
+                ${hasDisc ? b2`<td class="num col-detail">${l3.discount_percent ? formatPercent(l3.discount_percent, documentLocale()) : "\u2014"}</td>` : A}
+                ${hasTax ? b2`<td class="num col-detail">${l3.tax_rate != null ? formatPercent(l3.tax_rate, documentLocale()) : "\u2014"}</td>` : A}
                 <td class="num">${this.money(l3.total)}</td>
               </tr>`
     ) : b2`<tr><td colspan="6" class="muted" style="text-align:center;padding:6mm">${this.t.noLines}</td></tr>`}
       </tbody>
     </table>`;
+  }
+  /** outfitkit#270 — the folded columns of a line, for the phone layout: only what the line has. */
+  lineMeta(l3) {
+    const locale = documentLocale();
+    const parts = [`${formatQuantity(l3.qty, locale)} \xD7 ${this.money(l3.unit_price)}`];
+    if (l3.discount_percent) parts.push(`${this.t.discount} ${formatPercent(l3.discount_percent, locale)}`);
+    if (l3.tax_rate != null) parts.push(`${this.t.tax} ${formatPercent(l3.tax_rate, locale)}`);
+    return parts.join(" \xB7 ");
   }
   renderSummary(inv) {
     const taxes = inv.taxes ?? [];
