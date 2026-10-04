@@ -1,0 +1,88 @@
+# WORKFLOW — Facturación · Consultar, imprimir y cobrar
+
+Prefijo: INVOICE
+
+## Flujos
+
+### INVOICE-F16 Buscar una factura
+Estado: parcial — sin ordenar, la lista sale por el identificador interno, que no sigue ni la fecha ni el número: lo último emitido no sale arriba
+Vertical: comun
+Actor: empleado, responsable, administrador
+Pantalla: Facturas
+Pasos:
+1. Abre **Facturación → Facturas**.
+2. Escribe en «Buscar facturas…» un número, un nombre de cliente o un NIF; o filtra por columna (estado, tipo, fecha, total…); o pulsa una columna, por ejemplo «Fecha», para ordenar.
+3. La tabla enseña las que casan, de 50 en 50.
+4. Pulsa «Ver», o la fila, para abrirla (INVOICE-F17).
+Entra: las facturas del hub.
+Sale: nada; solo se lee.
+Si falla: sin resultados sale «Aún no hay facturas.» (sin confirmar si la tabla lo distingue de una lista vacía); con un error, el mensaje y el botón de reintentar.
+Implicados: pendiente
+Pendiente de enlazar: verifactu — la pantalla de registros que lista las facturas que la cadena tenía que sellar
+QA: ninguno
+
+### INVOICE-F17 Ver una factura y su justificante VeriFactu
+Estado: parcial — la ficha no dice si un tique se sustituyó por una F3 ni enlaza la F3 con su tique; no enseña la forma de pago
+Vertical: comun
+Actor: empleado, responsable, administrador
+Pantalla: Ficha de factura
+Pasos:
+1. En **Facturas**, abre la factura.
+2. Lee la cabecera, las líneas y los totales y, con VeriFactu, el «Justificante VeriFactu» con su estado, el CSV y el QR, que se puede escanear o abrir con «Validar en la Agencia Tributaria ↗».
+3. En una rectificativa, «Rectifica a» abre la factura original.
+4. «← Volver» regresa a la lista.
+Entra: la factura y sus líneas y, si VeriFactu está instalado, su registro.
+Sale: nada; solo se lee.
+Si falla: «Factura no encontrada» o el motivo del fallo, encima de la lista. Sin VeriFactu, sin registro todavía o sin permiso para verlo, la ficha sale sin la tarjeta del justificante. Abrir otra factura antes de que cargue la primera enseña solo la última.
+Implicados: pendiente
+Pendiente de enlazar: verifactu — dar el registro de una factura: estado ante la AEAT, CSV y QR
+QA: L-04, qa-hub §7, qa-hub-restaurant §11 (discrepa)
+
+### INVOICE-F18 Imprimir o guardar en PDF una factura
+Estado: parcial — la reimpresión no lleva la marca «duplicado»; no hay descarga de PDF propia, solo el diálogo de impresión del navegador para una factura completa cuando no hay impresora de tiques; un tique simplificado sin impresora se queda en la cola y no tiene PDF; en la app instalada, una factura completa sin impresora no sale
+Vertical: comun
+Actor: empleado, responsable, administrador
+Pantalla: Ficha de factura
+Pasos:
+1. En la ficha, pulsa «Imprimir / PDF».
+2. Con una impresora de tiques (rol de recibos), sale por ella: el tique como tique, y la factura completa como factura en el rollo, con el NIF del cliente, el IVA por tipo, el QR con «QR tributario:» y «VERI*FACTU» y, en una rectificativa completa, su título y la nota de lo que rectifica.
+3. Sin impresora: una factura completa abre el diálogo de impresión del navegador con la factura en A4, en el idioma de la pantalla, desde donde se puede guardar como PDF; un tique simplificado se deja en la cola de impresión del hub.
+4. Si salió el papel o se abrió el diálogo, no aparece ningún aviso. Cada pulsación es una copia nueva.
+Entra: la factura, sus líneas y el QR de VeriFactu.
+Sale: el trabajo de impresión; la factura no cambia y no se crea ningún registro.
+Si falla: en cola sin impresora dada de alta: «La factura {número} está en cola, pero no hay ninguna impresora dada de alta en este puesto: saldrá en cuanto se dé de alta una.». Cualquier otro fallo: «No se pudo imprimir la factura» con el motivo. Una factura completa sin NIF del cliente no sale por la impresora de tiques, y la ficha lo avisa antes de pulsar.
+Implicados: pendiente
+Pendiente de enlazar: printing — imprimir por la impresora con rol de recibos o dejar el trabajo en la cola de impresión del hub
+QA: L-05 (discrepa), R-11, qa-hub-restaurant §11 (discrepa)
+
+### INVOICE-F19 Marcar una factura como pagada
+Estado: parcial — se ofrece también en las facturas que nacen de una venta ya cobrada en caja y en las rectificativas, que también salen «Emitida»; no guarda la forma de pago
+Vertical: comun
+Actor: empleado, responsable, administrador
+Pantalla: Facturas
+Pasos:
+1. En **Facturas** (fila) o en la ficha, pulsa «Marcar pagada» en una factura «Emitida».
+2. Confirma en «¿Marcar {número} como pagada?» («El cobro se registra con la fecha y la hora de ahora.») con «Marcar pagada», o vuelve atrás con «Cancelar».
+3. La factura pasa a «Pagada» y la ficha enseña «Pagada el» con la fecha y la hora, en el reloj del negocio.
+Entra: la factura elegida.
+Sale: el estado «Pagada» y la fecha de pago. Ningún importe cambia, no se avisa a ningún módulo y la caja no se toca.
+Si falla: si mientras tanto alguien la pagó o la rectificó, «Esta factura no se puede marcar como pagada: solo se puede con una factura emitida que aún no esté pagada. No se ha cambiado nada.», donde se pulsó, y la lista se pone al día. Sin permiso de emitir, la acción no aparece.
+Implicados: ninguno
+QA: ninguno
+
+### INVOICE-F20 Dar a otros módulos la factura de una venta
+Estado: hecho
+Vertical: comun
+Actor: sistema
+Pantalla: ninguna
+Pasos:
+1. Otro módulo pregunta qué factura nació de una venta.
+2. Facturación contesta con su número, tipo, serie, fecha, emisor, cliente, total y estado.
+3. Ventas lo usa para poner en el tique el número y el QR de VeriFactu, y para sellar las líneas del tique en el localizador de la factura completa (INVOICE-F04); Caja, para nombrar el movimiento de la venta por el número de su factura.
+Entra: el identificador de la venta.
+Sale: los datos de la factura; solo se lee.
+Si falla: si la factura aún no existe (se emite un instante después del cobro, o falló: INVOICE-F06), no contesta nada y quien pregunta sigue sin ella.
+Implicados: pendiente
+Pendiente de enlazar: sales — poner en el tique el número y el QR de su factura
+Pendiente de enlazar: cash_register — nombrar el movimiento de caja de una venta por el número de su factura
+QA: R-09
