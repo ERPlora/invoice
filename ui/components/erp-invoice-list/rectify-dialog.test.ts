@@ -275,6 +275,70 @@ describe('«Refund» opens a dialog next to what the user is looking at (invoice
     expect((q(el, 'invoice-rectify-reason') as HTMLElement & { value: string }).value, 'the reason typed for another invoice came along').toBe('');
   });
 
+  // invoice#151 — Ionic 8 presents an inline modal by MOVING its element children into a new
+  // `div.ion-delegate-host` (unless the first child already is one; @ionic/core
+  // framework-delegate, CoreDelegate.attachViewToDom). Lit's markers stay behind as comments of the
+  // ion-modal, so a header/content rendered straight into it is never removed when the
+  // rectification ends: rectify FACT-0001 → cancel → rectify FACT-0002 left FACT-0001's form under
+  // the new one, and its «Issue» rectified FACT-0002. happy-dom has no Ionic: the move is replayed.
+  const presentLikeIonic = (modal: Element): void => {
+    if (!modal.children.length || modal.children[0].classList.contains('ion-delegate-host')) return;
+    const host = document.createElement('div');
+    host.classList.add('ion-delegate-host', 'ion-page');
+    host.append(...modal.children);
+    modal.appendChild(host);
+  };
+  const titles = (el: WC) => [...dialog(el)!.querySelectorAll('ion-title')].map((n) => n.textContent?.trim() ?? '');
+  const FACT2 = { ...FACTURA, id: 'i2', number: 'FACT-0002' };
+  const openFromRow = async (el: WC, row: Record<string, unknown>) => {
+    el.shadowRoot.querySelector('ok-data-table')!.dispatchEvent(new CustomEvent('rowAction', { detail: { actionId: 'rectify', row } }));
+    await settle(el);
+    presentLikeIonic(dialog(el)!);
+  };
+  const CLOSES: [string, (el: WC) => Promise<void>][] = [
+    ['cancelled', async (el) => {
+      (dialog(el)!.querySelector('[data-testid="invoice-rectify-cancel"]') as HTMLElement).click();
+      await settle(el);
+      dialog(el)!.dispatchEvent(new CustomEvent('ionModalDidDismiss'));
+      await settle(el);
+    }],
+    ['dismissed by the backdrop', async (el) => {
+      dialog(el)!.dispatchEvent(new CustomEvent('ionModalDidDismiss'));
+      await settle(el);
+    }],
+  ];
+
+  it.each(CLOSES)('rectify A, %s, rectify B: only B\'s dialog is left and its «Issue» rectifies B (invoice#151)', async (_n, close) => {
+    const el = await mount();
+    await openFromRow(el, FACTURA);
+    await typeReason(el, 'meant for FACT-0001');
+    await close(el);
+    expect(titles(el), 'the dialog of FACT-0001 outlived its window').toEqual([]);
+
+    await openFromRow(el, FACT2);
+    expect(titles(el), 'a dialog left over from FACT-0001 sits under the new one').toHaveLength(1);
+    expect(titles(el)[0]).toContain('FACT-0002');
+    const submits = [...dialog(el)!.querySelectorAll('[data-testid="invoice-rectify-submit"]')] as HTMLElement[];
+    expect(submits, 'two «Issue» buttons in the dialog').toHaveLength(1);
+
+    await typeReason(el, 'Wrong amount');
+    submits[0].click();
+    await settle(el);
+    expect(comandos.filter((c) => c.name === 'invoice.rectify').map((c) => c.payload)).toEqual([
+      { original_id: 'i2', reason: 'Wrong amount' },
+    ]);
+  });
+
+  it('the dialog lays out as an Ionic page: header and content inside an .ion-page (invoice#151)', async () => {
+    const el = await mount();
+    await openFromRow(el, FACTURA);
+    for (const part of ['ion-header', 'ion-content']) {
+      const parent = dialog(el)!.querySelector(part)?.parentElement;
+      expect(parent?.classList.contains('ion-page'), `${part} outside an .ion-page`).toBe(true);
+      expect(parent?.classList.contains('ion-delegate-host'), `${part} was moved by Ionic out of Lit's reach`).toBe(false);
+    }
+  });
+
   it('every string the dialog paints exists in en AND es', () => {
     for (const key of ['rectifyTitle', 'rectifyNote', 'lblReason', 'rectifyReasonPlaceholder', 'rectifying',
       'issueRectifying', 'cancel', 'close', 'rectifyDone', 'errRectifyRectifying', 'errAlreadyCancelled', 'errRectify']) {
