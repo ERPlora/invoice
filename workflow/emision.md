@@ -32,8 +32,7 @@ Pasos:
 Entra: la venta cobrada como factura (sale.completed con tipo de documento factura) y la copia fiscal del cliente que la venta tomó de su ficha o del cobro.
 Sale: la factura F1 (avisa: invoice.created). Es una copia: editar después la ficha del cliente no la cambia. Un cliente de fuera de España se declara por su país y su documento.
 Si falla: como en INVOICE-F01. Si llegara sin NIF, Facturación la emite como F1 y VeriFactu la declara como simplificada.
-Implicados: SALES-F04, VERIFACTU-F13, REC_FISCAL-F03
-Pendiente de enlazar: customers — dar los datos fiscales del cliente que se asigna a la venta
+Implicados: CUSTOMERS-F17, SALES-F04, VERIFACTU-F13, REC_FISCAL-F03
 QA: R-09, B-06, BD-09, L-01, qa-hub-restaurant §11
 
 ### INVOICE-F03 Emitir una factura a mano
