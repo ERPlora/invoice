@@ -6955,12 +6955,18 @@ var ErpInvoiceList = class extends i3 {
   /** The rectify dialog. `ion-modal` reparents itself to <body> when it presents, out of this
    *  shadow root: inside it only Ionic classes and INLINE tones paint (no shadow CSS, and `color=`
    *  is banned in modules, pm#392). Its body exists only while a rectification is in course, and
-   *  stays until `ionModalDidDismiss` so the dialog does not go blank while it animates out. */
+   *  stays until `ionModalDidDismiss` so the dialog does not go blank while it animates out.
+   *  The body sits inside a fixed `.ion-page`: when Ionic presents an inline modal it MOVES the
+   *  modal's element children into its own `div.ion-delegate-host`, out of reach of Lit's markers,
+   *  so a header/content rendered straight into the modal was never removed and the next
+   *  rectification stacked a second form whose «Issue» acted on the new invoice (invoice#151). */
   renderRectifyDialog() {
     const t5 = this.rectifyTarget;
     return b2`<ion-modal data-testid="invoice-rectify" .isOpen=${this.rectifyOpen} @ionModalDidDismiss=${() => this.resetRectify()}>
-      ${t5 ? b2`<ion-header class="ion-no-border"><ion-toolbar><ion-title>${erploraT("ui.rectifyTitle", { number: t5.number })}</ion-title></ion-toolbar></ion-header>
-          <ion-content class="ion-padding">${this.renderRectifyBody(t5.number)}</ion-content>` : A}
+      <div class="ion-page">
+        ${t5 ? b2`<ion-header class="ion-no-border"><ion-toolbar><ion-title>${erploraT("ui.rectifyTitle", { number: t5.number })}</ion-title></ion-toolbar></ion-header>
+            <ion-content class="ion-padding">${this.renderRectifyBody(t5.number)}</ion-content>` : A}
+      </div>
     </ion-modal>`;
   }
   renderRectifyBody(number) {
