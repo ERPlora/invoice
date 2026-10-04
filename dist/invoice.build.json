@@ -1,7 +1,7 @@
 {
   "file": "dist/invoice.esm.js",
-  "sources_sha256": "72f5160b5c916a467871a6593a23ffbfd13cd357d8fd33941d93f005ce1e7554",
+  "sources_sha256": "0357d72dcdaa5a29cf03db612873d95b3160798a39fcba590c980f5cd0242bc1",
   "locales_sha256": "bd0018b133b8fcda4dde0eab2e8c0582f077957a15959e1852bd7284900dfd20",
-  "bundle_sha256": "923efbbe7e6cf9568ebdea5b43aabb19f2c360358b8bf43d007344ac0f944e0c",
-  "built_at": "2026-10-01T05:57:37.018Z"
+  "bundle_sha256": "f1e60f0d912c2df0e45e01087c8f381fca4f88c39b634965c28618ca1f3012d7",
+  "built_at": "2026-10-04T10:45:35.422Z"
 }
