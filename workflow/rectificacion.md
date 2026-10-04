@@ -17,9 +17,7 @@ Pasos:
 Entra: la factura elegida y el motivo. La fecha y el año los pone el servidor: el día del negocio.
 Sale: la rectificativa R1 numerada en la serie «RECT» del año, con el emisor y el cliente de la original, su desglose de impuestos congelado en negativo y sus líneas en negativo; la original pasa a «Cancelada» (avisa: invoice.rectified). VeriFactu la registra como rectificativa (como R5 si no hay NIF del cliente). No mueve dinero ni caja.
 Si falla: el rechazo sale dentro de la ventana, traducido. Pedida con otra fecha u otro año (API o asistente): «Una factura rectificativa lleva la fecha del día en que se emite…» y no se emite nada. Sobre una rectificativa o una cancelada, la ventana solo dice por qué («Una rectificativa no se puede rectificar.», «La factura ya está cancelada.»). En pantalla, un empleado no tiene la acción; si la pide por otro camino (el asistente), el hub pide la aprobación con PIN de un responsable. La rectificativa de un tique sale R1 sin NIF del cliente: la ficha avisa de que falta el NIF y la impresora de tiques no la saca. Si la factura ya tenía una rectificativa por diferencias (INVOICE-F10), no se emite nada, no se gasta número, pero la ventana dice que sí.
-Implicados: pendiente
-Pendiente de enlazar: verifactu — registrar la rectificativa con la factura que rectifica, y bajarla a R5 sin NIF del cliente
-Pendiente de enlazar: REC_FISCAL — corregir un documento ya declarado a la AEAT
+Implicados: VERIFACTU-F14, VERIFACTU-F24, REC_FISCAL-F12
 QA: R-11, B-08, L-03, qa-hub-restaurant §13
 
 ### INVOICE-F09 La rectificativa al devolver una venta entera
@@ -34,10 +32,7 @@ Pasos:
 Entra: la devolución de Ventas (sale.refunded): la venta, la referencia del documento de devolución, el importe devuelto, si cierra la venta y el motivo. La factura original se busca por la venta, nunca por lo que diga el aviso.
 Sale: la R1 y la original cancelada (avisa: invoice.rectified); VeriFactu la registra con la factura que rectifica.
 Si falla: el mismo aviso repetido no emite otra rectificativa ni gasta número: una por documento de devolución. Si la venta no tiene factura (Facturación se instaló después del cobro, o el cobro sigue en reintentos o en «Eventos caídos») o ya está rectificada entera, no se emite nada, la devolución termina sin error y no se vuelve a intentar: si la factura nace después, queda «Emitida» y hay que rectificarla a mano (INVOICE-F06, INVOICE-F08). La rectificativa de un tique es una R1 sin NIF del cliente: la ficha avisa de que falta el NIF y la impresora de tiques no la saca. Un error se reintenta y, si persiste, acaba en «Eventos caídos», como en INVOICE-F06.
-Implicados: pendiente
-Pendiente de enlazar: sales — devolver una venta cobrada y avisar de la devolución
-Pendiente de enlazar: verifactu — registrar la rectificativa con la factura que rectifica
-Pendiente de enlazar: REC_FISCAL — corregir un documento ya declarado a la AEAT
+Implicados: SALES-F31, VERIFACTU-F14, REC_FISCAL-F11
 QA: R-11, B-08, L-03
 
 ### INVOICE-F10 La rectificativa por diferencias al devolver parte de una venta
@@ -53,8 +48,5 @@ Pasos:
 Entra: la devolución de Ventas (sale.refunded), como en INVOICE-F09.
 Sale: una R1 por documento de devolución (avisa: invoice.rectified); la original se cancela solo cuando queda a cero. VeriFactu registra cada una.
 Si falla: la misma devolución dos veces es un solo documento, y nunca se rectifica más de lo que queda de la original. Una devolución de importe cero que no cierra la venta no emite nada. La rectificativa de un tique es una R1 sin NIF del cliente: la impresora de tiques no la saca. Mientras la original tenga una rectificativa por diferencias, «Devolución» en Facturación no emite nada aunque diga que sí (INVOICE-F08).
-Implicados: pendiente
-Pendiente de enlazar: sales — devolver parte de una venta cobrada y avisar de la devolución
-Pendiente de enlazar: verifactu — registrar la rectificativa por diferencias con la factura que rectifica
-Pendiente de enlazar: REC_FISCAL — corregir un documento ya declarado a la AEAT
+Implicados: SALES-F31, VERIFACTU-F14, REC_FISCAL-F11
 QA: L-03, qa-hub-restaurant §13

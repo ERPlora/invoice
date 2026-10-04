@@ -17,8 +17,7 @@ Pasos:
 Entra: las facturas del hub.
 Sale: nada; solo se lee.
 Si falla: sin resultados sale «Aún no hay facturas.» (sin confirmar si la tabla lo distingue de una lista vacía); con un error, el mensaje y el botón de reintentar.
-Implicados: pendiente
-Pendiente de enlazar: verifactu — la pantalla de registros que lista las facturas que la cadena tenía que sellar
+Implicados: VERIFACTU-F16
 QA: ninguno
 
 ### INVOICE-F17 Ver una factura y su justificante VeriFactu
@@ -34,8 +33,7 @@ Pasos:
 Entra: la factura y sus líneas y, si VeriFactu está instalado, su registro.
 Sale: nada; solo se lee.
 Si falla: «Factura no encontrada» o el motivo del fallo, encima de la lista. Sin VeriFactu, sin registro todavía o sin permiso para verlo, la ficha sale sin la tarjeta del justificante. Abrir otra factura antes de que cargue la primera enseña solo la última.
-Implicados: pendiente
-Pendiente de enlazar: verifactu — dar el registro de una factura: estado ante la AEAT, CSV y QR
+Implicados: VERIFACTU-F19
 QA: L-04, qa-hub §7, qa-hub-restaurant §11 (discrepa)
 
 ### INVOICE-F18 Imprimir o guardar en PDF una factura
@@ -47,12 +45,11 @@ Pasos:
 1. En la ficha, pulsa «Imprimir / PDF».
 2. Con una impresora de tiques (rol de recibos), sale por ella: el tique como tique, y la factura completa como factura en el rollo, con el NIF del cliente, el IVA por tipo, el QR con «QR tributario:» y «VERI*FACTU» y, en una rectificativa completa, su título y la nota de lo que rectifica.
 3. Sin impresora de tiques: abierto en el navegador (sin impresoras registradas en el puesto), una factura completa abre el diálogo de impresión del navegador con la factura en A4, en el idioma de la pantalla, desde donde se puede guardar como PDF; si el puesto tiene impresoras registradas pero ninguna con rol de recibos, queda en la cola de impresión del hub. Un tique simplificado va siempre a la cola.
-4. Si salió por la impresora, se abrió el diálogo o quedó en una cola que alguien vacía, no aparece ningún aviso: en la cola, el papel sale cuando su impresora lo recoge. Cada pulsación es una copia nueva.
+4. Si salió por la impresora, se abrió el diálogo o quedó en una cola que alguien vacía, no aparece ningún aviso: en la cola, el papel sale cuando su impresora lo recoge. Con la impresora de red del dispositivo apagada o sin papel tampoco hay aviso y el papel se pierde (PRINTING-F07). Cada pulsación es una copia nueva, sin la marca de duplicado que sí pone la reimpresión desde Ventas (SALES-F29, PRINTING-F08).
 Entra: la factura, sus líneas y el QR de VeriFactu.
 Sale: el trabajo de impresión; la factura no cambia y no se crea ningún registro.
 Si falla: en cola sin impresora dada de alta: «La factura {número} está en cola, pero no hay ninguna impresora dada de alta en este puesto: saldrá en cuanto se dé de alta una.». Cualquier otro fallo: «No se pudo imprimir la factura» con el motivo. Una factura completa o una rectificativa sin NIF del cliente (también la de un tique devuelto, que sale R1) no sale por la impresora de tiques, y la ficha lo avisa antes de pulsar. En la app instalada que no puede consultar sus impresoras, una factura completa falla con «No se pudo imprimir la factura» (sin confirmar cuándo ocurre).
-Implicados: pendiente
-Pendiente de enlazar: printing — imprimir por la impresora con rol de recibos o dejar el trabajo en la cola de impresión del hub
+Implicados: PRINTING-F08
 QA: L-05 (discrepa), R-11, qa-hub-restaurant §11 (discrepa)
 
 ### INVOICE-F19 Marcar una factura como pagada
@@ -82,7 +79,5 @@ Pasos:
 Entra: el identificador de la venta.
 Sale: los datos de la factura; solo se lee.
 Si falla: si la factura aún no existe (se emite un instante después del cobro, o falló: INVOICE-F06), no contesta nada y quien pregunta sigue sin ella.
-Implicados: pendiente
-Pendiente de enlazar: sales — poner en el tique el número y el QR de su factura
-Pendiente de enlazar: cash_register — nombrar el movimiento de caja de una venta por el número de su factura
+Implicados: CASH_REGISTER-F11, PRINTING-F07, SALES-F29, REC_FISCAL-F07
 QA: R-09

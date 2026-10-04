@@ -17,9 +17,7 @@ Pasos:
 Entra: el código de serie que toca (TICKET para los tiques, FACT para las facturas completas y las sustitutivas, RECT para las rectificativas; en el alta manual, la serie elegida) y la hora y la zona del negocio.
 Sale: el número del documento y su fila en el libro. El número entra en la huella encadenada de VeriFactu.
 Si falla: si la emisión se rechaza o falla, no se guarda nada y el contador no sube: no queda hueco. Dos cobros a la vez en la misma serie esperan uno al otro y reciben números seguidos; dos documentos de la misma serie no pueden llevar el mismo número. La serie del año nuevo nace con el código como prefijo y sin formato, aunque la del año anterior tuviera otros: hay que crearla antes (INVOICE-F12). Si la serie del año siguiente se crea con un formato sin año igual al del anterior, sus primeros números coinciden con los ya emitidos y la emisión se rechaza (deducido del código, no probado). Sin confirmar: dos rectificaciones simultáneas de la misma factura podrían gastar un número de la serie RECT sin documento detrás, un hueco que vería INVOICE-F15 (deducido del código, sin test).
-Implicados: pendiente
-Pendiente de enlazar: verifactu — encadenar el número de serie en la huella de cada registro
-Pendiente de enlazar: REC_FISCAL — numeración correlativa sin huecos ni duplicados
+Implicados: VERIFACTU-F13, REC_FISCAL-F02
 QA: L-06, BD-09, qa-hub-restaurant §11
 
 ### INVOICE-F12 Crear una serie de numeración
