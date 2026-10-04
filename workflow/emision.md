@@ -11,12 +11,12 @@ Actor: sistema
 Pantalla: ninguna
 Pasos:
 1. El cajero cobra una venta en Ventas como tique, que es lo habitual en barra y en el salón.
-2. En cuanto la venta queda cobrada, Facturación emite sola su factura simplificada (F2) en la serie «TICKET» del año, fechada el día del negocio, con las líneas y los importes que cobró la venta (no se recalculan) y el cliente si la venta tenía uno asignado.
+2. En cuanto la venta queda cobrada, Facturación emite sola su factura simplificada (F2) en la serie «TICKET» del año, fechada el día del negocio, con las líneas de la venta y el cliente si la venta tenía uno asignado. La base y la cuota se cierran una vez por tipo de impuesto: lo cobrado no cambia ni un céntimo, pero pueden moverse céntimos entre base y cuota (con precios sin IVA, la cuota de cada línea se reparte de nuevo).
 3. La factura aparece en **Facturación → Facturas** como «Ticket», «Emitida», con «Origen» «Venta del TPV»; puede tardar un instante después del cobro.
 4. Se comprueba abriéndola: las líneas, la «Base», los «Impuestos» y el «Total» son los del tique de Ventas.
 Entra: la venta cobrada de Ventas (sale.completed): sus líneas con base y cuota ya calculadas, si los precios llevaban el IVA dentro, el tipo de documento y la copia de los datos del cliente; las reglas de impuestos de Impuestos; la identidad fiscal, el país y la zona horaria del hub.
 Sale: la factura F2 con su número, sus líneas, el desglose por tipo de impuesto y su número apuntado en el libro (avisa: invoice.created); VeriFactu crea su registro y Ventas pone el número en su tique.
-Si falla: el mismo aviso repetido no crea otra factura ni gasta número. Si el hub no puede leer las reglas de impuestos o la venta, o los importes no cuadran (cuota que no corresponde a su tipo, cuota en una línea exenta, total negativo), no se escribe nada y el hub lo reintenta (INVOICE-F06). Si la venta ya no existe, no se emite. El techo de la simplificada no se mira aquí: una de más de 3.000 € la rechaza VeriFactu al registrarla.
+Si falla: el mismo aviso repetido no crea otra factura ni gasta número. Si el hub no puede leer las reglas de impuestos o la venta, o los importes no cuadran (cuota que no corresponde a su tipo, cuota en una línea exenta, total negativo), no se escribe nada y el hub lo reintenta (INVOICE-F06). Si la venta ya no existe, no se emite. El techo de la simplificada no se mira aquí: una de más de 3.000 € (3.010 € con la tolerancia de la AEAT) se emite y VeriFactu la encadena; su validador la rechaza antes de enviarla, con el número de la cadena ya gastado.
 Implicados: pendiente
 Pendiente de enlazar: sales — cobrar una venta como tique y avisar de que está cobrada
 Pendiente de enlazar: taxes — dar las reglas que califican cada línea (sujeta, exenta, recargo de equivalencia)
@@ -55,7 +55,7 @@ Pasos:
 4. Pulsa «Emitir factura»; está en gris hasta que cada línea tiene descripción, cantidad y precio. El panel se cierra y la factura aparece en la lista con su número y «Origen» «Alta manual».
 Entra: lo que escribe la persona; la identidad fiscal del hub como emisor (el formulario no tiene campos de emisor); las reglas de Impuestos.
 Sale: la factura (F1 en la serie FACT, F2 en TICKET) con el IVA calculado encima del precio y cerrado una vez por tipo, y su número en el libro (avisa: invoice.created); VeriFactu la registra.
-Si falla: el motivo sale dentro del panel, encima de «Emitir factura»: «Línea {line}: el precio no es un importe…», el precio que «se puede leer de dos maneras», «Línea {line}: un precio no puede ser negativo…», «Una factura completa (F1) necesita el NIF del cliente…», una línea que sale a 0,00, o importes que no cuadran. No se emite nada ni se gasta número, y lo escrito se conserva. Una simplificada de más de 3.000 € sí se emite y luego VeriFactu la rechaza.
+Si falla: el motivo sale dentro del panel, encima de «Emitir factura»: «Línea {line}: el precio no es un importe…», el precio que «se puede leer de dos maneras», «Línea {line}: un precio no puede ser negativo…», «Una factura completa (F1) necesita el NIF del cliente…», una línea que sale a 0,00, o importes que no cuadran. No se emite nada ni se gasta número, y lo escrito se conserva. El techo de la simplificada no se mira: una de más de 3.000 € (3.010 € con la tolerancia de la AEAT) se emite y VeriFactu la encadena; su validador la rechaza antes de enviarla, con el número de la cadena ya gastado.
 Implicados: pendiente
 Pendiente de enlazar: taxes — dar el tipo y la calificación de las líneas que llevan categoría fiscal
 Pendiente de enlazar: verifactu — emitir una factura de prueba desde VeriFactu con este mismo alta
@@ -74,7 +74,7 @@ Pasos:
 4. Facturación emite una factura completa sustitutiva (F3) en la serie «FACT», con las líneas y los importes del tique copiados al céntimo y enlazada a él; el tique no se toca. En **Facturas** sale como «Factura», con «Origen» «Sustituye a una factura simplificada».
 Entra: el tique (F2) y sus líneas, que Ventas deja sellados en el localizador; los datos fiscales que escribe el cliente.
 Sale: la F3 (avisa: invoice.created); VeriFactu la declara indicando el tique al que sustituye. El localizador sirve una sola vez.
-Si falla: sin NIF o sin nombre se rechaza. Un segundo intento sobre el mismo tique no emite otra F3 ni gasta número: hay una sustitutiva por tique. Si Facturación no está instalada o el tique no tiene líneas, el tique sale sin ese QR.
+Si falla: sin NIF o sin nombre se rechaza; un envío rechazado (por ejemplo, un NIF mal escrito) no gasta el localizador y se puede volver a intentar. Pasado el plazo (45 días si Ventas no fija otro), la página dice que el plazo terminó, manda preguntar en el mostrador y no emite nada. Un segundo intento sobre el mismo tique no emite otra F3 ni gasta número: hay una sustitutiva por tique. Si Facturación no está instalada o el tique no tiene líneas, el tique sale sin ese QR.
 Implicados: pendiente
 Pendiente de enlazar: sales — imprimir en el tique el localizador para pedir la factura completa
 Pendiente de enlazar: hub — la página pública donde el cliente escribe sus datos y canjea el localizador
@@ -82,7 +82,7 @@ Pendiente de enlazar: verifactu — declarar la sustitutiva con el tique al que 
 QA: L-02, BD-09
 
 ### INVOICE-F05 Pasar un tique a factura completa desde el mostrador
-Estado: parcial — no hay botón ni en Facturas ni en la ficha del tique: solo con el asistente o la API, que tienen que mandar también las líneas del tique; no se comprueba que el documento sustituido exista ni que sea un tique; la ficha del tique no dice que se sustituyó
+Estado: parcial — no hay botón ni en Facturas ni en la ficha del tique: solo con el asistente o la API, que tienen que mandar también las líneas del tique, o abriendo el empleado la página pública desde el QR del tique, como haría el cliente; no se comprueba que el documento sustituido exista ni que sea un tique; la ficha del tique no dice que se sustituyó
 Vertical: comun
 Actor: empleado, responsable, asistente
 Pantalla: asistente
@@ -98,7 +98,7 @@ Pendiente de enlazar: verifactu — declarar la sustitutiva con el tique al que 
 QA: L-02, BD-09 (discrepa)
 
 ### INVOICE-F06 Una venta cobrada que no se ha podido facturar
-Estado: parcial — el único aviso es genérico («Eventos caídos», sin decir que es una venta sin factura ni cuál) y Facturación no enseña nada; tras los reintentos espera a que alguien lo reenvíe a mano
+Estado: parcial — el único aviso es genérico («Eventos caídos», sin decir que es una venta sin factura ni cuál) y Facturación no enseña nada; tras los reintentos espera a que alguien lo reenvíe a mano; una devolución que llega antes que la factura se pierde y la factura nace después sin rectificar
 Vertical: comun
 Actor: sistema, administrador
 Pantalla: Hub: Sistema, pestaña «Eventos caídos»
@@ -109,7 +109,7 @@ Pasos:
 4. Quien arregla la causa (por ejemplo, la regla de impuestos) lo reenvía desde la pestaña «Eventos caídos» de Sistema, uno a uno o con «Reenviar todos», y la factura se emite.
 Entra: el aviso de la venta cobrada que no se pudo facturar.
 Sale: nada mientras falle. Al reenviarse con éxito, lo de INVOICE-F01 o INVOICE-F02, fechado el día en que por fin se emite, no el del cobro.
-Si falla: descartar el evento caído deja la venta sin factura para siempre; el hub pide confirmarlo. Mientras no hay factura, el tique de Ventas sale sin número de factura.
+Si falla: descartar el evento caído deja la venta sin factura para siempre; el hub pide confirmarlo. Mientras no hay factura, el tique de Ventas sale sin número de factura. Si la venta se devuelve mientras su factura no existe, la devolución no rectifica nada, termina sin error y no se reintenta (INVOICE-F09): al reenviar después el cobro, la factura nace «Emitida» sin rectificativa y hay que rectificarla a mano (INVOICE-F08).
 Implicados: pendiente
 Pendiente de enlazar: hub — la pestaña «Eventos caídos» de Sistema y la campana de Notificaciones
 Pendiente de enlazar: sales — el tique que espera el número de su factura y sale sin él si no llega

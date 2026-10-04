@@ -87,7 +87,7 @@ Un rechazo de una acción de fila sale encima de la tabla.
 
 ### Ficha de factura
 Se abre desde una fila de **Facturas**. Arriba, «Factura {número}» con la etiqueta de estado y los
-botones «Imprimir / PDF» y «← Volver». Si es una factura completa sin NIF del cliente, el aviso
+botones «Imprimir / PDF» y «← Volver». Si es una factura completa sin NIF del cliente, incluida toda rectificativa de un tique (sale R1 sin NIF), el aviso
 «Esta factura no tiene el NIF del cliente: la impresora de tiques no puede sacarla como factura
 completa.». Si VeriFactu tiene registro de ella, la tarjeta «Justificante VeriFactu» con su estado
 («Aceptada por la AEAT», «Pendiente de envío», «Rechazada por la AEAT», «Error de envío»), el «CSV
@@ -171,14 +171,14 @@ rompe a los dos si se toca:
 | Factura simplificada al cobrar, una por venta | hecho | F01 |
 | Factura completa al cobrar con NIF, nombre y domicilio del cliente | hecho (los pide Ventas) | F02 |
 | Cliente extranjero declarado por país y tipo de documento | hecho desde la venta y la API; no en el alta manual | F02, F03 |
-| Techo de la simplificada (3.000 € en hostelería) | hecho en Ventas y en VeriFactu; el alta manual no lo mira | F01, F03 |
+| Techo de la simplificada (3.000 € en hostelería) | parcial: Ventas lo pide al cobrar; aquí no se mira y VeriFactu la rechaza ya encadenada | F01, F03 |
 | Factura hecha a mano | parcial: sin categoría fiscal ni cliente extranjero en el formulario | F03 |
 | Sustitutiva F3 pedida por el cliente desde el tique | hecho | F04 |
 | Sustitutiva F3 desde el mostrador | parcial: solo asistente o API | F05 |
-| Venta cobrada sin factura: no se pierde y se avisa | parcial: el aviso es genérico | F06 |
+| Venta cobrada sin factura: no se pierde y se avisa | parcial: el aviso es genérico, y una devolución que llega antes de la factura se pierde | F06, F09 |
 | Anular una venta cobrada corrige su documento fiscal | no hecho | F07 |
 | Rectificativa entera a mano, con motivo y enlazada | parcial | F08 |
-| Rectificativa al devolver la venta entera | hecho; parcial si la venta ya tenía F3 | F09 |
+| Rectificativa al devolver la venta entera | hecho; parcial si la venta ya tenía F3 o se devuelve antes de tener factura | F09 |
 | Rectificativa por diferencias en la devolución parcial | parcial | F10 |
 | Elegir el tipo de rectificativa (R1–R5) y su causa | no hecho: siempre R1 (VeriFactu la baja a R5 sin NIF) | F08 |
 | Serie de rectificativas separada | hecho | F11 |
@@ -192,7 +192,7 @@ rompe a los dos si se toca:
 | Buscar, filtrar y ver facturas | hecho; orden por defecto sin sentido | F16, F17 |
 | Justificante VeriFactu (estado, CSV, QR) en la ficha | hecho | F17 |
 | Reimprimir con la marca «duplicado» | no hecho | F18 |
-| PDF del documento | parcial: por el diálogo del navegador, no en el tique ni en la app | F18 |
+| PDF del documento | parcial: solo por el diálogo del navegador; no para el tique ni dentro de la app | F18 |
 | Marcar cobrada | parcial: se ofrece también en documentos ya cobrados | F19 |
 | Forma de pago en la factura | fuera: no se guarda (ver «Lo que NO hace») | — |
 | Envío de la factura por correo | fuera del MVP | — |
@@ -218,7 +218,7 @@ rompe a los dos si se toca:
   - líneas: la descripción (texto libre en el alta manual);
   - en facturas, series y libro de números: qué empleado creó y cambió cada fila;
   - copias fuera de Facturación: el aviso de factura emitida lleva solo el id, el tipo y el total; el
-    aviso de rectificativa repite lo que recibió el comando: el motivo y, si viene de una devolución,
+    aviso de rectificativa repite lo que recibió el comando más quién lo ejecutó y la identidad del negocio: el motivo, el usuario que rectificó y, si viene de una devolución,
     también quién la hizo y las formas de pago devueltas.
   - Facturación no reacciona al borrado de un cliente: la ley obliga a conservar la factura con sus
     datos (L-10, L-14).
@@ -232,7 +232,8 @@ rompe a los dos si se toca:
 - **Una factura por venta, una sustitutiva por tique, una rectificativa por devolución**: lo impone
   la base de datos; el aviso repetido no gasta número ni crea otro documento.
 - **El número se asigna en la misma operación que guarda el documento**, con el contador de la serie
-  y el año; si algo falla no se guarda nada y el número no se gasta. Dos documentos de la misma serie
+  y el año; si algo falla no se guarda nada y el número no se gasta (en las rectificativas queda el
+  caso sin confirmar de la duda 12). Dos documentos de la misma serie
   no pueden llevar el mismo número, y cada número entregado queda apuntado en el libro.
 - **Código, año y contador de una serie no se cambian**, y su formato se congela con el primer número.
 - **Nada se emite sin cuadrar**: la cuota de cada tipo cruza con su base al céntimo, el total es base
@@ -246,7 +247,9 @@ rompe a los dos si se toca:
   original, y la original solo se cancela cuando queda a cero.
 - **Permisos**: ver facturas, todos; emitir a mano y marcar pagada, empleado, responsable y
   administrador; rectificar y llevar las series (también ver su pantalla), responsable y administrador. El servidor lo aplica aunque la
-  pantalla enseñe el botón.
+  pantalla enseñe el botón: un empleado que pide rectificar o tocar una serie por otro camino (el
+  asistente) solo lo consigue con la aprobación (PIN) de un responsable; una consulta sin permiso se
+  rechaza sin más.
 
 ## Lo que NO hace, a propósito
 
@@ -258,7 +261,8 @@ rompe a los dos si se toca:
 - No hace presupuestos, proformas ni albaranes, aunque exista el estado «Borrador»: nada lo crea.
 - No lleva vencimientos, cobros parciales ni recordatorios de impago.
 - No exporta el libro registro de facturas expedidas para la gestoría (fuera del MVP).
-- No vigila el techo de la factura simplificada: lo piden Ventas al cobrar y VeriFactu al registrar.
+- No vigila el techo de la factura simplificada: lo pide Ventas al cobrar; si llega una por encima,
+  VeriFactu la encadena y su validador la rechaza antes de enviarla.
 - No borra ni anonimiza los datos de un cliente en sus facturas.
 
 ## Dudas abiertas
@@ -283,6 +287,11 @@ Se resuelven con `market-decision`; no las decide el worker.
 10. El rótulo «Devolución» de Facturación rectifica sin devolver dinero. ¿«Rectificar», y la
     devolución solo desde Ventas? (INVOICE-F08)
 11. ¿Necesita la venta que no se pudo facturar un aviso propio que diga qué venta es? (INVOICE-F06)
+12. Deducido del código, sin test: dos rectificaciones simultáneas de la misma factura (dos puestos
+    pulsando «Devolución» a la vez) podrían subir las dos el contador de la serie RECT, porque la
+    comprobación del contador mira una foto anterior a la otra rectificativa, y la segunda no llega a
+    emitirse: un número gastado sin documento ni fila en el libro. Hace falta un test con dos
+    transacciones antes de decidir si se cierra con un bloqueo o un índice. (INVOICE-F08, INVOICE-F11)
 
 ## Fuentes contrastadas
 

@@ -39,18 +39,18 @@ Pendiente de enlazar: verifactu — dar el registro de una factura: estado ante 
 QA: L-04, qa-hub §7, qa-hub-restaurant §11 (discrepa)
 
 ### INVOICE-F18 Imprimir o guardar en PDF una factura
-Estado: parcial — la reimpresión no lleva la marca «duplicado»; no hay descarga de PDF propia, solo el diálogo de impresión del navegador para una factura completa cuando no hay impresora de tiques; un tique simplificado sin impresora se queda en la cola y no tiene PDF; en la app instalada, una factura completa sin impresora no sale
+Estado: parcial — la reimpresión no lleva la marca «duplicado»; no hay descarga de PDF propia, solo el diálogo de impresión del navegador para una factura completa abierta en el navegador; un tique simplificado sin impresora se queda en la cola y no tiene PDF; en la app instalada, el diálogo A4 del sistema no se usa (el módulo no manda el documento en HTML); la rectificativa de un tique no sale por la impresora de tiques
 Vertical: comun
 Actor: empleado, responsable, administrador
 Pantalla: Ficha de factura
 Pasos:
 1. En la ficha, pulsa «Imprimir / PDF».
 2. Con una impresora de tiques (rol de recibos), sale por ella: el tique como tique, y la factura completa como factura en el rollo, con el NIF del cliente, el IVA por tipo, el QR con «QR tributario:» y «VERI*FACTU» y, en una rectificativa completa, su título y la nota de lo que rectifica.
-3. Sin impresora: una factura completa abre el diálogo de impresión del navegador con la factura en A4, en el idioma de la pantalla, desde donde se puede guardar como PDF; un tique simplificado se deja en la cola de impresión del hub.
-4. Si salió el papel o se abrió el diálogo, no aparece ningún aviso. Cada pulsación es una copia nueva.
+3. Sin impresora de tiques: abierto en el navegador (sin impresoras registradas en el puesto), una factura completa abre el diálogo de impresión del navegador con la factura en A4, en el idioma de la pantalla, desde donde se puede guardar como PDF; si el puesto tiene impresoras registradas pero ninguna con rol de recibos, queda en la cola de impresión del hub. Un tique simplificado va siempre a la cola.
+4. Si salió por la impresora, se abrió el diálogo o quedó en una cola que alguien vacía, no aparece ningún aviso: en la cola, el papel sale cuando su impresora lo recoge. Cada pulsación es una copia nueva.
 Entra: la factura, sus líneas y el QR de VeriFactu.
 Sale: el trabajo de impresión; la factura no cambia y no se crea ningún registro.
-Si falla: en cola sin impresora dada de alta: «La factura {número} está en cola, pero no hay ninguna impresora dada de alta en este puesto: saldrá en cuanto se dé de alta una.». Cualquier otro fallo: «No se pudo imprimir la factura» con el motivo. Una factura completa sin NIF del cliente no sale por la impresora de tiques, y la ficha lo avisa antes de pulsar.
+Si falla: en cola sin impresora dada de alta: «La factura {número} está en cola, pero no hay ninguna impresora dada de alta en este puesto: saldrá en cuanto se dé de alta una.». Cualquier otro fallo: «No se pudo imprimir la factura» con el motivo. Una factura completa o una rectificativa sin NIF del cliente (también la de un tique devuelto, que sale R1) no sale por la impresora de tiques, y la ficha lo avisa antes de pulsar. En la app instalada que no puede consultar sus impresoras, una factura completa falla con «No se pudo imprimir la factura» (sin confirmar cuándo ocurre).
 Implicados: pendiente
 Pendiente de enlazar: printing — imprimir por la impresora con rol de recibos o dejar el trabajo en la cola de impresión del hub
 QA: L-05 (discrepa), R-11, qa-hub-restaurant §11 (discrepa)

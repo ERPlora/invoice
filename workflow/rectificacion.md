@@ -16,14 +16,14 @@ Pasos:
 4. La ventana dice «Rectificativa emitida. {número} queda cancelada.». Al pulsar «Cerrar», la original sale «Cancelada» y la lista tiene una «Rectificativa» nueva fechada hoy, con los importes y las líneas de la original en negativo y la nota «Rectifica la factura {número}. Motivo: {motivo}».
 Entra: la factura elegida y el motivo. La fecha y el año los pone el servidor: el día del negocio.
 Sale: la rectificativa R1 numerada en la serie «RECT» del año, con el emisor y el cliente de la original, su desglose de impuestos congelado en negativo y sus líneas en negativo; la original pasa a «Cancelada» (avisa: invoice.rectified). VeriFactu la registra como rectificativa (como R5 si no hay NIF del cliente). No mueve dinero ni caja.
-Si falla: el rechazo sale dentro de la ventana, traducido. Pedida con otra fecha u otro año (API o asistente): «Una factura rectificativa lleva la fecha del día en que se emite…» y no se emite nada. Sobre una rectificativa o una cancelada, la ventana solo dice por qué («Una rectificativa no se puede rectificar.», «La factura ya está cancelada.»). Un empleado no tiene la acción. Si la factura ya tenía una rectificativa por diferencias (INVOICE-F10), no se emite nada, no se gasta número, pero la ventana dice que sí.
+Si falla: el rechazo sale dentro de la ventana, traducido. Pedida con otra fecha u otro año (API o asistente): «Una factura rectificativa lleva la fecha del día en que se emite…» y no se emite nada. Sobre una rectificativa o una cancelada, la ventana solo dice por qué («Una rectificativa no se puede rectificar.», «La factura ya está cancelada.»). En pantalla, un empleado no tiene la acción; si la pide por otro camino (el asistente), el hub pide la aprobación con PIN de un responsable. La rectificativa de un tique sale R1 sin NIF del cliente: la ficha avisa de que falta el NIF y la impresora de tiques no la saca. Si la factura ya tenía una rectificativa por diferencias (INVOICE-F10), no se emite nada, no se gasta número, pero la ventana dice que sí.
 Implicados: pendiente
 Pendiente de enlazar: verifactu — registrar la rectificativa con la factura que rectifica, y bajarla a R5 sin NIF del cliente
 Pendiente de enlazar: REC_FISCAL — corregir un documento ya declarado a la AEAT
 QA: R-11, B-08, L-03, qa-hub-restaurant §13
 
 ### INVOICE-F09 La rectificativa al devolver una venta entera
-Estado: parcial — si el tique de la venta ya se sustituyó por una F3, rectifica el tique y no la F3
+Estado: parcial — si el tique de la venta ya se sustituyó por una F3, rectifica el tique y no la F3; si la venta se devuelve antes de que exista su factura (cobro en reintentos o en «Eventos caídos»), no rectifica nada ni lo reintenta, y la factura nace después «Emitida»; la rectificativa de un tique no sale por la impresora de tiques
 Vertical: comun
 Actor: sistema
 Pantalla: ninguna
@@ -33,7 +33,7 @@ Pasos:
 3. La factura original pasa a «Cancelada»; la rectificativa aparece en **Facturas** con «Origen» «Rectificación» y «Rectifica a» la original.
 Entra: la devolución de Ventas (sale.refunded): la venta, la referencia del documento de devolución, el importe devuelto, si cierra la venta y el motivo. La factura original se busca por la venta, nunca por lo que diga el aviso.
 Sale: la R1 y la original cancelada (avisa: invoice.rectified); VeriFactu la registra con la factura que rectifica.
-Si falla: el mismo aviso repetido no emite otra rectificativa ni gasta número: una por documento de devolución. Si la venta no tiene factura (por ejemplo, Facturación se instaló después del cobro) o ya está rectificada entera, no se emite nada. Un error se reintenta y, si persiste, acaba en «Eventos caídos», como en INVOICE-F06.
+Si falla: el mismo aviso repetido no emite otra rectificativa ni gasta número: una por documento de devolución. Si la venta no tiene factura (Facturación se instaló después del cobro, o el cobro sigue en reintentos o en «Eventos caídos») o ya está rectificada entera, no se emite nada, la devolución termina sin error y no se vuelve a intentar: si la factura nace después, queda «Emitida» y hay que rectificarla a mano (INVOICE-F06, INVOICE-F08). La rectificativa de un tique es una R1 sin NIF del cliente: la ficha avisa de que falta el NIF y la impresora de tiques no la saca. Un error se reintenta y, si persiste, acaba en «Eventos caídos», como en INVOICE-F06.
 Implicados: pendiente
 Pendiente de enlazar: sales — devolver una venta cobrada y avisar de la devolución
 Pendiente de enlazar: verifactu — registrar la rectificativa con la factura que rectifica
@@ -41,7 +41,7 @@ Pendiente de enlazar: REC_FISCAL — corregir un documento ya declarado a la AEA
 QA: R-11, B-08, L-03
 
 ### INVOICE-F10 La rectificativa por diferencias al devolver parte de una venta
-Estado: parcial — la única línea de la rectificativa dice «Refund {id}», en inglés y con el identificador interno de la devolución, y así sale en el papel del cliente; si el tique ya se sustituyó por una F3, rectifica el tique
+Estado: parcial — la única línea de la rectificativa dice «Refund {id}», en inglés y con el identificador interno de la devolución, y así sale en el papel del cliente; si el tique ya se sustituyó por una F3, rectifica el tique; la rectificativa de un tique no sale por la impresora de tiques
 Vertical: comun
 Actor: sistema
 Pantalla: ninguna
@@ -52,7 +52,7 @@ Pasos:
 4. Se comprueba sumando: con la venta devuelta entera, la original y sus rectificativas suman cero al céntimo, tipo a tipo.
 Entra: la devolución de Ventas (sale.refunded), como en INVOICE-F09.
 Sale: una R1 por documento de devolución (avisa: invoice.rectified); la original se cancela solo cuando queda a cero. VeriFactu registra cada una.
-Si falla: la misma devolución dos veces es un solo documento, y nunca se rectifica más de lo que queda de la original. Una devolución de importe cero que no cierra la venta no emite nada. Mientras la original tenga una rectificativa por diferencias, «Devolución» en Facturación no emite nada aunque diga que sí (INVOICE-F08).
+Si falla: la misma devolución dos veces es un solo documento, y nunca se rectifica más de lo que queda de la original. Una devolución de importe cero que no cierra la venta no emite nada. La rectificativa de un tique es una R1 sin NIF del cliente: la impresora de tiques no la saca. Mientras la original tenga una rectificativa por diferencias, «Devolución» en Facturación no emite nada aunque diga que sí (INVOICE-F08).
 Implicados: pendiente
 Pendiente de enlazar: sales — devolver parte de una venta cobrada y avisar de la devolución
 Pendiente de enlazar: verifactu — registrar la rectificativa por diferencias con la factura que rectifica
