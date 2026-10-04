@@ -32,7 +32,7 @@
     "cancel": "Cancelar",
     "loading": "Cargando…",
     "empty": "Aún no hay facturas.",
-    "searchPlaceholder": "Buscar número, cliente o NIF…",
+    "searchPlaceholder": "Buscar facturas…",
     "colNumber": "Número",
     "colType": "Tipo",
     "colDate": "Fecha",

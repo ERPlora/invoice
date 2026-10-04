@@ -15,15 +15,18 @@ translate, so the box stops promising it instead.
 What is checked, with both halves visible at once (the component's `vitest` stubs the query and
 would "search" anything):
 
-  1. every field `invoice.list` searches is a column the table SHOWS, or one the box NAMES and
-     the list deliberately keeps off the grid (`NAMED_HIDDEN`: the customer's tax ID, which
-     people type from a letter or a phone call) — a hit on any other hidden value is a row that
-     matches for no visible reason;
+  1. every field `invoice.list` searches is a column the table SHOWS, or one the list
+     deliberately keeps off the grid (`NAMED_HIDDEN`: the customer's tax ID, which people type
+     from a letter or a phone call, and which the invoice detail shows) — a hit on any other
+     hidden value is a row that matches for no visible reason;
   2. the number, the customer and the customer's tax ID are searched — it is what people type;
   3. no header of a shown-but-NOT-searched column appears in the placeholder, in `en` nor in `es`
      — that is the exact lie of invoice#117 («estado»);
-  4. every searched field is named in the placeholder, in `en` AND in `es`: by its column header,
-     or by the word in `SENTENCE_WORD` (the tax ID has no column header);
+  4. a placeholder that lists fields lists every searched one, in `en` AND in `es`: by its column
+     header, or by the word in `SENTENCE_WORD` (the tax ID has no column header). A generic hint
+     that names no field («Search invoices…», like Square and Shopify) is fine: on a phone the
+     list of three fields does not fit the box and Ionic clips it mid-word (invoice#112, whose
+     `invoice_list_fits_a_phone.contract.test.py` keeps the hint short);
   5. the status stays pickable in its column filter, offering EVERY status the table stores (the
      `draft|issued|paid|cancelled` domain of `001_init.sql`), each with a label in `en` and in
      `es` — that is where the box sends the person looking for «Pagada»;
@@ -58,7 +61,9 @@ NAMED_HIDDEN = {"customer_tax_id"}
 SENTENCE_WORD = {("en", "customer_tax_id"): "tax ID", ("es", "customer_tax_id"): "NIF"}
 MUST_SEARCH = ("number", "customer_name", "customer_tax_id")
 #: `status TEXT … -- draft|issued|paid|cancelled`: the only place the status domain is declared.
-STATUS_DOMAIN_RE = re.compile(r"^\s*status\s+TEXT\b[^\n]*--\s*([a-z_]+(?:\|[a-z_]+)+)", re.MULTILINE)
+STATUS_DOMAIN_RE = re.compile(
+    r"^\s*status\s+TEXT\b[^\n]*--\s*([a-z_]+(?:\|[a-z_]+)+)", re.MULTILINE
+)
 
 failures: list[str] = []
 
@@ -82,7 +87,10 @@ def names(text: str, word: str) -> bool:
 
 def enumerated_columns(columns_block: str) -> set[str]:
     """Columns whose filter is a `select` over codes: their cell is a translated label."""
-    starts = [(m.start(), m.group(1)) for m in re.finditer(r"key:\s*'([a-z_]+)'", columns_block)]
+    starts = [
+        (m.start(), m.group(1))
+        for m in re.finditer(r"key:\s*'([a-z_]+)'", columns_block)
+    ]
     out = set()
     for i, (pos, key) in enumerate(starts):
         end = starts[i + 1][0] if i + 1 < len(starts) else len(columns_block)
@@ -178,15 +186,20 @@ def main() -> int:
                     f"[{lang}] the box says «{promise}» — it names «{header}» (`{col}`), which "
                     f"`{QUERY}` does not search (invoice#117)"
                 )
+        words = {}
         for col in searched:
             word = SENTENCE_WORD.get((lang, col))
             if word is None and col in shown:
                 word = lookup(cat, shown[col])
-            if word is None or not names(promise, word):
-                failures.append(
-                    f"[{lang}] the box says «{promise}» but does not name «{word}» (`{col}`), "
-                    f"which it does search"
-                )
+            words[col] = word
+        named = [col for col, word in words.items() if word and names(promise, word)]
+        if named:
+            for col, word in words.items():
+                if col not in named:
+                    failures.append(
+                        f"[{lang}] the box says «{promise}» but does not name «{word}» (`{col}`), "
+                        f"which it does search: a list of fields names them all"
+                    )
         for key in status_keys:
             try:
                 label = lookup(cat, key)

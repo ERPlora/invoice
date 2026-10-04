@@ -31,7 +31,7 @@
     "cancel": "Cancel",
     "loading": "Loading…",
     "empty": "No invoices yet.",
-    "searchPlaceholder": "Search number, customer or tax ID…",
+    "searchPlaceholder": "Search invoices…",
     "colNumber": "Number",
     "colType": "Type",
     "colDate": "Date",
