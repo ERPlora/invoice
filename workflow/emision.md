@@ -95,7 +95,7 @@ Pasos:
 Entra: el aviso de la venta cobrada que no se pudo facturar.
 Sale: nada mientras falle. Al reenviarse con éxito, lo de INVOICE-F01 o INVOICE-F02, fechado el día en que por fin se emite, no el del cobro.
 Si falla: descartar el evento caído deja la venta sin factura para siempre; el hub pide confirmarlo. Mientras no hay factura, el tique de Ventas sale sin número de factura. Si la venta se devuelve mientras su factura no existe, la devolución no rectifica nada, termina sin error y no se reintenta (INVOICE-F09): al reenviar después el cobro, la factura nace «Emitida» sin rectificativa y hay que rectificarla a mano (INVOICE-F08).
-Implicados: SALES-F01, SALES-F29, TAXES-F09, REC_FISCAL-F09, HUB-F52, HUB_SHELL-F62, HUB_SHELL-F145, HUB_SHELL-F146, HUB_SHELL-F147, HUB_SHELL-F148
+Implicados: SALES-F01, SALES-F29, TAXES-F09, REC_FISCAL-F09, HUB-F52, HUB_SHELL-F62, HUB_SHELL-F145, HUB_SHELL-F146, HUB_SHELL-F147, HUB_SHELL-F148, HUB-F55, HUB-F57, HUB-F59
 QA: BD-09, qa-hub-restaurant §11
 
 ### INVOICE-F07 Anular una venta cobrada que ya tiene su tique
