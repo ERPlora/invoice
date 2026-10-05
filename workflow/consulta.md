@@ -49,7 +49,7 @@ Pasos:
 Entra: la factura, sus líneas y el QR de VeriFactu.
 Sale: el trabajo de impresión; la factura no cambia y no se crea ningún registro.
 Si falla: en cola sin impresora dada de alta: «La factura {número} está en cola, pero no hay ninguna impresora dada de alta en este puesto: saldrá en cuanto se dé de alta una.». Cualquier otro fallo: «No se pudo imprimir la factura» con el motivo. Una factura completa o una rectificativa sin NIF del cliente (también la de un tique devuelto, que sale R1) no sale por la impresora de tiques, y la ficha lo avisa antes de pulsar. En la app instalada que no puede consultar sus impresoras, una factura completa falla con «No se pudo imprimir la factura» (sin confirmar cuándo ocurre).
-Implicados: PRINTING-F08
+Implicados: PRINTING-F08, REC_FISCAL-F07
 QA: L-05 (discrepa), R-11, qa-hub-restaurant §11 (discrepa)
 
 ### INVOICE-F19 Marcar una factura como pagada
@@ -79,5 +79,5 @@ Pasos:
 Entra: el identificador de la venta.
 Sale: los datos de la factura; solo se lee.
 Si falla: si la factura aún no existe (se emite un instante después del cobro, o falló: INVOICE-F06), no contesta nada y quien pregunta sigue sin ella.
-Implicados: CASH_REGISTER-F11, PRINTING-F07, SALES-F29, REC_FISCAL-F07
+Implicados: CASH_REGISTER-F11, INVENTORY-F16, PRINTING-F07, SALES-F29, REC_FISCAL-F07
 QA: R-09
