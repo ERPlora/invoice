@@ -17,7 +17,7 @@ Pasos:
 Entra: la venta cobrada de Ventas (sale.completed): sus líneas con base y cuota ya calculadas, si los precios llevaban el IVA dentro, el tipo de documento y la copia de los datos del cliente; las reglas de impuestos de Impuestos; la identidad fiscal, el país y la zona horaria del hub.
 Sale: la factura F2 con su número, sus líneas, el desglose por tipo de impuesto y su número apuntado en el libro (avisa: invoice.created); VeriFactu crea su registro y Ventas pone el número en su tique.
 Si falla: el mismo aviso repetido no crea otra factura ni gasta número. Si el hub no puede leer las reglas de impuestos o la venta, o los importes no cuadran (cuota que no corresponde a su tipo, cuota en una línea exenta, total negativo), no se escribe nada y el hub lo reintenta (INVOICE-F06). El tipo y la calificación de cada línea con categoría se vuelven a resolver contra las reglas vigentes el día de emisión, no el del cobro: si el tipo cambió entre el cobro y una emisión que llega más tarde (un reintento, un reenvío desde «Eventos caídos»), la cuota cobrada ya no cuadra y se rechaza por descuadre (TAXES-F07). Si la venta ya no existe, no se emite. El techo de la simplificada no se mira aquí: una de más de 3.000 € (3.010 € con la tolerancia de la AEAT) se emite y VeriFactu la encadena; su validador la rechaza antes de enviarla, con el número de la cadena ya gastado.
-Implicados: SALES-F01, SALES-F04, TAXES-F04, TAXES-F05, TAXES-F06, TAXES-F07, TAXES-F11, TAXES-F18, TAXES-F19, VERIFACTU-F13, REC_FISCAL-F02, REC_FISCAL-F04
+Implicados: SALES-F01, SALES-F04, TAXES-F04, TAXES-F05, TAXES-F06, TAXES-F07, TAXES-F11, TAXES-F18, TAXES-F19, VERIFACTU-F13, REC_FISCAL-F02, REC_FISCAL-F04, HUB-F18, HUB_SHELL-F164
 QA: R-09, B-06, BD-09, L-01, L-04
 
 ### INVOICE-F02 La factura completa al cobrar a un cliente con NIF
@@ -48,7 +48,7 @@ Pasos:
 Entra: lo que escribe la persona; la identidad fiscal del hub como emisor (el formulario no tiene campos de emisor); las reglas de Impuestos. VeriFactu usa esta misma puerta para su «Crear factura de prueba» (VERIFACTU-F11): un tique F2 de una línea de 1,00 € al 21 % en la serie TICKET, que en la ficha sale con «Origen» «Otro» y la nota «Prueba VeriFactu». Es una factura real de Facturación: gasta un número de la serie TICKET del año, y Facturación no distingue lo emitido en pruebas de lo emitido en producción.
 Sale: la factura (F1 en la serie FACT, F2 en TICKET) con el IVA calculado encima del precio y cerrado una vez por tipo, y su número en el libro (avisa: invoice.created); VeriFactu la registra.
 Si falla: el motivo sale dentro del panel, encima de «Emitir factura»: «Línea {line}: el precio no es un importe…», el precio que «se puede leer de dos maneras», «Línea {line}: un precio no puede ser negativo…», «Una factura completa (F1) necesita el NIF del cliente…», una línea que sale a 0,00, o importes que no cuadran. No se emite nada ni se gasta número, y lo escrito se conserva. El techo de la simplificada no se mira: una de más de 3.000 € (3.010 € con la tolerancia de la AEAT) se emite y VeriFactu la encadena; su validador la rechaza antes de enviarla, con el número de la cadena ya gastado.
-Implicados: TAXES-F19, VERIFACTU-F11, VERIFACTU-F13, REC_FISCAL-F14
+Implicados: TAXES-F19, VERIFACTU-F11, VERIFACTU-F13, REC_FISCAL-F14, HUB_SHELL-F164
 QA: BD-09
 
 ### INVOICE-F04 El cliente pide la factura completa de su tique
@@ -64,8 +64,7 @@ Pasos:
 Entra: el tique (F2) y sus líneas, que Ventas deja sellados en el localizador; los datos fiscales que escribe el cliente.
 Sale: la F3 (avisa: invoice.created); VeriFactu la declara indicando el tique al que sustituye. El localizador sirve una sola vez.
 Si falla: sin NIF o sin nombre se rechaza; un envío rechazado (por ejemplo, un NIF mal escrito) no gasta el localizador y se puede volver a intentar. Pasado el plazo (45 días si Ventas no fija otro), la página dice que el plazo terminó, manda preguntar en el mostrador y no emite nada. Las líneas se vuelven a calificar con las reglas del día en que se pide: si el tipo de una categoría cambió desde el tique, la F3 se rechaza por descuadre (TAXES-F07) y la página enseña la frase técnica en inglés, con los importes en céntimos. Un fallo del propio hub, que no tiene que ver con lo que escribió el cliente, sale como «No se han podido aceptar los datos. Revisa el NIF y vuelve a intentarlo.». Cuando la F3 sale bien, la página no enseña su referencia. Si después se anula la venta en Ventas, la F3 sigue viva (INVOICE-F07). Un segundo intento sobre el mismo tique no emite otra F3 ni gasta número: hay una sustitutiva por tique. Si Facturación no está instalada o el tique no tiene líneas, el tique sale sin ese QR.
-Implicados: SALES-F29, TAXES-F07, VERIFACTU-F13, REC_FISCAL-F10, REC_FISCAL-F13
-Pendiente de enlazar: hub — la página pública donde el cliente escribe sus datos y canjea el localizador
+Implicados: SALES-F29, TAXES-F07, VERIFACTU-F13, REC_FISCAL-F10, REC_FISCAL-F13, HUB-F16, HUB-F17
 QA: L-02, BD-09
 
 ### INVOICE-F05 Pasar un tique a factura completa desde el mostrador
@@ -96,8 +95,7 @@ Pasos:
 Entra: el aviso de la venta cobrada que no se pudo facturar.
 Sale: nada mientras falle. Al reenviarse con éxito, lo de INVOICE-F01 o INVOICE-F02, fechado el día en que por fin se emite, no el del cobro.
 Si falla: descartar el evento caído deja la venta sin factura para siempre; el hub pide confirmarlo. Mientras no hay factura, el tique de Ventas sale sin número de factura. Si la venta se devuelve mientras su factura no existe, la devolución no rectifica nada, termina sin error y no se reintenta (INVOICE-F09): al reenviar después el cobro, la factura nace «Emitida» sin rectificativa y hay que rectificarla a mano (INVOICE-F08).
-Implicados: SALES-F01, SALES-F29, TAXES-F09, REC_FISCAL-F09
-Pendiente de enlazar: hub — la pestaña «Eventos caídos» de Sistema y la campana de Notificaciones
+Implicados: SALES-F01, SALES-F29, TAXES-F09, REC_FISCAL-F09, HUB-F52, HUB_SHELL-F62, HUB_SHELL-F145, HUB_SHELL-F146, HUB_SHELL-F147, HUB_SHELL-F148
 QA: BD-09, qa-hub-restaurant §11
 
 ### INVOICE-F07 Anular una venta cobrada que ya tiene su tique
