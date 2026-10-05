@@ -65,8 +65,7 @@ Pasos:
 Entra: las series del año del negocio.
 Sale: el estado de la tarea en Inicio.
 Si falla: si se da por hecha con una serie de otro código, las ventas y las rectificativas siguen numerando en TICKET, FACT y RECT con su prefijo de fábrica.
-Implicados: pendiente
-Pendiente de enlazar: hub — la tarea «Tu numeración de facturas» de la lista de Inicio
+Implicados: HUB-F35, HUB_SHELL-F31
 QA: BD-02
 
 ### INVOICE-F15 Comprobar que la numeración no tiene huecos
