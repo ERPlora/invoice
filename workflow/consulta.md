@@ -79,5 +79,5 @@ Pasos:
 Entra: el identificador de la venta.
 Sale: los datos de la factura; solo se lee.
 Si falla: si la factura aún no existe (se emite un instante después del cobro, o falló: INVOICE-F06), no contesta nada y quien pregunta sigue sin ella.
-Implicados: CASH_REGISTER-F11, PRINTING-F07, SALES-F29, REC_FISCAL-F07
+Implicados: CASH_REGISTER-F11, INVENTORY-F16, PRINTING-F07, SALES-F29, REC_FISCAL-F07
 QA: R-09
